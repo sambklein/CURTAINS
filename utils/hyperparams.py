@@ -43,18 +43,23 @@ class rejection_sampler(Distribution):
         self.sampler = dist
         self.bound = bound
 
-    def sample_with_rejection(self, num):
-        sample = self.sampler.sample(num + 1000)
-        sample = sample[torch.all((-self.bound < sample) & (sample < self.bound), 1)]
-        sample = sample[:num]
+    def sample_with_rejection(self, num, context=None):
+        # TODO: need to fix this with context
+        # sample = self.sampler.sample(num + 1000, context=context)
+        # if context:
+        #     sample = sample[torch.all((-self.bound < sample) & (sample < self.bound), -1)]
+        # else:
+        #     sample = sample[torch.all((-self.bound < sample) & (sample < self.bound), -1)]
+        #     sample = sample[:num]
+        sample = self.sampler.sample(num, context=context)
         return sample
 
     def _sample(self, num, context):
         if self.bound:
             # TODO: this should be a while loop or something, for now it isn't important
-            sample = self.sample_with_rejection(num)
+            sample = self.sample_with_rejection(num, context)
         else:
-            sample = self.sampler.sample(num)
+            sample = self.sampler.sample(num, context)
         return sample
 
     def _log_prob(self, inputs, context):

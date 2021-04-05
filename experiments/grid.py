@@ -14,74 +14,18 @@ def add_opt(key, val):
     opts_dict[key] = val
 
 
-# add_opt('dataset',
-#         ['gaussian', 'crescent', 'crescent_cubed', 'sine_wave', 'abs', 'sign', 'four_circles', 'diamond', 'two_spirals',
-#          'checkerboard', 'eightgauss', 'corners'])
-# add_opt('dataset',
-#         ['checkerboard', 'abs', 'sine_wave', 'four_circles'])
-# add_opt('dataset',
-#         ['checkerboard'])
-#
-# Run different combinations of the standard and implicit models across datasets
-# add_opt('ae_type', ['standard', 'implicit'])
-# add_opt('ae_type', ['standard'])
-# add_opt('stochastic', [0])
-# add_opt('inner_stochastic', [0])
-# add_opt('activation', ['tanh']) # TODO: How should you use tanh activation with stochasctic networks?
-# add_opt('inner_activ', ['relu'])
-# add_opt('base_dist', ['normal'])
-# add_opt('batch_size', [1000])
-# add_opt('lr', [0.001])
-# add_opt('wd', [0.01])
-# add_opt('recon_beta', [1])
-# add_opt('beta_sparse', [0])
-# # add_opt('noise_beta', [1, 10])
-# # add_opt('primary_noise_beta', [1])
-# # add_opt('recon_loss', ['bce'])
-# # add_opt('vae', [0])
-# # add_opt('primary_inner_recon_beta', [1])
-# # add_opt('primary_recondist_beta', [0])
-# # add_opt('recon_beta', [1])
-# add_opt('epochs', [200])
-# add_opt('latent_dim', [2, 4, 20])
-# add_opt('z_dim', [20])
-
-# # AE INN settings
-# add_opt('stochastic', [0])
-# add_opt('activation', ['none'])
-# add_opt('base_dist', ['normal'])
-# add_opt('batch_size', [1000])
-# add_opt('latent_dim', [2])
-# add_opt('lr', [0.001])
-# add_opt('wd', [0.01])
-# add_opt('epochs', [1000])
-# add_opt('recon_beta', [0])
-
 # INN settings
 add_opt('base_dist', ['normal'])
 add_opt('batch_size', [1000])
 add_opt('activ', ['leaky_relu'])
 add_opt('lr', [0.0005])
-# add_opt('lr', [0.001])
-add_opt('epochs', [4000])
+add_opt('epochs', [1])
 add_opt('nstack', [20])
 # TODO: use dropout.
 add_opt('nbins', [20, 50])
 add_opt('nblocks', [2])
 add_opt('nodes', [128])
 add_opt('gclip', [5])
-add_opt('get_kl', [0])
-add_opt('nrun', [2])
-add_opt('n_test', [20])
-add_opt('ncalc', [100000])
-
-add_opt('dataset', ['hypercheckerboard'])
-# add_opt('dataset', ['hypersparsecheckerboard'])
-# add_opt('dataset', ['checkerboard'])
-add_opt('get_ood', [1])
-# add_opt('latent_dim', list(range(2, 22, 2)))
-add_opt('latent_dim', [6])
-add_opt('ndata', [int(1e5)])
 
 
 def _get_args():
@@ -101,7 +45,7 @@ def _get_args():
     #                     help='File containing validation data. If not provided, training data will be split.',
     #                     )
     parser.add_argument('--squeue', type=str, default='shared-gpu,private-dpnc-gpu')
-    parser.add_argument('--stime', type=str, default='00-4:00:00')
+    parser.add_argument('--stime', type=str, default='00-00:30:00')
     parser.add_argument('--smem', type=str, default='10GB')
     parser.add_argument('--work-dir', type=str, default='/home/users/k/kleins/atlas/BIB/implicitBIBae')
     parser.add_argument('--submit', action='store_true',
@@ -111,10 +55,10 @@ def _get_args():
                         default='/srv/beegfs/scratch/groups/dpnc/atlas/BIB/implicitBIBae/container/pytorch.sif')
     parser.add_argument('--singularity-mounts', type=str,
                         default=None)
-    # parser.add_argument('--singularity-mounts', type=str,
-    #                     default='/home/users/k/kleins/scratch:/mnt/scratch,/home/users/k/kleins/atlas:/mnt/atlas, /home/users/k/kleins/scratch:/mnt/scratch')
+    parser.add_argument('--singularity-mounts', type=str,
+                        default='/srv/beegfs/scratch/groups/dpnc/atlas/AnomalousJets:/srv/beegfs/scratch/groups/dpnc/atlas/AnomalousJets')
     parser.add_argument('--experiment', type=str,
-                        default='implicit_plane.py')
+                        default='NSF.py')
     parser.set_defaults(submit=False)
     return parser.parse_args()
 

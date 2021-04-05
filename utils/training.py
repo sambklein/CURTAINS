@@ -53,8 +53,8 @@ class Timer:
 
     def report(self):
         self.mean_time = np.mean(self.times)
-        if self.text:
-            print(self.text.format(self.mean_time))
+        # if self.text:
+        #     print(self.text.format(self.mean_time))
 
 
 def get_vars(optim):

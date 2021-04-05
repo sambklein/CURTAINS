@@ -360,3 +360,41 @@ def get_ood(model, nsamples, nrun, bound, nbins, data_generator=None, get_target
         return percent_ood, percent_oob, counts, counts_true
     else:
         return percent_ood, percent_oob, counts
+
+def hist_features(originals, sample, model, data_dim, axs):
+    for i in range(data_dim):
+        bins = get_bins(originals[:, i])
+        axs[i].hist(model.get_numpy(originals[:, i]), label='original', alpha=0.5, density=True, bins=bins)
+        # Plot samples drawn from the model
+        axs[i].hist(model.get_numpy(sample[:, i]), label='samples', alpha=0.5, density=True, bins=bins)
+        axs[i].set_title('Feature {}'.format(i))
+        axs[i].legend()
+
+def post_process_nsf(model, datasets, sup_title='NSF'):
+
+    sv_dir = get_top_dir() + '/images' + '/' + model.dir
+    if not os.path.exists(sv_dir):
+        os.makedirs(sv_dir)
+    nm = model.exp_name
+    nfeatures = datasets.nfeatures
+
+    def hist_dataset(dataset, sv_name):
+        context_valid = dataset.data[:, -1].view(-1, 1)
+        data_valid = dataset.data[:, :-1]
+
+        with torch.no_grad():
+            valid_samples = model.sample(1, context_valid).squeeze()
+
+        ncols = int(np.ceil(nfeatures/4))
+        fig, axs_ = plt.subplots(ncols, 4, figsize=(5 * 4 + 2, 5 * ncols + 2))
+        axs = fig.axes
+        hist_features(data_valid, valid_samples, model, nfeatures, axs)
+        fig.savefig(sv_dir + '/post_processing_{}_{}.png'.format(nm, sv_name))
+
+    hist_dataset(datasets.validationset, 'validation')
+    hist_dataset(datasets.signalset, 'signal')
+
+    # TODO: look at distributions across observables, and the average log prob in each of the bins
+
+
+    return 0

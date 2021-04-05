@@ -1,6 +1,6 @@
 import torch
 
-from data.physics_datasets import HepmassDataset, JetsDataset
+from data.physics_datasets import HepmassDataset, JetsDataset, WrappingCurtains, Curtains
 from data.plane import GaussianDataset
 from data.plane import CrescentDataset
 from data.plane import CrescentCubedDataset
@@ -121,13 +121,13 @@ def load_jets(sm='QCD', split=0.1, normalize=True, dtype='float32'):
     dir = '/srv/beegfs/scratch/groups/rodem/AnomalyDetection/HEP/jets/'
 
     with h5py.File(dir + "{}dijet100k.h5".format(sm), 'r') as readfile:
-    # with h5py.File(dir + "output.h5", 'r') as readfile:
+        # with h5py.File(dir + "output.h5", 'r') as readfile:
         lo_obs = np.array(readfile["objects/jets/lo_obs"][:], dtype=dtype)
         nlo_obs = np.array(readfile["objects/jets/nlo_obs"][:], dtype=dtype)
         lo_const = np.array(readfile["objects/jets/lo_constituents"][:], dtype=dtype)
         nlo_const = np.array(readfile["objects/jets/nlo_constituents"][:], dtype=dtype)
 
-    if split==0:
+    if split == 0:
         return JetsDataset(lo_obs, nlo_obs, lo_const, nlo_const)
     nevents = lo_obs.shape[0]
     nsample = int(split * nevents)
@@ -143,6 +143,45 @@ def load_jets(sm='QCD', split=0.1, normalize=True, dtype='float32'):
         print(testset.data.max())
 
     return trainset, testset
+
+
+def load_curtains():
+    nfeatures = 5
+
+    df = pd.read_hdf('/srv/beegfs/scratch/groups/dpnc/atlas/AnomalousJets/final_jj_1MEvents_substructure.h5')
+    data = np.zeros((df.shape[0], nfeatures))
+
+    # TODO: this is really just a useful utility
+    def rm_nan_features(array):
+        mx = ~np.any(np.isnan(data), 1)
+        return array[mx]
+
+    # The last data feature is always the context, this could/should be handled by the class
+    data[:, 0] = df['tau3s'] / df['taus']
+    data[:, 1] = df['tau3s'] / df['tau2s']
+    data[:, 2] = df['Qws']
+    data[:, 3] = df['d34s']
+    data[:, 4] = df['m']
+
+    data = rm_nan_features(data)
+
+    return Curtains(data)
+
+
+def get_data(dataset, bins):
+    if dataset=='curtains':
+        data = load_curtains()
+    else:
+        raise NotImplementedError('The loader of this dataset has not been implemented yet.')
+
+    # Split the data into different datasets based on the binning
+    context_feature = data[:, -1]
+    # data = data[:, :-1]
+    validation_data = data[(context_feature < bins[0]) | (context_feature > bins[-1])]
+    signal_data = data[(context_feature < bins[2]) & (context_feature > bins[1])]
+    training_data = data[((context_feature < bins[1]) & (context_feature > bins[0])) | (
+                (context_feature < bins[-1]) & (context_feature > bins[1]))]
+    return WrappingCurtains(training_data, signal_data, validation_data)
 
 
 # A class for generating data for plane datasets.

@@ -1,11 +1,8 @@
 import torch.nn as nn
 import torch
-from .base_autoencoder import base_ae
 
 
 # TODO: sort out the inheritance so you don't have the following code duplication, who knows how far this will go in the future
-# The probelm with now is you don't know how to pass dummy args to the base class cleanly, it would also be wrong semanticaly
-
 
 class flow_builder(nn.Module):
     def __init__(self, flow, base_dist, device, exp_name, dir='INN_test'):
@@ -40,6 +37,7 @@ class flow_builder(nn.Module):
     def sample(self, num):
         return self.flow.sample(num)
 
+    # TODO: should be a utility
     def get_numpy(self, x):
         if torch.is_tensor(x):
             x = x.detach()
@@ -52,8 +50,19 @@ class flow_builder(nn.Module):
         return self.flow.log_prob(data)
 
     def compute_loss(self, data, batch_size):
-        self.mle = -self.flow.log_prob(data).mean()
+        self.mle = -self.log_prob(data).mean()
         return self.mle
 
     def get_loss_state(self, nsf=10):
         return {'mle': self.mle.item()}
+
+
+class contextual_flow(flow_builder):
+    def __init__(self, flow, base_dist, device, exp_name, dir='INN_test'):
+        super(contextual_flow, self).__init__(flow, base_dist, device, exp_name, dir=dir)
+
+    def log_prob(self, data):
+        return self.flow.log_prob(data[:, :-1], context=data[:, -1].view(-1, 1))
+
+    def sample(self, num, context):
+        return self.flow.sample(num, context=context)
