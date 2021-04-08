@@ -372,7 +372,7 @@ def hist_features(originals, sample, model, data_dim, axs):
         axs[i].legend()
 
 
-def post_process_nsf(model, datasets, sup_title='NSF'):
+def post_process_anode(model, datasets, sup_title='NSF'):
     sv_dir = get_top_dir() + '/images' + '/' + model.dir
     if not os.path.exists(sv_dir):
         os.makedirs(sv_dir)

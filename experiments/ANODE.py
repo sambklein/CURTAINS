@@ -19,7 +19,7 @@ from models.flow_models import contextual_flow
 from models.nn.flows import spline_flow
 
 from utils import hyperparams
-from utils.post_process import post_process_nsf
+from utils.post_process import post_process_anode
 from utils.io import get_top_dir
 
 from data.data_loaders import get_data
@@ -127,9 +127,8 @@ else:
     reduce_lr_inn = None
 
 # Fit the model
-# TODO: should also normalize the data etc before training.
 fit(flow_model, optimizer, datasets.trainset, n_epochs, bsize, writer, schedulers=scheduler,
     schedulers_epoch_end=reduce_lr_inn, gclip=args.gclip)
 
 # Generate test data and preprocess etc
-post_process_nsf(flow_model, datasets, sup_title='NSF')
+post_process_anode(flow_model, datasets, sup_title='NSF')

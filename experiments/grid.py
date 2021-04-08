@@ -56,7 +56,7 @@ def _get_args():
     parser.add_argument('--singularity-mounts', type=str,
                         default='/srv/beegfs/scratch/groups/dpnc/atlas/AnomalousJets:/srv/beegfs/scratch/groups/dpnc/atlas/AnomalousJets')
     parser.add_argument('--experiment', type=str,
-                        default='NSF.py')
+                        default='ANODE.py')
     parser.set_defaults(submit=False)
     return parser.parse_args()
 
