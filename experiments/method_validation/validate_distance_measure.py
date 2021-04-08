@@ -1,6 +1,10 @@
 # Check to see if samples from within are quantile are nor further away from each other than samples in any other quantile
 
 import numpy as np
+import matplotlib.pyplot as plt
+import torch
+from utils.io import get_top_dir
+
 from utils.hyperparams import get_measure
 
 from data.data_loaders import load_curtains_pd, get_features
@@ -14,21 +18,29 @@ def get_quantile(df, quantile):
     return features[np.array(mx, dtype='bool')]
 
 
-def random_choice(data, nsamples):
-    # Get indicies to draw random samples from data
-    indices = np.random.permutaion(len(data))
-    return data[indices[:nsamples]]
-
-
-def get_average_distance(data1, data2, sample_size, ncheck, measure):
-    # TODO: remove this for loop
+def get_average_distance(data1, sample_size, ncheck, measure, data2=None):
     dist = np.zeros(ncheck)
+    # The measure expects tensor inputs
+    data1 = torch.tensor(data1)
     for i in range(ncheck):
-        s1 = random_choice(data1, sample_size)
-        s2 = random_choice(data2, sample_size)
+        # Get indicies to draw random samples from data
+        indices = np.random.permutaion(len(data1))
+        # Get sample one
+        s1 = data1[indices[:sample_size]]
+        # If data2 is passed then we are comparing between different quantiles
+        if data2:
+            indices = np.random.permutaion(len(data2))
+            data2 = torch.tensor(data2)
+        # If data2 is not passed then we are comparing within a quantile, and we do not want to have overlapping sets
+        else:
+            indices = indices[sample_size:]
+            data2 = data1
+        # Get sample two
+        s2 = data2[indices[:sample_size]]
+        # Calculate the distance between sample one and sample two
         dist[i] = measure(s1, s2)
 
-    return np.mean(dist)
+    return torch.mean(dist).item(), torch.std(dist).item()
 
 
 def main():
@@ -45,16 +57,103 @@ def main():
     # Get the average distance within a given quantile
     nquantiles = 10
     av_dist_in = np.zeros(nquantiles)
+    var_dist_in = np.zeros(nquantiles)
     for i in range(nquantiles):
         q = get_quantile(data, i)
-        av_dist_in[i] = get_average_distance(q, q, sample_size, ncheck, measure)
+        av_dist_in[i], var_dist_in[i] = get_average_distance(q, sample_size, ncheck, measure)
 
     # Get the average distance between adjacent quantiles
     av_dist_inter = np.zeros(nquantiles - 1)
+    var_dist_inter = np.zeros(nquantiles)
     for i in range(nquantiles - 1):
         q = get_quantile(data, i)
         q1 = get_quantile(data, i + 1)
-        av_dist_inter[i] = get_average_distance(q, q1, sample_size, ncheck, measure)
+        av_dist_inter[i], var_dist_inter[i] = get_average_distance(q, sample_size, ncheck, measure, q1)
+
+    sv_dir = get_to# Check to see if samples from within are quantile are nor further away from each other than samples in any other quantile
+
+import numpy as np
+import torch
+from utils.io import get_top_dir
+
+from utils.hyperparams import get_measure
+
+from data.data_loaders import load_curtains_pd, get_features
+
+
+# TODO: all of the methods here should be a part of the data class
+def get_quantile(df, quantile):
+    # Returns a numpy array of the training features, plus the context feature on the end
+    features = get_features(df)
+    mx = df['mass_q{}'.format(quantile)]
+    return features[np.array(mx, dtype='bool')]
+
+
+def get_average_distance(data1, sample_size, ncheck, measure, data2=None):
+    dist = np.zeros(ncheck)
+    # The measure expects tensor inputs
+    data1 = torch.tensor(data1)
+    for i in range(ncheck):
+        # Get indicies to draw random samples from data
+        indices = np.random.permutaion(len(data1))
+        # Get sample one
+        s1 = data1[indices[:sample_size]]
+        # If data2 is passed then we are comparing between different quantiles
+        if data2:
+            indices = np.random.permutaion(len(data2))
+            data2 = torch.tensor(data2)
+        # If data2 is not passed then we are comparing within a quantile, and we do not want to have overlapping sets
+        else:
+            indices = indices[sample_size:]
+            data2 = data1
+        # Get sample two
+        s2 = data2[indices[:sample_size]]
+        # Calculate the distance between sample one and sample two
+        dist[i] = measure(s1, s2)
+
+    return torch.mean(dist).item(), torch.std(dist).item()
+
+
+def main():
+    # Returns a pandas array with all the data, NaNs dropped
+    data = load_curtains_pd()
+    # Returns a measure that can be called on two sets of samples to calculate the named distance
+    distance = 'sinkhorn'
+    measure = get_measure(distance)
+
+    # The size of the batches to check distances between
+    sample_size = 100
+    # The number of times to calculate the distances between samples of size sample_size
+    ncheck = 100
+
+    # Get the average distance within a given quantile
+    nquantiles = 10
+    av_dist_in = np.zeros(nquantiles)
+    var_dist_in = np.zeros(nquantiles)
+    for i in range(nquantiles):
+        q = get_quantile(data, i)
+        av_dist_in[i], var_dist_in[i] = get_average_distance(q, sample_size, ncheck, measure)
+
+    # Get the average distance between adjacent quantiles
+    av_dist_inter = np.zeros(nquantiles - 1)
+    var_dist_inter = np.zeros(nquantiles)
+    for i in range(nquantiles - 1):
+        q = get_quantile(data, i)
+        q1 = get_quantile(data, i + 1)
+        av_dist_inter[i], var_dist_inter[i] = get_average_distance(q, sample_size, ncheck, measure, q1)
+
+    sv_dir = get_top_dir() + '/images/'
+    ax = plt.subplot(111)
+    x = list(range(nquantiles))
+    ax.errorbar(x[:-1], av_dist_inter, yerr = var_dist_inter, label='inter')
+    ax.errorbar(x, av_dist_in, yerr=var_dist_in, label='within')
+    ax.xlabel('Quantile')
+    ax.ylabel('Distance')
+    ax.legend()
+    plt.title(distance)
+    plt.xticks(x)
+    plt.tight_layout()
+    plt.savefig(sv_dir + 'dist_measure_validation.png')
 
 
 if __name__ == '__main__':
