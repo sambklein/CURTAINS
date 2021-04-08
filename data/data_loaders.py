@@ -145,30 +145,32 @@ def load_jets(sm='QCD', split=0.1, normalize=True, dtype='float32'):
     return trainset, testset
 
 
-def load_curtains():
-    nfeatures = 5
-
+def load_curtains_pd():
     df = pd.read_hdf('/srv/beegfs/scratch/groups/dpnc/atlas/AnomalousJets/final_jj_1MEvents_substructure.h5')
+    return df.dropna()
+
+
+def get_features(df):
+    nfeatures = 5
     data = np.zeros((df.shape[0], nfeatures + 1))
-
-    # TODO: this is really just a useful utility
-    def rm_nan_features(array):
-        mx = ~np.any(np.isnan(data), 1)
-        return array[mx]
-
-    # The last data feature is always the context, this could/should be handled by the class
+    # The last data feature is always the context, TODO: this could/should be handled by the data class?
     data[:, 0] = df['tau3s'] / df['taus']
     data[:, 1] = df['tau3s'] / df['tau2s']
     data[:, 2] = df['Qws']
     data[:, 3] = df['d34s']
     data[:, 5] = df['m']
+    return data
 
-    data = rm_nan_features(data)
+
+def load_curtains():
+    df = load_curtains_pd
+
+    data = get_features(df)
 
     return Curtains(data)
 
 
-def get_data(dataset, bins, normalize=True):
+def get_data(dataset, bins=None, normalize=True):
     if dataset == 'curtains':
         data = load_curtains()
     else:
@@ -177,14 +179,17 @@ def get_data(dataset, bins, normalize=True):
     if normalize:
         data.normalize()
 
-    # Split the data into different datasets based on the binning
-    context_feature = data[:, -1]
-    # data = data[:, :-1]
-    validation_data = data[(context_feature < bins[0]) | (context_feature > bins[-1])]
-    signal_data = data[(context_feature < bins[2]) & (context_feature > bins[1])]
-    training_data = data[((context_feature < bins[1]) & (context_feature > bins[0])) | (
-            (context_feature < bins[-1]) & (context_feature > bins[1]))]
-    return WrappingCurtains(training_data, signal_data, validation_data, bins)
+    if bins:
+        # Split the data into different datasets based on the binning
+        context_feature = data[:, -1]
+        # data = data[:, :-1]
+        validation_data = data[(context_feature < bins[0]) | (context_feature > bins[-1])]
+        signal_data = data[(context_feature < bins[2]) & (context_feature > bins[1])]
+        training_data = data[((context_feature < bins[1]) & (context_feature > bins[0])) | (
+                (context_feature < bins[-1]) & (context_feature > bins[1]))]
+        return WrappingCurtains(training_data, signal_data, validation_data, bins)
+    else:
+        return data
 
 
 # A class for generating data for plane datasets.
