@@ -28,7 +28,7 @@ def get_average_distance(data1, data2, sample_size, ncheck, measure):
         s2 = random_choice(data2, sample_size)
         dist[i] = measure(s1, s2)
 
-    return dist
+    return np.mean(dist)
 
 
 def main():
