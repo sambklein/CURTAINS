@@ -149,7 +149,7 @@ def load_curtains():
     nfeatures = 5
 
     df = pd.read_hdf('/srv/beegfs/scratch/groups/dpnc/atlas/AnomalousJets/final_jj_1MEvents_substructure.h5')
-    data = np.zeros((df.shape[0], nfeatures))
+    data = np.zeros((df.shape[0], nfeatures + 1))
 
     # TODO: this is really just a useful utility
     def rm_nan_features(array):
@@ -161,18 +161,21 @@ def load_curtains():
     data[:, 1] = df['tau3s'] / df['tau2s']
     data[:, 2] = df['Qws']
     data[:, 3] = df['d34s']
-    data[:, 4] = df['m']
+    data[:, 5] = df['m']
 
     data = rm_nan_features(data)
 
     return Curtains(data)
 
 
-def get_data(dataset, bins):
-    if dataset=='curtains':
+def get_data(dataset, bins, normalize=True):
+    if dataset == 'curtains':
         data = load_curtains()
     else:
         raise NotImplementedError('The loader of this dataset has not been implemented yet.')
+
+    if normalize:
+        data.normalize()
 
     # Split the data into different datasets based on the binning
     context_feature = data[:, -1]
@@ -180,8 +183,8 @@ def get_data(dataset, bins):
     validation_data = data[(context_feature < bins[0]) | (context_feature > bins[-1])]
     signal_data = data[(context_feature < bins[2]) & (context_feature > bins[1])]
     training_data = data[((context_feature < bins[1]) & (context_feature > bins[0])) | (
-                (context_feature < bins[-1]) & (context_feature > bins[1]))]
-    return WrappingCurtains(training_data, signal_data, validation_data)
+            (context_feature < bins[-1]) & (context_feature > bins[1]))]
+    return WrappingCurtains(training_data, signal_data, validation_data, bins)
 
 
 # A class for generating data for plane datasets.

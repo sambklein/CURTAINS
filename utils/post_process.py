@@ -361,6 +361,7 @@ def get_ood(model, nsamples, nrun, bound, nbins, data_generator=None, get_target
     else:
         return percent_ood, percent_oob, counts
 
+
 def hist_features(originals, sample, model, data_dim, axs):
     for i in range(data_dim):
         bins = get_bins(originals[:, i])
@@ -370,8 +371,8 @@ def hist_features(originals, sample, model, data_dim, axs):
         axs[i].set_title('Feature {}'.format(i))
         axs[i].legend()
 
-def post_process_nsf(model, datasets, sup_title='NSF'):
 
+def post_process_nsf(model, datasets, sup_title='NSF'):
     sv_dir = get_top_dir() + '/images' + '/' + model.dir
     if not os.path.exists(sv_dir):
         os.makedirs(sv_dir)
@@ -379,13 +380,13 @@ def post_process_nsf(model, datasets, sup_title='NSF'):
     nfeatures = datasets.nfeatures
 
     def hist_dataset(dataset, sv_name):
-        context_valid = dataset.data[:, -1].view(-1, 1)
+        context_valid = dataset.data[:, -1].view(-1, 1).to(model.device)
         data_valid = dataset.data[:, :-1]
 
         with torch.no_grad():
             valid_samples = model.sample(1, context_valid).squeeze()
 
-        ncols = int(np.ceil(nfeatures/4))
+        ncols = int(np.ceil(nfeatures / 4))
         fig, axs_ = plt.subplots(ncols, 4, figsize=(5 * 4 + 2, 5 * ncols + 2))
         axs = fig.axes
         hist_features(data_valid, valid_samples, model, nfeatures, axs)
@@ -396,5 +397,33 @@ def post_process_nsf(model, datasets, sup_title='NSF'):
 
     # TODO: look at distributions across observables, and the average log prob in each of the bins
 
+    def get_outlier_sample(dataset, mult_sampl=1, threshold=0.95):
+        context = dataset.data[:, -1].view(-1, 1).to(model.device)
+
+        with torch.no_grad():
+            samples = model.sample(mult_sampl, context).squeeze()
+            # TODO if mult_sample > 1 this doesn't work
+            lp = model.flow.log_prob(samples, context=context)
+            cut = torch.quantile(lp, 1 - threshold)
+            outliers = samples[:, -1][lp < cut]
+
+        return outliers
+
+    # TODO: plot this for multiple different cuts instead of one fixed one.
+    valid_outlier_context = get_outlier_sample(datasets.validationset)
+    sample_outlier_context = get_outlier_sample(datasets.signalset)
+    print('There are {}% samples in the validation set, and {}% outliers in the signal region'.format(
+        len(valid_outlier_context) / len(datasets.validationset) * 100,
+        len(sample_outlier_context) / len(datasets.signalset) * 100))
+
+    samples = torch.cat((valid_outlier_context, sample_outlier_context))
+
+    fig, ax = plt.subplots(1, 1, figsize=(5 + 2, 5 + 2))
+    ax.hist(model.get_numpy(samples))
+    # Label the sideband region
+    bands = [elem * 4 for elem in datasets.bins]
+    ax.set_xticks(np.append(ax.get_xticks(), bands))
+    ax.get_xticklabels(ax.get_xticklabels() + ['sb'] * len(bands))
+    fig.savefig(sv_dir + '/post_processing_{}_{}.png'.format(nm, 'outliers'))
 
     return 0

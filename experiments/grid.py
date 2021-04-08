@@ -18,13 +18,13 @@ def add_opt(key, val):
 add_opt('base_dist', ['normal'])
 add_opt('batch_size', [1000])
 add_opt('activ', ['leaky_relu'])
-add_opt('lr', [0.0005])
-add_opt('epochs', [1])
-add_opt('nstack', [20])
-# TODO: use dropout.
-add_opt('nbins', [20, 50])
-add_opt('nblocks', [2])
-add_opt('nodes', [128])
+add_opt('lr', [0.0001])
+add_opt('epochs', [50])
+# add_opt('nstack', [3])
+# # TODO: use dropout.
+# add_opt('nbins', [10])
+# add_opt('nblocks', [2])
+# add_opt('nodes', [128])
 add_opt('gclip', [5])
 
 
@@ -47,14 +47,12 @@ def _get_args():
     parser.add_argument('--squeue', type=str, default='shared-gpu,private-dpnc-gpu')
     parser.add_argument('--stime', type=str, default='00-00:30:00')
     parser.add_argument('--smem', type=str, default='10GB')
-    parser.add_argument('--work-dir', type=str, default='/home/users/k/kleins/atlas/BIB/implicitBIBae')
+    parser.add_argument('--work-dir', type=str, default='/home/users/k/kleins/MLproject/CURTAINS')
     parser.add_argument('--submit', action='store_true',
                         dest='submit')
-    parser.add_argument('--sbatch-output', type=str, default='gridsearch_submit.txt')
+    parser.add_argument('--sbatch-output', type=str, default='submit.txt')
     parser.add_argument('--singularity-instance', type=str,
-                        default='/srv/beegfs/scratch/groups/dpnc/atlas/BIB/implicitBIBae/container/pytorch.sif')
-    parser.add_argument('--singularity-mounts', type=str,
-                        default=None)
+                        default='/home/users/k/kleins/MLproject/CURTAINS/container/torch.sif')
     parser.add_argument('--singularity-mounts', type=str,
                         default='/srv/beegfs/scratch/groups/dpnc/atlas/AnomalousJets:/srv/beegfs/scratch/groups/dpnc/atlas/AnomalousJets')
     parser.add_argument('--experiment', type=str,
@@ -86,7 +84,7 @@ def main():
 #SBATCH --cpus-per-task=1
 #SBATCH --time={1}
 #SBATCH --partition={2}
-#SBATCH --output=/srv/beegfs/scratch/groups/dpnc/atlas/BIB/implicitBIBae/jobs/slurm-%A-%x_%a.out
+#SBATCH --output=/home/users/k/kleins/MLproject/CURTAINS/jobs/slurm-%A-%x_%a.out
 #SBATCH --chdir={3}
 #SBATCH --mem={4}
 #SBATCH --gres=gpu:1

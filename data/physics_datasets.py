@@ -25,12 +25,15 @@ class HepmassDataset(Dataset):
     def __getitem__(self, item):
         return self.data[item]
 
-class BasePhysics(Dataset):
-    # TODO: for the time being this is just the leading and subleading jet four momenta
 
-    def __init__(self, data):
+class BasePhysics(Dataset):
+    # TODO: need to sort out scaling and normalizing
+
+    def __init__(self, data, scale=None):
         self.data = data
         self.num_points = data.shape[0]
+        self.scale = scale
+        self.set_scale(scale)
 
     def set_scale(self, scale):
         if scale == None:
@@ -71,8 +74,8 @@ class BasePhysics(Dataset):
 
 
 class Curtains(BasePhysics):
-    def __init__(self, data):
-        super(Curtains, self).__init__(data)
+    def __init__(self, data, dtype=torch.float32):
+        super(Curtains, self).__init__(torch.tensor(data).type(dtype))
 
 
 class WrappingCurtains():
@@ -80,22 +83,34 @@ class WrappingCurtains():
     This is just for wrapping three curtains datasets into one for ease of use, handling them all, and scaling etc
     """
 
-    def __init__(self, trainset, signalset, validationset, scale=None):
+    def __init__(self, trainset, signalset, validationset, bins, scale=None):
         self.scale = scale
         self.trainset = trainset
         self.signalset = signalset
         self.validationset = validationset
         self.scale_data()
+        self.bins = bins
 
         self.ndata = self.trainset.shape[0]
         # The last feature of the dataset is the context
         self.nfeatures = self.trainset.shape[1] - 1
 
+    # TODO: Careful with the scaling/unscaling and normalize/unnormalize
     def scale_data(self):
         if self.scale:
             self.trainset.data *= self.scale
             self.signalset.data *= self.scale
             self.validationset.data *= self.scale
+
+    def normalize(self):
+        self.trainset.normalize()
+        self.signalset.normalize()
+        self.validationset.normalize()
+
+    def unnormalize(self):
+        self.trainset.unnormalize()
+        self.signalset.unnormalize()
+        self.validationset.unnormalize()
 
 
 # TODO use the base class definition here as well

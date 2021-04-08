@@ -33,15 +33,15 @@ parser.add_argument('--dataset', type=str, default='curtains', help='The dataset
 parser.add_argument('--resonant_feature', type=str, default='mass', help='The resonant feature to use for binning.')
 
 ## Binning parameters
-parser.add_argument("--bins", nargs="*", type=float, default=[0, 1, 2, 3])
+parser.add_argument("--bins", nargs="*", type=float, default=[-0.71, -0.7, -0.4, -0.35])
 
 ## Names for saving
 parser.add_argument('-n', type=str, default='NSF_CURTAINS', help='The name with which to tag saved outputs.')
 parser.add_argument('-d', type=str, default='NSF_CURT', help='Directory to save contents into.')
 
 ## Hyper parameters
-parser.add_argument('--batch_size', type=int, default=100, help='Size of batch for training.')
-parser.add_argument('--epochs', type=int, default=2,
+parser.add_argument('--batch_size', type=int, default=1000, help='Size of batch for training.')
+parser.add_argument('--epochs', type=int, default=50,
                     help='The number of epochs to train for.')
 parser.add_argument('--base_dist', type=str, default='normal',
                     help='A string to index the corresponding nflows distribution.')
@@ -80,10 +80,12 @@ sv_dir = get_top_dir()
 log_dir = sv_dir + '/logs/' + exp_name
 writer = SummaryWriter(log_dir=log_dir)
 
-# Make dataset
+# Make datasets
 datasets = get_data(args.dataset, args.bins)
 ndata = datasets.ndata
 inp_dim = datasets.nfeatures
+print('There are {} training examples, {} validation examples and {} signal examples.'.format(
+    datasets.trainset.data.shape[0], datasets.validationset.data.shape[0], datasets.signalset.data.shape[0]))
 
 # Set all tensors to be created on gpu, this must be done after dataset creation
 if torch.cuda.is_available():
@@ -125,6 +127,7 @@ else:
     reduce_lr_inn = None
 
 # Fit the model
+# TODO: should also normalize the data etc before training.
 fit(flow_model, optimizer, datasets.trainset, n_epochs, bsize, writer, schedulers=scheduler,
     schedulers_epoch_end=reduce_lr_inn, gclip=args.gclip)
 
