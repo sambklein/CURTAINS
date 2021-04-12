@@ -1,77 +1,13 @@
 import torch
 
-from data.physics_datasets import HepmassDataset, JetsDataset, WrappingCurtains, Curtains
-from data.plane import GaussianDataset
-from data.plane import CrescentDataset
-from data.plane import CrescentCubedDataset
-from data.plane import SineWaveDataset
-from data.plane import AbsDataset
-from data.plane import SignDataset
-from data.plane import FourCircles
-from data.plane import DiamondDataset
-from data.plane import TwoSpiralsDataset
-from data.plane import CheckerboardDataset
-from data.plane import CornersDataset
-from data.plane import EightGaussiansDataset
-
-from data.hyper_plane import HyperCheckerboardDataset, SparseHyperCheckerboardDataset
+from .physics_datasets import HepmassDataset, JetsDataset, WrappingCurtains, Curtains
 
 import os
 import pandas as pd
 import numpy as np
 
 # Taken from https://github.com/bayesiains/nsf/blob/master/data/base.py
-from utils.io import get_top_dir
-
-
-def load_plane_dataset(name, num_points, flip_axes=False, scale=True, npad=0, dim=None):
-    """Loads and returns a plane dataset.
-    Args:
-        name: string, the name of the dataset.
-        num_points: int, the number of points the dataset should have,
-        flip_axes: bool, flip x and y axes if True.
-    Returns:
-        A Dataset object, the requested dataset.
-    Raises:
-         ValueError: If `name` an unknown dataset.
-    """
-
-    try:
-        if dim:
-            dataset = {
-                'hypercheckerboard': HyperCheckerboardDataset,
-                'hypersparsecheckerboard': SparseHyperCheckerboardDataset
-
-            }[name](num_points=num_points, dim=dim, flip_axes=flip_axes)
-        else:
-            dataset = {
-                'gaussian': GaussianDataset,
-                'crescent': CrescentDataset,
-                'crescent_cubed': CrescentCubedDataset,
-                'sine_wave': SineWaveDataset,
-                'abs': AbsDataset,
-                'sign': SignDataset,
-                'four_circles': FourCircles,
-                'diamond': DiamondDataset,
-                'two_spirals': TwoSpiralsDataset,
-                'checkerboard': CheckerboardDataset,
-                'corners': CornersDataset,
-                'eightgauss': EightGaussiansDataset,
-                'hypercheckerboard': HyperCheckerboardDataset
-
-            }[name](num_points=num_points, flip_axes=flip_axes)
-        if scale:
-            # Scale data to be between zero and one
-            # dataset.data = 2 * (dataset.data - dataset.data.min()) / (dataset.data.max() - dataset.data.min()) - 1
-            dataset.data = (dataset.data + 4) / 4 - 1
-        if npad > 0:
-            padder = torch.distributions.uniform.Uniform(torch.zeros(npad), torch.ones(npad), validate_args=None)
-            pads = padder.sample([num_points])
-            dataset.data = torch.cat((dataset.data, pads), 1)
-        return dataset
-
-    except KeyError:
-        raise ValueError('Unknown dataset: {}'.format(name))
+from utils.io import get_top_dir, on_cluster
 
 
 def load_hepmass(mass='1000', slim=False):
@@ -145,29 +81,25 @@ def load_jets(sm='QCD', split=0.1, normalize=True, dtype='float32'):
     return trainset, testset
 
 
+# TODO: make this a wrapper for loading/saving slim files for generic datasets.
 def load_curtains_pd():
-    df = pd.read_hdf('/srv/beegfs/scratch/groups/dpnc/atlas/AnomalousJets/final_jj_1MEvents_substructure.h5')
+    slim_file = get_top_dir() + '/data/final_jj_1MEvents_substructure_slim.h5'
+    # If you aren't on the cluster load a local slim version for testing
+    if on_cluster():
+        df = pd.read_hdf('/srv/beegfs/scratch/groups/dpnc/atlas/AnomalousJets/final_jj_1MEvents_substructure.h5')
+        # If you are on the cluster and the slim file doesn't exist, make it
+        if not os.path.isfile(slim_file):
+            df = df.take(list(range(5000)))
+            df.to_csv(slim_file, index=False)
+    else:
+        df = pd.read_hdf(slim_file)
     return df.dropna()
 
 
-def get_features(df):
-    nfeatures = 5
-    data = np.zeros((df.shape[0], nfeatures + 1))
-    # The last data feature is always the context, TODO: this could/should be handled by the data class?
-    data[:, 0] = df['tau3s'] / df['taus']
-    data[:, 1] = df['tau3s'] / df['tau2s']
-    data[:, 2] = df['Qws']
-    data[:, 3] = df['d34s']
-    data[:, 5] = df['m']
-    return data
-
-
 def load_curtains():
-    df = load_curtains_pd
+    df = load_curtains_pd()
 
-    data = get_features(df)
-
-    return Curtains(data)
+    return Curtains(df)
 
 
 def get_data(dataset, bins=None, normalize=True):

@@ -1,5 +1,6 @@
 from torch.utils.data import Dataset
 import torch
+import numpy as np
 
 
 class HepmassDataset(Dataset):
@@ -74,8 +75,23 @@ class BasePhysics(Dataset):
 
 
 class Curtains(BasePhysics):
-    def __init__(self, data, dtype=torch.float32):
+    def __init__(self, df, dtype=torch.float32):
+        # TODO: memory footprint of this?
+        self.df = df
+        data = self.get_features(df)
         super(Curtains, self).__init__(torch.tensor(data).type(dtype))
+
+    @staticmethod
+    def get_features(df):
+        nfeatures = 5
+        data = np.zeros((df.shape[0], nfeatures + 1))
+        # The last data feature is always the context, TODO: this could/should be handled by the data class?
+        data[:, 0] = df['tau3s'] / df['taus']
+        data[:, 1] = df['tau3s'] / df['tau2s']
+        data[:, 2] = df['Qws']
+        data[:, 3] = df['d34s']
+        data[:, 5] = df['m']
+        return data
 
 
 class WrappingCurtains():

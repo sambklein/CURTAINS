@@ -7,7 +7,7 @@ from sklearn.model_selection import KFold
 import matplotlib.pyplot as plt
 import os
 
-from utils.io import get_top_dir, on_cluster
+from .io import get_top_dir, on_cluster
 
 import time
 

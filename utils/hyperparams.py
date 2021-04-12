@@ -5,8 +5,7 @@ import nflows
 from geomloss import SamplesLoss
 from torch.nn import functional as F
 
-from data.data_loaders import load_plane_dataset, load_hepmass
-from data.hyper_plane import SparseHyperCheckerboardDataset, HyperCheckerboardDataset
+from data.data_loaders import load_hepmass
 from utils.io import on_cluster
 
 
@@ -132,15 +131,6 @@ def get_measure(name):
     return dist_measure
 
 
-class sampler():
-    def __init__(self, name):
-        self.name = name
-
-    def sample(self, ndata):
-        data_obj = load_plane_dataset(self.name, ndata[0])
-        return data_obj.data
-
-
 class hepmass_sudo_sampler():
     """
     This class is a wrapper for the HEPMASS dataset when training with generator semantics.
@@ -164,14 +154,5 @@ def get_dist(name, dim):
     try:
         dist = torch_dists(name, dim)
     except:
-        if name == 'checkerboard':
-            dist = HyperCheckerboardDataset(int(1e3), dim)
-        elif name == 'sparse_checkerboard':
-            dist = SparseHyperCheckerboardDataset(int(1e3), dim)
-        elif name == 'hepmass':
-            dist = hepmass_sudo_sampler()
-        else:
-            dist = sampler(name)
-            # TODO why is this here?
-            dist.sample([8])
+        dist = hepmass_sudo_sampler()
     return dist
