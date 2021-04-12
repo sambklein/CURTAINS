@@ -7,7 +7,7 @@ def on_cluster():
     """
     p = pathlib.Path().absolute()
     id = p.parts[:3][-1]
-    if id == 'beegfs':
+    if id == 'users':
         return True
     else:
         return False
