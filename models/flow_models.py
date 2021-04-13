@@ -72,18 +72,24 @@ class curtains_transformer(flow_builder):
     # TODO: instead of a base dist pass a pseudo sampler for the data dist?
     def __init__(self, flow, base_dist, device, exp_name, dist_measure, nfeatures, dir='INN_test'):
         self.dist_measure = dist_measure
-        self.nfeatures = nfeatures
+        self.take = nfeatures + 1
         super(curtains_transformer, self).__init__(flow, base_dist, device, exp_name, dir=dir)
 
-    def compute_loss(self, data, batch_size):
-        dl = data[:, :self.nfeatures]
-        dh = data[:, self.nfeatures:]
-        lm = dl[:, -1]
-        hm = dh[:, -1]
+    def transform_to_mass(self, features, lm, hm):
+        return self.flow.transform_to_noise(features, context=torch.cat((lm, hm), 1))
+
+    def transform_to_data(self, dl, dh):
+        lm = dl[:, -1].view(-1, 1)
+        hm = dh[:, -1].view(-1, 1)
         low_mass_features = dl[:, :-1]
+        return self.transform_to_mass(low_mass_features, lm, hm)
+
+    def compute_loss(self, data, batch_size):
+        dl = data[:, :self.take]
+        dh = data[:, self.take:]
+        transformed = self.transform_to_data(dl, dh)
         high_mass_features = dh[:, :-1]
-        transform = self.flow(low_mass_features, context=torch.cat((lm, hm)))
-        self.loss = torch.mean(self.dist_measure(transform, high_mass_features))
+        self.loss = torch.mean(self.dist_measure(transformed, high_mass_features))
         return self.loss
 
     def get_loss_state(self, nsf=10):

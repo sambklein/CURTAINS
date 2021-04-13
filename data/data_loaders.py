@@ -1,6 +1,6 @@
 import torch
 
-from .physics_datasets import HepmassDataset, JetsDataset, WrappingCurtains, Curtains
+from .physics_datasets import HepmassDataset, JetsDataset, WrappingCurtains, Curtains, CurtainsTrainSet
 
 import os
 import pandas as pd
@@ -83,7 +83,7 @@ def load_jets(sm='QCD', split=0.1, normalize=True, dtype='float32'):
 
 # TODO: make this a wrapper for loading/saving slim files for generic datasets.
 def load_curtains_pd():
-    slim_file = get_top_dir() + '/data/final_jj_1MEvents_substructure_slim.h5'
+    slim_file = get_top_dir() + '/data/slims/final_jj_1MEvents_substructure.h5'
     # If you aren't on the cluster load a local slim version for testing
     if on_cluster():
         df = pd.read_hdf('/srv/beegfs/scratch/groups/dpnc/atlas/AnomalousJets/final_jj_1MEvents_substructure.h5')
@@ -123,12 +123,9 @@ def get_data(dataset, bins=None, quantiles=None, normalize=True):
         # Split the data into different datasets based on the binning
         # TODO: need to make get_quantiles accept lists as well as ints to have more validation regions
         # TODO: quick hacky way around
-        validation_data = data[data.get_quantile_mask(bins[2])]
-        signal_data = data[data.get_quantile_mask(bins[1])]
-        training_data = data[np.concatenate((data.get_quantile_mask(bins[0]), data.get_quantile_mask(bins[0])), 1)]
-        nlm = data.get_quantile_mask(bins[0]).shape[0]
-        # TODO: this is super hacky and gross
-        training_data.data = torch.cat((data[:nlm], data[nlm:]), 1)
+        validation_data = data[data.get_quantile_mask(quantiles[3])]
+        signal_data = data[data.get_quantile_mask(quantiles[1])]
+        training_data = CurtainsTrainSet(data, quantiles[0], quantiles[1])
         return WrappingCurtains(training_data, signal_data, validation_data, bins)
     else:
         return data

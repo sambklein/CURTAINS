@@ -8,14 +8,15 @@ import torch.optim as optim
 from nflows import flows
 
 from tensorboardX import SummaryWriter
+from utils.hyperparams import get_measure
 
 from utils.training import fit
 
-from models.flow_models import contextual_flow
+from models.flow_models import curtains_transformer
 from models.nn.flows import spline_flow
 
 from utils import hyperparams
-from utils.post_process import post_process_anode
+from utils.post_process import post_process_curtains
 from utils.io import get_top_dir
 
 from data.data_loaders import get_data
@@ -32,7 +33,7 @@ parser.add_argument('--resonant_feature', type=str, default='mass', help='The re
 parser.add_argument("--quantiles", nargs="*", type=float, default=[0, 1, 2, 3])
 
 ## Names for saving
-parser.add_argument('-n', type=str, default='NSF_CURTAINS', help='The name with which to tag saved outputs.')
+parser.add_argument('-n', type=str, default='Transformer', help='The name with which to tag saved outputs.')
 parser.add_argument('-d', type=str, default='NSF_CURT', help='Directory to save contents into.')
 
 ## Hyper parameters
@@ -71,6 +72,10 @@ np.random.seed(args.seed)
 bsize = args.batch_size
 n_epochs = args.epochs
 exp_name = args.n
+# TODO: make a cl arg
+distance = 'sinkhorn'
+
+measure = get_measure(distance)
 
 sv_dir = get_top_dir()
 log_dir = sv_dir + '/logs/' + exp_name
@@ -103,14 +108,15 @@ if args.base_dist == 'normal':
     datasets.scale = tail_bound
     datasets.scale_data()
 
+# TODO: this is an autoregressive transform at present
 transformation = spline_flow(inp_dim, args.nodes, num_blocks=args.nblocks, nstack=args.nstack, tail_bound=tail_bound,
                              tails=tails, activation=hyperparams.activations[args.activ], num_bins=args.nbins,
-                             context_features=1)
+                             context_features=2)
 base_dist = hyperparams.nflows_dists(args.base_dist, inp_dim, shift=bdist_shift, bound=tail_bound)
 flow = flows.Flow(transformation, base_dist)
 
 # Build model
-flow_model = contextual_flow(flow, base_dist, device, exp_name, dir=args.d)
+flow_model = curtains_transformer(flow, base_dist, device, exp_name, measure, datasets.nfeatures, dir=args.d)
 
 # Define optimizers and learning rate schedulers
 optimizer = optim.Adam(flow.parameters(), lr=args.lr)
@@ -124,7 +130,7 @@ else:
 
 # Fit the model
 fit(flow_model, optimizer, datasets.trainset, n_epochs, bsize, writer, schedulers=scheduler,
-    schedulers_epoch_end=reduce_lr_inn, gclip=args.gclip)
+    schedulers_epoch_end=reduce_lr_inn, gclip=args.gclip, shuffle_epoch_end=True)
 
 # Generate test data and preprocess etc
-post_process_anode(flow_model, datasets, sup_title='NSF')
+post_process_curtains(flow_model, datasets, sup_title='NSF')

@@ -80,9 +80,9 @@ def step_optimizers(grads, vars, optimizer, grad_norm_clip_value=None):
     optimizer.step()
 
 
-def fit(model, optimizers, dataset, n_epochs, batch_size, writer, schedulers=None,
-        regularizers=None, schedulers_epoch_end=None, gclip=None,
-        monitor_interval=None, nsplit=5, plot_history=True):
+def fit(model, optimizers, dataset, n_epochs, batch_size, writer, schedulers=None, regularizers=None,
+        schedulers_epoch_end=None, gclip=None, monitor_interval=None, nsplit=5, plot_history=True,
+        shuffle_epoch_end=False):
     """
     :param model: the model to be trained
     :param optimizers: a list of optimizers corresponding to the sub models of the passed model
@@ -190,7 +190,10 @@ def fit(model, optimizers, dataset, n_epochs, batch_size, writer, schedulers=Non
         train_save = train_save.append(train_info, ignore_index=True)
 
         # Save the latest model, overwriting the last save
-        path = top_dir + '/experiments/data/saved_models/model_{}'.format(model.exp_name)
+        mdl_dir = top_dir + '/data/saved_models/'
+        path = mdl_dir + 'model_{}'.format(model.exp_name)
+        if not os.path.exists(mdl_dir):
+            os.makedirs(mdl_dir)
         model.save(path)
 
         # TODO: get this to work correctly and nicely
@@ -221,12 +224,21 @@ def fit(model, optimizers, dataset, n_epochs, batch_size, writer, schedulers=Non
         # Save the best model
         if loss_track <= best_val:
             best_val = loss_track
-            path = top_dir + '/experiments/data/saved_models/model_{}_best'.format(model.exp_name)
+            path = top_dir + '/data/saved_models/model_{}_best'.format(model.exp_name)
             model.save(path)
 
         # Step schedulers that use the validation data for stepping
         if schedulers_epoch_end:
             [scheduler.step(np.mean(val_loss)) for scheduler in schedulers_epoch_end]
+
+        # if shuffle_epoch_end:
+            # TODO: you need to be able to shuffle the data in both of these to randomise the pairings and you need to be able to access the data you truncated when concatenating in the original dataset. Very easy if you can access the methods of trainset with these two as subsets
+            # trainset.shuffle()
+            # valset.shuffle()
+            # trainset.data = trainset.data[:ntrain - (ntrain % batch_size), :]
+            # training_data = torch.utils.data.DataLoader(trainset, batch_size=batch_size, shuffle=True,
+            #                                             num_workers=n_work)
+            # val_data = torch.utils.data.DataLoader(valset, batch_size=batch_size, shuffle=True, num_workers=n_work)
 
         # Stop the timer
         timer.stop()
@@ -343,7 +355,7 @@ def fit_generator(model, optimizers, generator, n_epochs, batch_size, writer, sc
         train_save = train_save.append(train_info, ignore_index=True)
 
         # Save the latest model, overwriting the last save
-        path = top_dir + '/experiments/data/saved_models/model_{}'.format(model.exp_name)
+        path = top_dir + '/data/saved_models/model_{}'.format(model.exp_name)
         model.save(path)
 
         # TODO: get this to work correctly and nicely
@@ -375,7 +387,7 @@ def fit_generator(model, optimizers, generator, n_epochs, batch_size, writer, sc
         # Save the best model
         if loss_track <= best_val:
             best_val = loss_track
-            path = top_dir + '/experiments/data/saved_models/model_{}_best'.format(model.exp_name)
+            path = top_dir + '/data/saved_models/model_{}_best'.format(model.exp_name)
             model.save(path)
 
         # Step schedulers that use the validation data for stepping

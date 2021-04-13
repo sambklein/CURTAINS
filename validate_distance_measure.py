@@ -51,7 +51,7 @@ def main():
     measure = get_measure(distance)
 
     # The size of the batches to check distances between
-    sample_size = 1000
+    sample_size = 100
     # The number of times to calculate the distances between samples of size sample_size
     ncheck = 100
 
