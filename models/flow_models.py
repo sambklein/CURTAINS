@@ -66,3 +66,25 @@ class contextual_flow(flow_builder):
 
     def sample(self, num, context):
         return self.flow.sample(num, context=context)
+
+
+class curtains_transformer(flow_builder):
+    # TODO: instead of a base dist pass a pseudo sampler for the data dist?
+    def __init__(self, flow, base_dist, device, exp_name, dist_measure, nfeatures, dir='INN_test'):
+        self.dist_measure = dist_measure
+        self.nfeatures = nfeatures
+        super(curtains_transformer, self).__init__(flow, base_dist, device, exp_name, dir=dir)
+
+    def compute_loss(self, data, batch_size):
+        dl = data[:, :self.nfeatures]
+        dh = data[:, self.nfeatures:]
+        lm = dl[:, -1]
+        hm = dh[:, -1]
+        low_mass_features = dl[:, :-1]
+        high_mass_features = dh[:, :-1]
+        transform = self.flow(low_mass_features, context=torch.cat((lm, hm)))
+        self.loss = torch.mean(self.dist_measure(transform, high_mass_features))
+        return self.loss
+
+    def get_loss_state(self, nsf=10):
+        return {'Distance': self.loss.item()}

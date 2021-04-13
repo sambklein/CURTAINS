@@ -98,11 +98,11 @@ def load_curtains_pd():
 
 def load_curtains():
     df = load_curtains_pd()
-
     return Curtains(df)
 
 
-def get_data(dataset, bins=None, normalize=True):
+def get_data(dataset, bins=None, quantiles=None, normalize=True):
+    # TODO: currently using bins and quantiles to separate semantics between ANODE and CURTAINS
     if dataset == 'curtains':
         data = load_curtains()
     else:
@@ -114,52 +114,24 @@ def get_data(dataset, bins=None, normalize=True):
     if bins:
         # Split the data into different datasets based on the binning
         context_feature = data[:, -1]
-        # data = data[:, :-1]
         validation_data = data[(context_feature < bins[0]) | (context_feature > bins[-1])]
         signal_data = data[(context_feature < bins[2]) & (context_feature > bins[1])]
         training_data = data[((context_feature < bins[1]) & (context_feature > bins[0])) | (
                 (context_feature < bins[-1]) & (context_feature > bins[1]))]
         return WrappingCurtains(training_data, signal_data, validation_data, bins)
+    elif quantiles:
+        # Split the data into different datasets based on the binning
+        # TODO: need to make get_quantiles accept lists as well as ints to have more validation regions
+        # TODO: quick hacky way around
+        validation_data = data[data.get_quantile_mask(bins[2])]
+        signal_data = data[data.get_quantile_mask(bins[1])]
+        training_data = data[np.concatenate((data.get_quantile_mask(bins[0]), data.get_quantile_mask(bins[0])), 1)]
+        nlm = data.get_quantile_mask(bins[0]).shape[0]
+        # TODO: this is super hacky and gross
+        training_data.data = torch.cat((data[:nlm], data[nlm:]), 1)
+        return WrappingCurtains(training_data, signal_data, validation_data, bins)
     else:
         return data
-
-
-# A class for generating data for plane datasets.
-class data_handler():
-    def __init__(self, nsample, batch_size, latent_dim, dataset, device):
-        self.nsample = nsample
-        self.batch_size = batch_size
-        self.latent_dim = latent_dim
-        self.dataset = dataset
-        self.device = device
-        self.dim = None if not dataset[:5] == 'hyper' else self.latent_dim
-        self.bounded = load_plane_dataset(self.dataset, 1, dim=self.dim).bounded
-        self.scale = 1.
-        self.update_data()
-        self.nsteps = int(self.nsample / self.batch_size)
-        # TODO: pass a steps valid parameter to define this properly
-        self.nval = int(self.nsample / 10)
-        self.nsteps_val = int(self.nval / self.batch_size)
-
-    def update_data(self):
-        trainset = load_plane_dataset(self.dataset, self.nsample, dim=self.dim)
-        self.data = trainset.data.to(self.device).view(-1, self.batch_size, self.latent_dim) * self.scale
-
-    def update_validation(self):
-        trainset = load_plane_dataset(self.dataset, int(self.nsample / 10), dim=self.dim)
-        self.valid = trainset.data.to(self.device).view(-1, self.batch_size, self.latent_dim) * self.scale
-
-    def get_data(self, i):
-        # On the start of each epoch generate new samples, and then for each proceeding epoch iterate through the data
-        if i == 0:
-            self.update_data()
-        return self.data[i]
-
-    def get_val_data(self, i):
-        # On the start of each epoch generate new samples, and then for each proceeding epoch iterate through the data
-        if i == 0:
-            self.update_validation()
-        return self.valid[i]
 
 
 def main():

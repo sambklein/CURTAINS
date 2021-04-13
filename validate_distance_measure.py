@@ -51,7 +51,7 @@ def main():
     measure = get_measure(distance)
 
     # The size of the batches to check distances between
-    sample_size = 100
+    sample_size = 1000
     # The number of times to calculate the distances between samples of size sample_size
     ncheck = 100
 
@@ -82,7 +82,7 @@ def main():
     plt.title(distance)
     plt.xticks(x)
     plt.tight_layout()
-    plt.savefig(sv_dir + 'dist_measure_validation.png')
+    plt.savefig(sv_dir + 'dist_measure_validation_{}.png'.format(sample_size))
 
 
 if __name__ == '__main__':

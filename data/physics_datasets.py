@@ -68,7 +68,7 @@ class BasePhysics(Dataset):
         return data
 
     def __len__(self):
-        return self.num_points
+        return self.self.data.shape[0]
 
     def __getitem__(self, item):
         return self.data[item]
@@ -92,6 +92,16 @@ class Curtains(BasePhysics):
         data[:, 3] = df['d34s']
         data[:, 5] = df['m']
         return data
+
+    def get_quantile(self, quantile):
+        # Returns a numpy array of the training features, plus the context feature on the end
+        features = self.data[:, :-1]
+        mx = self.get_quantile_mask(quantile)
+        return features[mx]
+
+    def get_quantile_mask(self, quantile):
+        mx = self.df['mass_q{}'.format(quantile)]
+        return np.array(mx, dtype='bool')
 
 
 class WrappingCurtains():
