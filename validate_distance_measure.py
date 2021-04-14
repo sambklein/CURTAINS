@@ -39,6 +39,7 @@ def get_average_distance(data1, sample_size, ncheck, measure, data_o=None):
         # Get sample two
         s2 = data2[indices[:sample_size]]
         # Calculate the distance between sample one and sample two
+        # Pass batches as (number of batches, batch_size, dimension)
         dist[i] = measure(s1, s2).item()
     return np.mean(dist), np.std(dist)
 

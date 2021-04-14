@@ -5,6 +5,7 @@ from .physics_datasets import HepmassDataset, JetsDataset, WrappingCurtains, Cur
 import os
 import pandas as pd
 import numpy as np
+import h5py
 
 # Taken from https://github.com/bayesiains/nsf/blob/master/data/base.py
 from utils.io import get_top_dir, on_cluster
@@ -52,7 +53,6 @@ def load_jets(sm='QCD', split=0.1, normalize=True, dtype='float32'):
     :param split: The fraction of the events to take as a test set
     :return:
     """
-    import h5py as h5py
 
     dir = '/srv/beegfs/scratch/groups/rodem/AnomalyDetection/HEP/jets/'
 
@@ -89,10 +89,13 @@ def load_curtains_pd():
         df = pd.read_hdf('/srv/beegfs/scratch/groups/dpnc/atlas/AnomalousJets/final_jj_1MEvents_substructure.h5')
         # If you are on the cluster and the slim file doesn't exist, make it
         if not os.path.isfile(slim_file):
-            df = df.take(list(range(5000)))
-            df.to_csv(slim_file, index=False)
+            df_sv = df.take(list(range(5000)))
+            df_sv.to_csv(slim_file, index=False)
+            # df_sv.to_hdf(slim_file, 'df', mode='w', format='table', data_columns=True)
+            # with h5py.File(slim_file, 'w') as writefile:
+            #     writefile.create_dataset('obs', data=df_sv)
     else:
-        df = pd.read_hdf(slim_file)
+        df = pd.read_csv(slim_file)
     return df.dropna()
 
 
@@ -123,20 +126,21 @@ def get_data(dataset, bins=None, quantiles=None, normalize=True):
         # Split the data into different datasets based on the binning
         # TODO: need to make get_quantiles accept lists as well as ints to have more validation regions
         # TODO: quick hacky way around
-        def get_quantile(ind):
-            return Curtains(df.loc[dset.get_quantile_mask(quantiles[ind])])
-        # Shouldn't use the indexing method, it returns a dataset not a curtains object
-        validation_data = get_quantile(3)
-        signal_data = get_quantile(1)
+        def get_quantile(ind, norm=None):
+            return Curtains(df.loc[dset.get_quantile_mask(quantiles[ind])], norm=norm)
+
         lm = get_quantile(0)
         hm = get_quantile(2)
         training_data = CurtainsTrainSet(lm, hm)
-        return WrappingCurtains(training_data, signal_data, validation_data, bins)
+        # Set the normalization factors for the other datasets
+        scale = training_data.set_and_get_norm_facts()
+        validation_data = get_quantile(3, norm=scale)
+        signal_data = get_quantile(1, norm=scale)
+        drape = WrappingCurtains(training_data, signal_data, validation_data, bins)
     else:
         drape = Curtains(df)
 
     if normalize:
-        # TODO: using the entire dataset to normalize...
         drape.normalize()
 
     return drape

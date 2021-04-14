@@ -89,7 +89,7 @@ class curtains_transformer(flow_builder):
         dh = data[:, self.take:]
         transformed = self.transform_to_data(dl, dh)
         high_mass_features = dh[:, :-1]
-        self.loss = torch.mean(self.dist_measure(transformed, high_mass_features))
+        self.loss = self.dist_measure(transformed, high_mass_features)
         return self.loss
 
     def get_loss_state(self, nsf=10):

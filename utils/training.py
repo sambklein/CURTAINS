@@ -116,7 +116,8 @@ def fit(model, optimizers, dataset, n_epochs, batch_size, writer, schedulers=Non
     # Initialize timer class, this is useful on the cluster as it will say if you have enough time to run the job
     timer = Timer(model.dir, '/timing_{}.txt'.format(model.exp_name))
 
-    n_work = 2 if on_cluster() else 0
+    # n_work = 2 if on_cluster() else 0
+    n_work = 0
     ntrain = trainset.data.shape[0]
     trainset.data = trainset.data[:ntrain - (ntrain % batch_size), :]
     training_data = torch.utils.data.DataLoader(trainset, batch_size=batch_size, shuffle=True, num_workers=n_work)
@@ -139,7 +140,6 @@ def fit(model, optimizers, dataset, n_epochs, batch_size, writer, schedulers=Non
         timer.start()
 
         global_step += 1
-        # TODO: there should also be exceptions for not passing the same number of regularizers per optimizer and schedule etc
         if not isinstance(optimizers, list):
             optimizers = [optimizers]
         if regularizers:

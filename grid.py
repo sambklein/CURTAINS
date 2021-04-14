@@ -16,7 +16,7 @@ def add_opt(key, val):
 
 # INN settings
 add_opt('base_dist', ['normal'])
-add_opt('batch_size', [1000])
+add_opt('batch_size', [100])
 add_opt('activ', ['leaky_relu'])
 add_opt('lr', [0.0001])
 add_opt('epochs', [50])
@@ -45,7 +45,7 @@ def _get_args():
     #                     help='File containing validation data. If not provided, training data will be split.',
     #                     )
     parser.add_argument('--squeue', type=str, default='shared-gpu,private-dpnc-gpu')
-    parser.add_argument('--stime', type=str, default='00-00:30:00')
+    parser.add_argument('--stime', type=str, default='00-04:00:00')
     parser.add_argument('--smem', type=str, default='10GB')
     parser.add_argument('--work-dir', type=str, default='/home/users/k/kleins/MLproject/CURTAINS')
     parser.add_argument('--submit', action='store_true',

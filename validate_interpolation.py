@@ -37,7 +37,7 @@ parser.add_argument('-n', type=str, default='Transformer', help='The name with w
 parser.add_argument('-d', type=str, default='NSF_CURT', help='Directory to save contents into.')
 
 ## Hyper parameters
-parser.add_argument('--batch_size', type=int, default=1000, help='Size of batch for training.')
+parser.add_argument('--batch_size', type=int, default=10, help='Size of batch for training.')
 parser.add_argument('--epochs', type=int, default=50,
                     help='The number of epochs to train for.')
 parser.add_argument('--base_dist', type=str, default='normal',

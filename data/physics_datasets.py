@@ -96,11 +96,10 @@ class BasePhysics(Dataset):
 
 
 class Curtains(BasePhysics):
-    def __init__(self, df, dtype=torch.float32):
-        # TODO: memory footprint of this?
+    def __init__(self, df, norm=None, dtype=torch.float32):
         self.df = df
         data = self.get_features(df)
-        super(Curtains, self).__init__(torch.tensor(data).type(dtype))
+        super(Curtains, self).__init__(torch.tensor(data).type(dtype), scale=norm)
 
     @staticmethod
     def get_features(df):
@@ -141,9 +140,30 @@ class CurtainsTrainSet(Dataset):
         d2 = self.data2[torch.randperm(self.s2)]
         return torch.cat((d1[:self.ndata].data, d2[:self.ndata].data), 1)
 
+    def set_norm_fact(self, scale):
+        self.data1.set_scale(scale)
+        self.data2.set_scale(scale)
+
+    def set_and_get_norm_facts(self):
+        scale = [self.data1.max_vals, self.data1.min_vals]
+        scale1 = [self.data2.max_vals, self.data2.min_vals]
+        upperbound = np.where([s[0] < s[1] for s in zip(scale[0], scale1[0])], scale1[0], scale[0])
+        lowerbound = np.where([s[0] < s[1] for s in zip(scale[1], scale1[1])], scale[1], scale1[1])
+        def glist(array):
+            return [torch.tensor(i) for i in array]
+        s = [glist(upperbound), glist(lowerbound)]
+        self.set_norm_fact(s)
+        return s
+
     def scale(self, sf):
         self.data1.scale(sf)
         self.data2.scale(sf)
+        self.data = self.get_data()
+
+    def normalize(self):
+        self.data1.normalize()
+        self.data2.normalize()
+        self.data = self.get_data()
 
     def shuffle(self):
         self.data = self.get_data()

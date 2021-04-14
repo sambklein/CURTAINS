@@ -282,15 +282,19 @@ def post_process_curtains(model, datasets, sup_title='NSF'):
 
     high_mass_datasets = [high_mass_training, datasets.signalset, datasets.validationset]
     low_mass_sample = low_mass_training
+    # TODO: FIx this
+    low_mass_sample.data = low_mass_sample.data.to(model.device)
     nplot = len(high_mass_datasets)
     fig, ax = plt.subplots(nplot, datasets.nfeatures, figsize=(5 * datasets.nfeatures + 2, 5 * nplot + 2))
     for i in range(nplot):
         high_mass_sample = high_mass_datasets[i]
+        # TODO: FIx this
+        high_mass_sample.data = high_mass_sample.data.to(model.device)
         s1 = low_mass_sample.shape[0]
         s2 = high_mass_sample.shape[0]
         nsamp = s1 if s1 < s2 else s2
         samples = model.transform_to_data(low_mass_sample[:nsamp], high_mass_sample[:nsamp])
-        samples = high_mass_sample.unnormalize(samples)
-        high_mass_sample.unnormalize()
+        # samples = high_mass_sample.unnormalize(samples)
+        # high_mass_sample.unnormalize()
         hist_features(high_mass_sample, samples, model, datasets.nfeatures, ax[i])
     fig.savefig(sv_dir + '/post_processing_{}_{}.png'.format(nm, 'transformed_data'))
