@@ -102,9 +102,12 @@ def fit(model, optimizers, dataset, n_epochs, batch_size, writer, schedulers=Non
     # TODO: implement the full cross validation process if doing hyper parameter scans, will need to handle val_loss saving
     # TODO: check the use of this writer object that you are passing - can't remeber what it is for :(
     train_inds, val_inds = list(inds)[0]
-    trainset = dataset[train_inds]
-    valset = dataset[val_inds]
-    # trainset = dataset
+    # If shuffling on epoch end the data must have this method
+    if shuffle_epoch_end:
+        trainset, valset = dataset.get_valid(val_inds, train_inds)
+    else:
+        trainset = dataset[train_inds]
+        valset = dataset[val_inds]
     top_dir = get_top_dir()
     sv_dir = top_dir + '/images' + '/' + model.dir
     if not os.path.exists(sv_dir):
@@ -231,11 +234,20 @@ def fit(model, optimizers, dataset, n_epochs, batch_size, writer, schedulers=Non
         if schedulers_epoch_end:
             [scheduler.step(np.mean(val_loss)) for scheduler in schedulers_epoch_end]
 
-        # if shuffle_epoch_end:
+        if shuffle_epoch_end:
             # TODO: you need to be able to shuffle the data in both of these to randomise the pairings and you need to be able to access the data you truncated when concatenating in the original dataset. Very easy if you can access the methods of trainset with these two as subsets
-            # trainset.shuffle()
-            # valset.shuffle()
-            # trainset.data = trainset.data[:ntrain - (ntrain % batch_size), :]
+            trainset.shuffle()
+            valset.shuffle()
+            trainset.data = trainset.data[:ntrain - (ntrain % batch_size), :]
+            training_data = torch.utils.data.DataLoader(trainset, batch_size=batch_size, shuffle=True,
+                                                        num_workers=n_work)
+            val_data = torch.utils.data.DataLoader(valset, batch_size=batch_size, shuffle=True, num_workers=n_work)
+            # def shuffle_set(data):
+            #     ntake = int(data.shape[1]/2)
+            #     data[:, :ntake] = data[torch.randperm(data.shape[0]), :ntake]
+            #     return data
+            # trainset.data = shuffle_set(trainset.data)
+            # valset.data = shuffle_set(valset.data)
             # training_data = torch.utils.data.DataLoader(trainset, batch_size=batch_size, shuffle=True,
             #                                             num_workers=n_work)
             # val_data = torch.utils.data.DataLoader(valset, batch_size=batch_size, shuffle=True, num_workers=n_work)

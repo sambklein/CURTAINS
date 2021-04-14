@@ -108,7 +108,7 @@ if args.base_dist == 'normal':
     datasets.scale = tail_bound
     datasets.scale_data()
 
-# TODO: this is an autoregressive transform at present
+# TODO: this is an autoregressive transform at present - may be fast enough?
 transformation = spline_flow(inp_dim, args.nodes, num_blocks=args.nblocks, nstack=args.nstack, tail_bound=tail_bound,
                              tails=tails, activation=hyperparams.activations[args.activ], num_bins=args.nbins,
                              context_features=2)

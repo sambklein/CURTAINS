@@ -104,31 +104,42 @@ def load_curtains():
 def get_data(dataset, bins=None, quantiles=None, normalize=True):
     # TODO: currently using bins and quantiles to separate semantics between ANODE and CURTAINS
     if dataset == 'curtains':
-        data = load_curtains()
+        df = load_curtains_pd()
     else:
         raise NotImplementedError('The loader of this dataset has not been implemented yet.')
 
-    if normalize:
-        data.normalize()
+    dset = Curtains(df)
+    features = dset.data
 
     if bins:
         # Split the data into different datasets based on the binning
-        context_feature = data[:, -1]
-        validation_data = data[(context_feature < bins[0]) | (context_feature > bins[-1])]
-        signal_data = data[(context_feature < bins[2]) & (context_feature > bins[1])]
-        training_data = data[((context_feature < bins[1]) & (context_feature > bins[0])) | (
+        context_feature = features[:, -1]
+        validation_data = df.loc[(context_feature < bins[0]) | (context_feature > bins[-1])]
+        signal_data = df.loc[(context_feature < bins[2]) & (context_feature > bins[1])]
+        training_data = df.loc[((context_feature < bins[1]) & (context_feature > bins[0])) | (
                 (context_feature < bins[-1]) & (context_feature > bins[1]))]
-        return WrappingCurtains(training_data, signal_data, validation_data, bins)
+        drape = WrappingCurtains(training_data, signal_data, validation_data, bins)
     elif quantiles:
         # Split the data into different datasets based on the binning
         # TODO: need to make get_quantiles accept lists as well as ints to have more validation regions
         # TODO: quick hacky way around
-        validation_data = data[data.get_quantile_mask(quantiles[3])]
-        signal_data = data[data.get_quantile_mask(quantiles[1])]
-        training_data = CurtainsTrainSet(data, quantiles[0], quantiles[1])
+        def get_quantile(ind):
+            return Curtains(df.loc[dset.get_quantile_mask(quantiles[ind])])
+        # Shouldn't use the indexing method, it returns a dataset not a curtains object
+        validation_data = get_quantile(3)
+        signal_data = get_quantile(1)
+        lm = get_quantile(0)
+        hm = get_quantile(2)
+        training_data = CurtainsTrainSet(lm, hm)
         return WrappingCurtains(training_data, signal_data, validation_data, bins)
     else:
-        return data
+        drape = Curtains(df)
+
+    if normalize:
+        # TODO: using the entire dataset to normalize...
+        drape.normalize()
+
+    return drape
 
 
 def main():

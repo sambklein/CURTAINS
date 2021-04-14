@@ -290,10 +290,7 @@ def post_process_curtains(model, datasets, sup_title='NSF'):
         s2 = high_mass_sample.shape[0]
         nsamp = s1 if s1 < s2 else s2
         samples = model.transform_to_data(low_mass_sample[:nsamp], high_mass_sample[:nsamp])
-        # ax[i].hist(model.get_numpy(samples), label='transformed', histtype='step')
-        # ax[i].hist(model.get_numpy(high_mass_sample), label='truth', histtype='step')
-        # TODO: get this to work, problem is in data loader
-        # samples = high_mass_sample.unnormalize(samples)
-        # high_mass_sample.unnormalize()
+        samples = high_mass_sample.unnormalize(samples)
+        high_mass_sample.unnormalize()
         hist_features(high_mass_sample, samples, model, datasets.nfeatures, ax[i])
     fig.savefig(sv_dir + '/post_processing_{}_{}.png'.format(nm, 'transformed_data'))

@@ -36,6 +36,9 @@ class BasePhysics(Dataset):
         self.scale_norm = 1
         self.normed = False
         self.set_scale(scale)
+        # This isn't dynamic, so if you want to modify the size of the dataset, should have another method
+        # TODO: what is the clean way to deal with this?
+        self.shape = self.data.shape
 
     def set_scale(self, scale):
         if scale == None:
@@ -86,7 +89,7 @@ class BasePhysics(Dataset):
         return data
 
     def __len__(self):
-        return self.num_points
+        return self.data.shape[0]
 
     def __getitem__(self, item):
         return self.data[item]
@@ -124,9 +127,9 @@ class Curtains(BasePhysics):
 
 class CurtainsTrainSet(Dataset):
 
-    def __init__(self, data, q1, q2):
-        self.data1 = data[data.get_quantile_mask(q1)]
-        self.data2 = data[data.get_quantile_mask(q2)]
+    def __init__(self, data1, data2):
+        self.data1 = data1
+        self.data2 = data2
         self.s1 = self.data1.shape[0]
         self.s2 = self.data2.shape[0]
         self.ndata = self.s1 if self.s1 < self.s2 else self.s2
@@ -139,14 +142,18 @@ class CurtainsTrainSet(Dataset):
         return torch.cat((d1[:self.ndata].data, d2[:self.ndata].data), 1)
 
     def scale(self, sf):
-        # TODO This also needs to be fixed, data1 and data2 should be curtains datasets
-        self.data1.data *= sf
-        self.data2.data *= sf
-        # self.data1.scale(sf)
-        # self.data2.scale(sf)
+        self.data1.scale(sf)
+        self.data2.scale(sf)
 
     def shuffle(self):
         self.data = self.get_data()
+
+    def copy_construct(self, inds):
+        # At present this does not need to be more detailed, we don't care about the scaling properties while training
+        return CurtainsTrainSet(Curtains(self.data1.df.iloc[inds]), Curtains(self.data2.df.iloc[inds]))
+
+    def get_valid(self, inds_valid, inds_train):
+        return self.copy_construct(inds_train), self.copy_construct(inds_valid)
 
     def __len__(self):
         return self.data.shape[0]
@@ -174,12 +181,9 @@ class WrappingCurtains():
 
     def scale_data(self):
         if self.scale:
-            # self.trainset.data *= self.scale
             self.trainset.scale(self.scale)
-            # TODO: we really want to do this, but what is being passed isn't a dataset but a tensor, also breaks unnormalize
-            # self.signalset.scale(self.scale)
-            self.signalset.data *= self.scale
-            self.validationset.data *= self.scale
+            self.signalset.scale(self.scale)
+            self.validationset.scale(self.scale)
 
     def normalize(self):
         self.trainset.normalize()
