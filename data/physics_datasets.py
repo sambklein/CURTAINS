@@ -90,8 +90,8 @@ class Curtains(BasePhysics):
         data[:, 1] = df['e']
         data[:, 2] = df['tau2s'] / df['taus']
         data[:, 3] = df['tau3s'] / df['tau2s']
-        data[:, 3] = df['d34s']
-        data[:, 4] = df['m']
+        data[:, 4] = df['d34s']
+        data[:, 5] = df['m']
         return data
 
     def get_quantile(self, quantile):
