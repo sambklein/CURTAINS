@@ -91,9 +91,6 @@ def load_curtains_pd():
         if not os.path.isfile(slim_file):
             df_sv = df.take(list(range(5000)))
             df_sv.to_csv(slim_file, index=False)
-            # df_sv.to_hdf(slim_file, 'df', mode='w', format='table', data_columns=True)
-            # with h5py.File(slim_file, 'w') as writefile:
-            #     writefile.create_dataset('obs', data=df_sv)
     else:
         df = pd.read_csv(slim_file)
     return df.dropna()

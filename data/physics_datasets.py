@@ -105,7 +105,7 @@ class Curtains(BasePhysics):
     def get_features(df):
         nfeatures = 4
         data = np.zeros((df.shape[0], nfeatures + 1))
-        # The last data feature is always the context, TODO: this could/should be handled by the data class?
+        # The last data feature is always the context
         data[:, 0] = df['tau3s'] / df['taus']
         data[:, 1] = df['tau3s'] / df['tau2s']
         data[:, 2] = df['Qws']
@@ -145,6 +145,7 @@ class CurtainsTrainSet(Dataset):
         self.data2.set_scale(scale)
 
     def set_and_get_norm_facts(self):
+        # Set the scale for each feature using the combined datasets
         scale = [self.data1.max_vals, self.data1.min_vals]
         scale1 = [self.data2.max_vals, self.data2.min_vals]
         upperbound = np.where([s[0] < s[1] for s in zip(scale[0], scale1[0])], scale1[0], scale[0])

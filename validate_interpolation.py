@@ -27,6 +27,7 @@ parser = argparse.ArgumentParser()
 
 ## Dataset parameters
 parser.add_argument('--dataset', type=str, default='curtains', help='The dataset to train on.')
+# TODO: not currently implemented
 parser.add_argument('--resonant_feature', type=str, default='mass', help='The resonant feature to use for binning.')
 
 ## Binning parameters
@@ -38,8 +39,10 @@ parser.add_argument('-d', type=str, default='NSF_CURT', help='Directory to save 
 
 ## Hyper parameters
 parser.add_argument('--batch_size', type=int, default=10, help='Size of batch for training.')
+parser.add_argument('--shuffle', type=int, default=1, help='Shuffle on epoch end.')
 parser.add_argument('--epochs', type=int, default=50,
                     help='The number of epochs to train for.')
+# TODO: need to remove this keyword arg
 parser.add_argument('--base_dist', type=str, default='normal',
                     help='A string to index the corresponding nflows distribution.')
 parser.add_argument('--nstack', type=int, default='3',
@@ -75,7 +78,7 @@ exp_name = args.n
 # TODO: make a cl arg
 distance = 'sinkhorn'
 
-measure = get_measure(distance)
+measure = get_measure(distance) # measure(x, y) returns distance from x to y (N, D) for N samples in D dimensions, or (B, N, D) with a bacth index
 
 sv_dir = get_top_dir()
 log_dir = sv_dir + '/logs/' + exp_name
@@ -88,7 +91,7 @@ inp_dim = datasets.nfeatures
 print('There are {} training examples, {} validation examples and {} signal examples.'.format(
     datasets.trainset.data.shape[0], datasets.validationset.data.shape[0], datasets.signalset.data.shape[0]))
 
-# Set all tensors to be created on gpu, this must be done after dataset creation
+# Set all tensors to be created on gpu, this must be done after dataset creation, and before the INN creation
 if torch.cuda.is_available():
     device = torch.device('cuda')
     torch.set_default_tensor_type('torch.cuda.FloatTensor')
@@ -106,16 +109,19 @@ if args.base_dist == 'uniform':
 if args.base_dist == 'normal':
     tail_bound = 4.
     tails = 'linear'
-    # Scale the data to be at the tail bounds
+    # Sets the scale of the data
     datasets.scale = tail_bound
+    # This scale the data to be at the defined scale
     datasets.scale_data()
 
 # TODO: this is an autoregressive transform at present - may be fast enough?
-transformation = spline_flow(inp_dim, args.nodes, num_blocks=args.nblocks, nstack=args.nstack, tail_bound=tail_bound,
+INN = spline_flow(inp_dim, args.nodes, num_blocks=args.nblocks, nstack=args.nstack, tail_bound=tail_bound,
                              tails=tails, activation=hyperparams.activations[args.activ], num_bins=args.nbins,
                              context_features=2)
+# TODO remove
 base_dist = hyperparams.nflows_dists(args.base_dist, inp_dim, shift=bdist_shift, bound=tail_bound)
-flow = flows.Flow(transformation, base_dist)
+# TODO: do we need this wrapper?
+flow = flows.Flow(INN, base_dist)
 
 # Build model
 flow_model = curtains_transformer(flow, base_dist, device, exp_name, measure, datasets.nfeatures, dir=args.d)
@@ -132,7 +138,7 @@ else:
 
 # Fit the model
 fit(flow_model, optimizer, datasets.trainset, n_epochs, bsize, writer, schedulers=scheduler,
-    schedulers_epoch_end=reduce_lr_inn, gclip=args.gclip, shuffle_epoch_end=True)
+    schedulers_epoch_end=reduce_lr_inn, gclip=args.gclip, shuffle_epoch_end=args.shuffle)
 
 # Generate test data and preprocess etc
 post_process_curtains(flow_model, datasets, sup_title='NSF')

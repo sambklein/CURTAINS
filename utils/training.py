@@ -238,19 +238,11 @@ def fit(model, optimizers, dataset, n_epochs, batch_size, writer, schedulers=Non
             # TODO: you need to be able to shuffle the data in both of these to randomise the pairings and you need to be able to access the data you truncated when concatenating in the original dataset. Very easy if you can access the methods of trainset with these two as subsets
             trainset.shuffle()
             valset.shuffle()
+            # This is just to ensure that we don't have more data than will fit in a given batch size
             trainset.data = trainset.data[:ntrain - (ntrain % batch_size), :]
             training_data = torch.utils.data.DataLoader(trainset, batch_size=batch_size, shuffle=True,
                                                         num_workers=n_work)
             val_data = torch.utils.data.DataLoader(valset, batch_size=batch_size, shuffle=True, num_workers=n_work)
-            # def shuffle_set(data):
-            #     ntake = int(data.shape[1]/2)
-            #     data[:, :ntake] = data[torch.randperm(data.shape[0]), :ntake]
-            #     return data
-            # trainset.data = shuffle_set(trainset.data)
-            # valset.data = shuffle_set(valset.data)
-            # training_data = torch.utils.data.DataLoader(trainset, batch_size=batch_size, shuffle=True,
-            #                                             num_workers=n_work)
-            # val_data = torch.utils.data.DataLoader(valset, batch_size=batch_size, shuffle=True, num_workers=n_work)
 
         # Stop the timer
         timer.stop()

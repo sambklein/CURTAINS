@@ -8,7 +8,6 @@ def spline_flow(inp_dim, nodes, num_blocks=2, nstack=3, tail_bound=None, tails=N
     for i in range(nstack):
         # If a tail function is passed apply the same tail bound to every layer, if not then only use the tail bound on
         # the final layer
-        # TODO: Number of bins increase?
         tpass = tails
         if tails:
             tb = tail_bound
