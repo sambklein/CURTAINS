@@ -2,7 +2,7 @@ import torch.nn as nn
 import torch
 
 
-# TODO: sort out the inheritance so you don't have the following code duplication, who knows how far this will go in the future
+# TODO: sort out the inheritance so this takes from base_model
 
 class flow_builder(nn.Module):
     def __init__(self, flow, base_dist, device, exp_name, dir='INN_test'):
@@ -62,43 +62,3 @@ class contextual_flow(flow_builder):
 
     def sample(self, num, context):
         return self.flow.sample(num, context=context)
-
-
-class curtains_transformer(flow_builder):
-    # TODO: instead of a base dist pass a pseudo sampler for the data dist?
-    def __init__(self, flow, base_dist, device, exp_name, dist_measure, nfeatures, dir='INN_test'):
-        self.dist_measure = dist_measure
-        # nfeatures that we want to learn, plus the context feature
-        self.take = nfeatures + 1
-        super(curtains_transformer, self).__init__(flow, base_dist, device, exp_name, dir=dir)
-
-    # Transform to ... given mass
-    def transform_to_mass(self, features, lm, hm):
-        # Providing the context means we condition on the masses
-        return self.flow.transform_to_noise(features, context=torch.cat((lm, hm), 1))
-
-    # Transform to ... given data
-    def transform_to_data(self, dl, dh):
-        # The last feature is the mass or resonant feature (lm = low mass, hm = high mass)
-        lm = dl[:, -1].view(-1, 1)
-        hm = dh[:, -1].view(-1, 1)
-        low_mass_features = dl[:, :-1]
-        return self.transform_to_mass(low_mass_features, lm, hm)
-
-    def compute_loss(self, data, batch_size):
-        # TODO: at present this only defines a one way loss
-        # The data is passed with concatenated pairs of low mass and high mass features
-        # The first #self.take are the low mass samples (dl = data low)
-        dl = data[:, :self.take]
-        # The next #self.take are the high mass samples (dl = data low)
-        dh = data[:, self.take:]
-        # This returns the transformation we are after
-        transformed = self.transform_to_data(dl, dh)
-        # Drop the mass feature from the high mass sample
-        high_mass_features = dh[:, :-1]
-        # Calculate the distance between the transformation and the high mass
-        self.loss = self.dist_measure(transformed, high_mass_features)
-        return self.loss
-
-    def get_loss_state(self, nsf=10):
-        return {'Distance': self.loss.item()}

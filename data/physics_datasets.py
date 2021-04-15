@@ -3,32 +3,7 @@ import torch
 import numpy as np
 
 
-class HepmassDataset(Dataset):
-
-    def __init__(self, dataframe, transform=None):
-        """
-        Args:
-            csv_file (string): Path to the csv file with annotations.
-            root_dir (string): Directory with all the images.
-            transform (callable, optional): Optional transform to be applied
-                on a sample.
-        """
-        # TODO: should probably save a reference to this?
-        # self.dataframe = dataframe
-        self.data = torch.tensor(dataframe.to_numpy(dtype='float32'))
-        self.transform = transform
-        self.dimension = len(dataframe.columns)
-        self.num_points = len(dataframe.index)
-
-    def __len__(self):
-        return self.num_points
-
-    def __getitem__(self, item):
-        return self.data[item]
-
-
 class BasePhysics(Dataset):
-    # TODO: need to sort out scaling and normalizing
 
     def __init__(self, data, scale=None):
         self.data = data
@@ -150,8 +125,10 @@ class CurtainsTrainSet(Dataset):
         scale1 = [self.data2.max_vals, self.data2.min_vals]
         upperbound = np.where([s[0] < s[1] for s in zip(scale[0], scale1[0])], scale1[0], scale[0])
         lowerbound = np.where([s[0] < s[1] for s in zip(scale[1], scale1[1])], scale[1], scale1[1])
+
         def glist(array):
             return [torch.tensor(i) for i in array]
+
         s = [glist(upperbound), glist(lowerbound)]
         self.set_norm_fact(s)
         return s

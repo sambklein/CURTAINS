@@ -9,7 +9,6 @@ import os
 
 
 def calculate_mass(four_vector):
-    # TODO: can't take the square root without scaling (otherwise there are values < 0)
     return four_vector[:, 0] ** 2 - torch.sum(four_vector[:, 1:4] * four_vector[:, 1:4], axis=1)
 
 
@@ -21,7 +20,6 @@ def sample_(model, number, bsize=int(1e5)):
     else:
         nloops = 1
         bsize = number
-    # TODO: transverse momenta also
     mass = torch.zeros((nloops, bsize, 5))
     for i in range(nloops):
         sample = model.sample(bsize)[:, :20]
@@ -86,7 +84,6 @@ def post_process_hepmass(model, test_data, sup_title=''):
 
     print('There are {} trainable parameters'.format(nparams))
 
-    # TODO: Sinkhorn distace of samples from dataset
 
 
 def get_bins(data, nbins=20):
@@ -96,7 +93,6 @@ def get_bins(data, nbins=20):
 
 
 def post_process_jets(model, test_data, anomaly_set=None, anomaly_theshold=3.5, sup_title=''):
-    # TODO: set bins by hand
     model.eval()
     nm = model.exp_name
     top_dir = get_top_dir()
@@ -244,7 +240,7 @@ def post_process_anode(model, datasets, sup_title='NSF'):
 
         with torch.no_grad():
             samples = model.sample(mult_sampl, context).squeeze()
-            # TODO if mult_sample > 1 this doesn't work
+            # TODO if mult_sample > 1 this doesn't work at present
             lp = model.flow.log_prob(samples, context=context)
             cut = torch.quantile(lp, 1 - threshold)
             outliers = samples[:, -1][lp < cut]
