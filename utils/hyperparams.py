@@ -5,7 +5,6 @@ import nflows
 from geomloss import SamplesLoss
 from torch.nn import functional as F
 
-from data.data_loaders import load_hepmass
 from utils.io import on_cluster
 
 
@@ -130,29 +129,3 @@ def get_measure(name):
 
     return dist_measure
 
-
-class hepmass_sudo_sampler():
-    """
-    This class is a wrapper for the HEPMASS dataset when training with generator semantics.
-    """
-
-    def __init__(self, mass='1000'):
-        trainset, testset = load_hepmass(mass, slim=(not on_cluster()))
-        self.trainset = trainset[:, -5:]
-        self.testset = testset[:, -5:]
-
-    def sample(self, ndata):
-        # For the current single use case of this we only want the high level features.
-        return self.trainset
-
-    def sample_valid(self, ndata):
-        # For the current single use case of this we only want the high level features.
-        return self.testset
-
-
-def get_dist(name, dim):
-    try:
-        dist = torch_dists(name, dim)
-    except:
-        dist = hepmass_sudo_sampler()
-    return dist

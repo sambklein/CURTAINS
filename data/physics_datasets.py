@@ -78,12 +78,18 @@ class Curtains(BasePhysics):
 
     @staticmethod
     def get_features(df):
-        nfeatures = 4
+        nfeatures = 5
         data = np.zeros((df.shape[0], nfeatures + 1))
         # The last data feature is always the context
-        data[:, 0] = df['tau3s'] / df['taus']
-        data[:, 1] = df['tau3s'] / df['tau2s']
-        data[:, 2] = df['Qws']
+        # data[:, 0] = df['tau3s'] / df['taus']
+        # data[:, 1] = df['tau3s'] / df['tau2s']
+        # data[:, 2] = df['Qws']
+        # data[:, 3] = df['d34s']
+        # data[:, 4] = df['m']
+        data[:, 0] = df['pt']
+        data[:, 1] = df['e']
+        data[:, 2] = df['tau2s'] / df['taus']
+        data[:, 3] = df['tau3s'] / df['tau2s']
         data[:, 3] = df['d34s']
         data[:, 4] = df['m']
         return data
