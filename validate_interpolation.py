@@ -29,7 +29,7 @@ parser.add_argument('--dataset', type=str, default='curtains', help='The dataset
 parser.add_argument('--resonant_feature', type=str, default='mass', help='The resonant feature to use for binning.')
 
 ## Binning parameters
-parser.add_argument("--quantiles", nargs="*", type=float, default=[0, 2, 1, 3])
+parser.add_argument("--quantiles", nargs="*", type=float, default=[0, 1, 2, 3])
 
 ## Names for saving
 parser.add_argument('-n', type=str, default='Transformer', help='The name with which to tag saved outputs.')

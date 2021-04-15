@@ -92,6 +92,9 @@ class Curtains(BasePhysics):
         data[:, 3] = df['tau3s'] / df['tau2s']
         data[:, 4] = df['d34s']
         data[:, 5] = df['m']
+        # data[:, 0] = df['pt']
+        # data[:, 1] = df['e']
+        # data[:, 2] = df['m']
         return data
 
     def get_quantile(self, quantile):
@@ -122,6 +125,7 @@ class CurtainsTrainSet(Dataset):
         return torch.cat((d1[:self.ndata].data, d2[:self.ndata].data), 1)
 
     def set_norm_fact(self, scale):
+        self.norm_fact = scale
         self.data1.set_scale(scale)
         self.data2.set_scale(scale)
 
@@ -154,7 +158,12 @@ class CurtainsTrainSet(Dataset):
 
     def copy_construct(self, inds):
         # At present this does not need to be more detailed, we don't care about the scaling properties while training
-        return CurtainsTrainSet(Curtains(self.data1.df.iloc[inds]), Curtains(self.data2.df.iloc[inds]))
+        # TODO should add a copyconstruct to the base model and the Curtains method to make this easier
+        dataset = CurtainsTrainSet(Curtains(self.data1.df.iloc[inds]), Curtains(self.data2.df.iloc[inds]))
+        dataset.set_norm_fact(self.norm_fact)
+        if self.data1.normed:
+            dataset.normalize()
+        return dataset
 
     def get_valid(self, inds_valid, inds_train):
         return self.copy_construct(inds_train), self.copy_construct(inds_valid)

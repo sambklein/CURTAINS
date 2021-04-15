@@ -15,11 +15,11 @@ def add_opt(key, val):
 
 
 # INN settings
-add_opt('batch_size', [100])
+add_opt('batch_size', [300])
 add_opt('activ', ['leaky_relu'])
 add_opt('lr', [0.0001])
-add_opt('epochs', [1000])
-add_opt('shuffle', [0])
+add_opt('epochs', [500])
+add_opt('shuffle', [1])
 add_opt('gclip', [5])
 
 
