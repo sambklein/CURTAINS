@@ -134,7 +134,7 @@ class CurtainsTrainSet(Dataset):
         # Sort so that map goes from low mass to high mass
         ndf = self.data1.data.shape[1]
         data2 = torch.cat((data_shuffled[self.ndata:], data_shuffled[:self.ndata]), 1)
-        data = torch.where(data[:, ndf] < data[:, -1], data.t(), data2.t()).t()
+        data = torch.where(data[:, ndf - 1] < data[:, -1], data.t(), data2.t()).t()
         return data
 
     def set_norm_fact(self, scale):

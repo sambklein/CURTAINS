@@ -6,12 +6,14 @@ import torch
 import torch.optim as optim
 
 from tensorboardX import SummaryWriter
+
+from models.nn.networks import dense_net
 from utils.hyperparams import get_measure
 
 from utils.training import fit
 
-from models.OT_models import curtains_transformer
-from models.nn.flows import spline_flow
+from models.OT_models import curtains_transformer, two_way_curtains_transformer
+from models.nn.flows import spline_flow, coupling_spline
 
 from utils import hyperparams
 from utils.post_process import post_process_curtains
@@ -37,6 +39,9 @@ parser.add_argument('-d', type=str, default='NSF_CURT', help='Directory to save 
 
 ## Hyper parameters
 parser.add_argument('--distance', type=str, default='sinkhorn', help='Type of dist measure to use.')
+parser.add_argument('--coupling', type=int, default=1, help='One to use coupling layers, zero for autoregressive.')
+parser.add_argument('--two_way', type=int, default=1,
+                    help='One to train mapping from high mass to low mass, and low mass to high mass.')
 
 parser.add_argument('--batch_size', type=int, default=10, help='Size of batch for training.')
 parser.add_argument('--shuffle', type=int, default=1, help='Shuffle on epoch end.')
@@ -102,13 +107,26 @@ tails = 'linear'  # This will ensure that any samples from outside of [-tail_bou
 # - but the transformation is more flexible if this can be set to None, as then the derivatives at the boundary are not
 # fixed
 
-# TODO: this is an autoregressive transform at present - may be fast enough?
-INN = spline_flow(inp_dim, args.nodes, num_blocks=args.nblocks, nstack=args.nstack, tail_bound=tail_bound,
-                  tails=tails, activation=hyperparams.activations[args.activ], num_bins=args.nbins,
-                  context_features=2)
+if args.coupling:
+    # TODO clean this up
+    mx = [1] * int(np.ceil(datasets.nfeatures / 2)) + [0] * int(datasets.nfeatures - np.ceil(datasets.nfeatures / 2))
+    # TODO: should make a wrapper for this to be able to change the parameters
+    # this has to be an nn.module that takes as first arg the input dim and second the output dim
+    maker = dense_net
+    INN = coupling_spline(inp_dim, maker, nstack=args.nstack, tail_bound=tail_bound, tails=tails, lu=0,
+                          num_bins=args.nbins, mask=mx)
+else:
+    INN = spline_flow(inp_dim, args.nodes, num_blocks=args.nblocks, nstack=args.nstack, tail_bound=tail_bound,
+                      tails=tails, activation=hyperparams.activations[args.activ], num_bins=args.nbins,
+                      context_features=2)
 
 # Build model
-curtain_runner = curtains_transformer(INN, device, exp_name, measure, datasets.nfeatures, dir=args.d)
+if args.two_way:
+    transformer = two_way_curtains_transformer
+else:
+    transformer = curtains_transformer
+
+curtain_runner = transformer(INN, device, exp_name, measure, datasets.nfeatures, dir=args.d)
 
 # Define optimizers and learning rate schedulers
 optimizer = optim.Adam(INN.parameters(), lr=args.lr)
