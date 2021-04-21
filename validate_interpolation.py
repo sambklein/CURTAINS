@@ -38,14 +38,14 @@ parser.add_argument('-n', type=str, default='Transformer', help='The name with w
 parser.add_argument('-d', type=str, default='NSF_CURT', help='Directory to save contents into.')
 
 ## Hyper parameters
-parser.add_argument('--distance', type=str, default='sinkhorn', help='Type of dist measure to use.')
+parser.add_argument('--distance', type=str, default='mse', help='Type of dist measure to use.')
 parser.add_argument('--coupling', type=int, default=1, help='One to use coupling layers, zero for autoregressive.')
 parser.add_argument('--two_way', type=int, default=1,
                     help='One to train mapping from high mass to low mass, and low mass to high mass.')
 
 parser.add_argument('--batch_size', type=int, default=10, help='Size of batch for training.')
 parser.add_argument('--shuffle', type=int, default=1, help='Shuffle on epoch end.')
-parser.add_argument('--epochs', type=int, default=50,
+parser.add_argument('--epochs', type=int, default=150,
                     help='The number of epochs to train for.')
 parser.add_argument('--nstack', type=int, default='3',
                     help='The number of spline transformations to stack in the inn.')

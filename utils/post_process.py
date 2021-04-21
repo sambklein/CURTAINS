@@ -312,7 +312,7 @@ def post_process_flows_for_flows(model, datasets, sup_title='NSF'):
     sv_dir = get_top_dir() + '/images' + '/' + model.dir
     nm = model.exp_name
     low_mass_training = datasets.trainset.data1
-    sample = model.sample_lm(low_mass_training.data.shape[0])
+    sample = model.sample(low_mass_training.data.shape[0])
     nplot = 1
     fig, ax = plt.subplots(nplot, datasets.nfeatures, figsize=(5 * datasets.nfeatures + 2, 5 * nplot + 2))
     hist_features(low_mass_training, sample, model, datasets.nfeatures, ax)

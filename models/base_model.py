@@ -19,10 +19,17 @@ class base_model(ABC, nn.Module):
 
     @abstractmethod
     def compute_loss(self, data, batch_size):
-        return
+        return 0
 
     @abstractmethod
     def set_loss_names(self):
+        return 0
+
+    @abstractmethod
+    def transform_to_data(self, data_l, data_h):
+        """
+        Transform to the mass range in data_h from the features/mass in data_l
+        """
         return 0
 
     def save(self, path):
