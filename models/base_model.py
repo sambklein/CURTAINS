@@ -6,24 +6,21 @@ import torch.nn as nn
 
 class base_model(ABC, nn.Module):
     """
-    Within the scope of this project this is the basic definition of an autoencoder. The abstract methods encode/decode
-    are required if a model is to be tested and post_processed by the same measures. They map from the parameterised
-    latent space (base distribution) to the data space.
+    Within the scope of this project this is the basic definition of a model
     """
 
-    def __init__(self, transformer, dist_measure, device, exp_name, dir='test'):
+    def __init__(self, transformer, device, exp_name, dir='test'):
         super(base_model, self).__init__()
         self.transformer = transformer
-        self.dist_measure = dist_measure
         self.device = device
         self.exp_name = exp_name
         self.dir = dir
+        self.set_loss_names()
 
     @abstractmethod
     def compute_loss(self, data, batch_size):
-        return 0
+        return
 
-    # This is just to force the setting of loss names in all subclassed models
     @abstractmethod
     def set_loss_names(self):
         return 0

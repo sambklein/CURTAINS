@@ -120,7 +120,7 @@ class CurtainsTrainSet(Dataset):
         self.shape = [self.ndata, *self.data1.shape[1:]]
 
     def get_data(self):
-        # This method keeps the high mass and low mass regions separated
+        # # This method keeps the high mass and low mass regions separated
         # d1 = self.data1[torch.randperm(self.s1)]
         # d2 = self.data2[torch.randperm(self.s2)]
         # return torch.cat((d1[:self.ndata].data, d2[:self.ndata].data), 1)
