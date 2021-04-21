@@ -122,22 +122,21 @@ class CurtainsTrainSet(Dataset):
 
     def get_data(self):
         # This method keeps the high mass and low mass regions separated
-        # d1 = self.data1[torch.randperm(self.s1)]
-        # d2 = self.data2[torch.randperm(self.s2)]
-        # return torch.cat((d1[:self.ndata].data, d2[:self.ndata].data), 1)
-        # This method will shuffle samples between classes
-        # With this you also learn to map within the same class
-               
         d1 = self.data1[torch.randperm(self.s1)]
         d2 = self.data2[torch.randperm(self.s2)]
-        data = torch.cat((d1[:self.ndata].data, d2[:self.ndata].data), 0)
-        data_shuffled = data[torch.randperm(data.shape[0])]
-        data = torch.cat((data_shuffled[:self.ndata], data_shuffled[self.ndata:]), 1)
-        # Sort so that map goes from low mass to high mass
-        ndf = self.data1.data.shape[1]
-        data2 = torch.cat((data_shuffled[self.ndata:], data_shuffled[:self.ndata]), 1)
-        data = torch.where(data[:, ndf - 1] < data[:, -1], data.t(), data2.t()).t()
-        return data
+        return torch.cat((d1[:self.ndata].data, d2[:self.ndata].data), 1)
+        # # This method will shuffle samples between classes
+        # # With this you also learn to map within the same class
+        # d1 = self.data1[torch.randperm(self.s1)]
+        # d2 = self.data2[torch.randperm(self.s2)]
+        # data = torch.cat((d1[:self.ndata].data, d2[:self.ndata].data), 0)
+        # data_shuffled = data[torch.randperm(data.shape[0])]
+        # data = torch.cat((data_shuffled[:self.ndata], data_shuffled[self.ndata:]), 1)
+        # # Sort so that map goes from low mass to high mass
+        # ndf = self.data1.data.shape[1]
+        # data2 = torch.cat((data_shuffled[self.ndata:], data_shuffled[:self.ndata]), 1)
+        # data = torch.where(data[:, ndf - 1] < data[:, -1], data.t(), data2.t()).t()
+        # return data
 
     def set_norm_fact(self, scale):
         self.norm_fact = scale

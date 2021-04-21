@@ -124,6 +124,9 @@ def get_measure(name):
     if name == 'mmd':
         dist = SamplesLoss('gaussian')
 
+    if name == 'mse':
+        dist = torch.nn.MSELoss()
+
     def dist_measure(x, y):
         return dist(x, y)
 

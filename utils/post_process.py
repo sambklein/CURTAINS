@@ -210,7 +210,7 @@ def hist_features(originals, sample, model, data_dim, axs):
         axs[i].legend()
  
 
-def post_process_anode(model, datasets, sup_title='NSF'):
+def post_process_anode(model, datasets, sup_title='NSF', quantiles=True):
     sv_dir = get_top_dir() + '/images' + '/' + model.dir
     if not os.path.exists(sv_dir):
         os.makedirs(sv_dir)
@@ -224,8 +224,8 @@ def post_process_anode(model, datasets, sup_title='NSF'):
         with torch.no_grad():
             valid_samples = model.sample(1, context_valid).squeeze()
 
-        ncols = int(np.ceil(nfeatures / 4))
-        fig, axs_ = plt.subplots(ncols, 4, figsize=(5 * 4 + 2, 5 * ncols + 2))
+        ncols = int(np.ceil(nfeatures / 5))
+        fig, axs_ = plt.subplots(ncols, 5, figsize=(5 * 5 + 2, 5 * ncols + 2))
         axs = fig.axes
         hist_features(data_valid, valid_samples, model, nfeatures, axs)
         fig.savefig(sv_dir + '/post_processing_{}_{}.png'.format(nm, sv_name))
@@ -258,11 +258,23 @@ def post_process_anode(model, datasets, sup_title='NSF'):
 
     fig, ax = plt.subplots(1, 1, figsize=(5 + 2, 5 + 2))
     ax.hist(model.get_numpy(samples))
-    # Label the sideband region
-    bands = [elem * 4 for elem in datasets.bins]
+    if quantiles:
+        lm = datasets.trainset.data1[:, -1]
+        hm = datasets.trainset.data2[:, -1]
+        bands = [lm.min(), lm.max(), hm.min(), hm.max()]
+    else:
+        # Label the sideband region
+        bands = [elem * 4 for elem in datasets.bins]
     ax.set_xticks(np.append(ax.get_xticks(), bands))
     ax.get_xticklabels(ax.get_xticklabels() + ['sb'] * len(bands))
     fig.savefig(sv_dir + '/post_processing_{}_{}.png'.format(nm, 'outliers'))
+
+    # Do this at the end where you won't use signalset after
+    # TODO: clean this up and don't overwrite
+    dl = datasets.trainset.data1
+    dh = datasets.trainset.data2
+    datasets.signalset.data = torch.cat((dl.data, dh.data), 0)
+    hist_dataset(datasets.signalset, 'training')
 
     return 0
 

@@ -6,9 +6,8 @@ class curtains_transformer(base_model):
     def __init__(self, INN, device, exp_name, dist_measure, nfeatures, dir='INN_test'):
         # nfeatures that we want to learn, plus the context feature
         self.take = nfeatures + 1
-        # You also have to set the loss names
-        self.set_loss_names()
-        super(curtains_transformer, self).__init__(INN, dist_measure, device, exp_name, dir=dir)
+        super(curtains_transformer, self).__init__(INN, device, exp_name, dir=dir)
+        self.dist_measure = dist_measure
 
     def set_loss_names(self):
         self.loss_names = ['OT distance']
