@@ -19,7 +19,7 @@ def get_top_dir():
     if id == 'samklein':
         sv_ims = '/Users/samklein/PycharmProjects/CURTAINS'
     elif id == 'users':
-        sv_ims = '/home/users/k/kleins/MLproject/CURTAINS'
+        sv_ims = '/home/users/s/senguptd/UniGe/Anomaly/curtains'
     else:
         raise ValueError('Unknown path for saving images {}'.format(p))
     return sv_ims
