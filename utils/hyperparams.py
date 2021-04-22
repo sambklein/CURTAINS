@@ -111,7 +111,7 @@ def torch_dists(nm, latent_dim):
 
 
 def get_measure(name):
-    if name == 'None' or name == 'none':
+    if name.casefold() == 'none':
         def dist(x, y):
             return torch.tensor(0)
 

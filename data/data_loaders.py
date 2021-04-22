@@ -47,14 +47,17 @@ def load_jets(sm='QCD', split=0.1, normalize=True, dtype='float32'):
 
 
 # TODO: make this a wrapper for loading/saving slim files for generic datasets.
+
 def load_curtains_pd():
     slim_file = get_top_dir() + '/data/slims/final_jj_1MEvents_substructure.h5'
+    slim_dir = get_top_dir() + '/data/slims'
     # If you aren't on the cluster load a local slim version for testing
     if on_cluster():
         df = pd.read_hdf('/srv/beegfs/scratch/groups/dpnc/atlas/AnomalousJets/final_jj_1MEvents_substructure.h5')
         # If you are on the cluster and the slim file doesn't exist, make it
         if not os.path.isfile(slim_file):
             df_sv = df.take(list(range(5000)))
+            os.makedirs(slim_dir)
             df_sv.to_csv(slim_file, index=False)
     else:
         df = pd.read_csv(slim_file)
@@ -73,7 +76,7 @@ def get_data(dataset, bins=None, quantiles=None, normalize=True):
     else:
         raise NotImplementedError('The loader of this dataset has not been implemented yet.')
 
-    dset = Curtains(df)
+    dset = Curtains(df) 
     features = dset.data
 
     if bins:
