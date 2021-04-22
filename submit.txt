@@ -1,0 +1,29 @@
+#!/bin/sh
+#SBATCH --job-name=NSF
+#SBATCH --cpus-per-task=1
+#SBATCH --time=00-01:00:00
+#SBATCH --partition=shared-gpu,private-dpnc-gpu
+#SBATCH --output=/home/users/s/senguptd/UniGe/Anomaly/curtains/jobs/slurm-%A-%x_%a.out
+#SBATCH --chdir=/home/users/s/senguptd/UniGe/Anomaly/curtains/CURTAINS
+#SBATCH --mem=10GB
+#SBATCH --gres=gpu:1
+#SBATCH -a 0-0
+export XDG_RUNTIME_DIR=""
+module load GCCcore/8.2.0 Singularity/3.4.0-Go-1.12
+batch_size=(300)
+activ=(leaky_relu)
+lr=(0.0001)
+epochs=(500)
+shuffle=(1)
+gclip=(5)
+
+srun singularity exec --nv -B /srv/beegfs/scratch/groups/dpnc/atlas/AnomalousJets:/srv/beegfs/scratch/groups/dpnc/atlas/AnomalousJets /home/users/s/senguptd/UniGe/Anomaly/curtains/curt_img/curtain-pole.sif\
+	python3 /home/users/s/senguptd/UniGe/Anomaly/curtains/CURTAINS/validate_interpolation.py -d /home/users/s/senguptd/UniGe/Anomaly/curtains/ -n NSF_${SLURM_ARRAY_TASK_ID} \
+		--batch_size ${batch_size[`expr ${SLURM_ARRAY_TASK_ID} / 1 % 1`]}\
+		--activ ${activ[`expr ${SLURM_ARRAY_TASK_ID} / 1 % 1`]}\
+		--lr ${lr[`expr ${SLURM_ARRAY_TASK_ID} / 1 % 1`]}\
+		--epochs ${epochs[`expr ${SLURM_ARRAY_TASK_ID} / 1 % 1`]}\
+		--shuffle ${shuffle[`expr ${SLURM_ARRAY_TASK_ID} / 1 % 1`]}\
+		--gclip ${gclip[`expr ${SLURM_ARRAY_TASK_ID} / 1 % 1`]}\
+		
+
