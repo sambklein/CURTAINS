@@ -73,12 +73,14 @@ class BasePhysics(Dataset):
 class Curtains(BasePhysics):
     def __init__(self, df, norm=None, dtype=torch.float32):
         self.df = df
-        data = self.get_features(df)
+        data, feature_nms = self.get_features(df)
+        self.feature_nms = feature_nms
         super(Curtains, self).__init__(torch.tensor(data).type(dtype), scale=norm)
 
     @staticmethod
     def get_features(df):
-        nfeatures = 5
+        # TODO: better handling of this for outputting names and selecting features in one place - list of lists?
+        nfeatures = 4
         data = np.zeros((df.shape[0], nfeatures + 1))
         # The last data feature is always the context
         # data[:, 0] = df['tau3s'] / df['taus']
@@ -86,16 +88,15 @@ class Curtains(BasePhysics):
         # data[:, 2] = df['Qws']
         # data[:, 3] = df['d34s']
         # data[:, 4] = df['m']
-        data[:, 0] = df['pt']
-        data[:, 1] = df['e']
-        data[:, 2] = df['tau2s'] / df['taus']
-        data[:, 3] = df['tau3s'] / df['tau2s']
-        data[:, 4] = df['d34s']
-        data[:, 5] = df['m']
+        data[:, 0] = df['Qws']
+        data[:, 1] = df['tau2s'] / df['taus']
+        data[:, 2] = df['tau3s'] / df['tau2s']
+        data[:, 3] = df['d34s']
+        data[:, 4] = df['m']
         # data[:, 0] = df['pt']
         # data[:, 1] = df['e']
         # data[:, 2] = df['m']
-        return data
+        return data, ['Qws', 'tau2s/taus', 'tau3s/tau2s', 'd34s', 'm']
 
     def get_quantile(self, quantile):
         # Returns a numpy array of the training features, plus the context feature on the end
@@ -110,32 +111,35 @@ class Curtains(BasePhysics):
 
 class CurtainsTrainSet(Dataset):
 
-    def __init__(self, data1, data2):
+    def __init__(self, data1, data2, mix_qs=False):
         self.data1 = data1
         self.data2 = data2
         self.s1 = self.data1.shape[0]
         self.s2 = self.data2.shape[0]
         self.ndata = min(self.s1, self.s2)
+        self.mix_qs = mix_qs
         self.data = self.get_data()
         self.shape = [self.ndata, *self.data1.shape[1:]]
 
     def get_data(self):
-        # This method keeps the high mass and low mass regions separated
-        d1 = self.data1[torch.randperm(self.s1)]
-        d2 = self.data2[torch.randperm(self.s2)]
-        return torch.cat((d1[:self.ndata].data, d2[:self.ndata].data), 1)
-        # # This method will shuffle samples between classes
-        # # With this you also learn to map within the same class
-        # d1 = self.data1[torch.randperm(self.s1)]
-        # d2 = self.data2[torch.randperm(self.s2)]
-        # data = torch.cat((d1[:self.ndata].data, d2[:self.ndata].data), 0)
-        # data_shuffled = data[torch.randperm(data.shape[0])]
-        # data = torch.cat((data_shuffled[:self.ndata], data_shuffled[self.ndata:]), 1)
-        # # Sort so that map goes from low mass to high mass
-        # ndf = self.data1.data.shape[1]
-        # data2 = torch.cat((data_shuffled[self.ndata:], data_shuffled[:self.ndata]), 1)
-        # data = torch.where(data[:, ndf - 1] < data[:, -1], data.t(), data2.t()).t()
-        # return data
+        if self.mix_qs:
+            # This method will shuffle samples between classes
+            # With this you also learn to map within the same class
+            d1 = self.data1[torch.randperm(self.s1)]
+            d2 = self.data2[torch.randperm(self.s2)]
+            data = torch.cat((d1[:self.ndata].data, d2[:self.ndata].data), 0)
+            data_shuffled = data[torch.randperm(data.shape[0])]
+            data = torch.cat((data_shuffled[:self.ndata], data_shuffled[self.ndata:]), 1)
+            # Sort so that map goes from low mass to high mass
+            ndf = self.data1.data.shape[1]
+            data2 = torch.cat((data_shuffled[self.ndata:], data_shuffled[:self.ndata]), 1)
+            data = torch.where(data[:, ndf - 1] < data[:, -1], data.t(), data2.t()).t()
+            return data
+        else:
+            # This method keeps the high mass and low mass regions separated
+            d1 = self.data1[torch.randperm(self.s1)]
+            d2 = self.data2[torch.randperm(self.s2)]
+            return torch.cat((d1[:self.ndata].data, d2[:self.ndata].data), 1)
 
     def set_norm_fact(self, scale):
         self.norm_fact = scale
