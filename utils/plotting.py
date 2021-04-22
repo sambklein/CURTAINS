@@ -2,7 +2,7 @@
 import colorsys
 import numpy as np
 import torch
-from matplotlib import pyplot as plt
+from matplotlib import pyplot as plt, pyplot
 import matplotlib.patches as mpatches
 from sklearn.manifold import TSNE
 import seaborn as sns
@@ -89,15 +89,16 @@ def projectiontionLS_2D(dim1, dim2, latent_space, *args, **kwargs):
     return g
 
 
-def getFeaturePlot(model, original, sampled, nm, savedir, region, nfeatures):
+def getFeaturePlot(model, original, sampled, nm, savedir, region, feature_names):
+    nfeatures = len(feature_names) - 1
     fig, axes = plt.subplots(nfeatures, nfeatures, figsize=(2 * nfeatures + 2, 2 * nfeatures - 1))
     sigcolour = ['red', 'blue']
     signal_handle = [mpatches.Patch(color=colors) for colors in sigcolour]
     signal_labels = ["Original", "Sampled"]
     for i in range(nfeatures):
-        axes[i, 0].set_ylabel('Feature {}'.format(i + 1))
+        axes[i, 0].set_ylabel(feature_names[i])
         for j in range(nfeatures):
-            axes[0, j].set_title('Feature {}'.format(j + 1))
+            axes[0, j].set_title(feature_names[j])
 
             if i == j:
                 bin = get_bins(original[:, i])
@@ -117,6 +118,69 @@ def getFeaturePlot(model, original, sampled, nm, savedir, region, nfeatures):
                 axes[i, j].hist2d(model.get_numpy(sampled[:, j]), model.get_numpy(sampled[:, i]), bins=[binj, bini],
                                   density=True, cmap="Blues")
 
-    fig.legend(signal_handle, signal_labels, bbox_to_anchor=(1.001, 0.99), frameon=False, loc='upper left')
-    fig.suptitle(f"Region: {region + 1}")
+    fig.legend(signal_handle, signal_labels, bbox_to_anchor=(1.001, 0.99), frameon=False)
+    fig.suptitle(region)
+    fig.tight_layout()
     plt.savefig(savedir + '/featurespread_{}_{}_{}.png'.format(region, nm, 'transformed_data'))
+
+
+def getCrossFeaturePlot(model, original, sampled, nm, savedir, mass, feature_names):
+    nfeatures = len(feature_names) - 1
+    fig, axes = plt.subplots(nfeatures, nfeatures, figsize=(2 * nfeatures + 2, 2 * nfeatures - 1))
+    sigcolour = ['red', 'blue']
+    for i in range(nfeatures):
+        axes[i, 0].set_ylabel(feature_names[i])
+        for j in range(nfeatures):
+            axes[0, j].set_title(feature_names[j] + '_trans')
+
+            if i <= j:
+                bini = get_bins(original[:, i])
+                binj = get_bins(sampled[:, j])
+                axes[i, j].hist2d(model.get_numpy(original[:, i]), model.get_numpy(sampled[:, j]), bins=[bini, binj],
+                                  density=True, cmap='Reds')
+    fig.suptitle(f"Mass: {mass + 1}")
+    fig.tight_layout()
+    plt.savefig(savedir + '/feature_correlations_{}_{}_{}.png'.format(mass, nm, 'transformed_data'))
+
+
+def get_counts(data, to_slice, bound=4, nbins=50):
+    bin_edges = np.linspace(-bound, bound, nbins + 1)
+    # Apply a slice to the data
+    mask = torch.all((to_slice > 0) & (to_slice < 2), 1)
+    data = data[mask.type(torch.bool)].cpu().numpy()
+    return np.histogram2d(data[:, 0], data[:, 1], bins=bin_edges)[0]
+
+
+def hist_features(originals, sample, model, data_dim, axs):
+    for i in range(data_dim):
+        bins = get_bins(originals[:, i])
+        axs[i].hist(model.get_numpy(originals[:, i]), label='original', alpha=0.5, density=True, bins=bins,
+                    histtype='step')
+        # Plot samples drawn from the model
+        axs[i].hist(model.get_numpy(sample[:, i]), label='samples', alpha=0.5, density=True, bins=bins, histtype='step')
+        axs[i].set_title('Feature {}'.format(i))
+        axs[i].legend()
+
+
+def hist_features_single(originals, model, feature_nms, axs, bins, label='data'):
+    data_dim = len(feature_nms) - 1
+    for i in range(data_dim):
+        axs[i].hist(model.get_numpy(originals[:, i]), label=label, alpha=0.5, density=True, bins=bins[i],
+                    histtype='step')
+        axs[i].set_title(feature_nms[i])
+        # axs[i].legend()
+
+
+def plot_single_feature_mass_diagnostic(model, samples, generating_data, feature_names, sv_dir, region, title):
+    generating_mass = torch.cat([generating_data[:, -1]] * int(samples.shape[0] / generating_data.shape[0]))
+    nfeatures = samples.shape[1]
+    fig, ax = plt.subplots(1, nfeatures, figsize=(5 * nfeatures + 2, 5))
+    binx = get_bins(generating_mass)
+    for i in range(nfeatures):
+        biny = get_bins(samples[:, i])
+        ax[i].hist2d(model.get_numpy(generating_mass), model.get_numpy(samples[:, i]), alpha=0.5, density=True,
+                     bins=[binx, biny])
+        ax[i].set_ylabel(feature_names[i])
+        ax[i].set_xlabel('Gen Mass')
+    fig.suptitle(title)
+    fig.savefig(sv_dir + f'/features_mass_diagnostic_{region}')

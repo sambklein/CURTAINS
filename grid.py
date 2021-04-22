@@ -17,15 +17,17 @@ def add_opt(key, val):
 # INN settings
 add_opt('batch_size', [300])
 add_opt('activ', ['leaky_relu'])
-add_opt('lr', [0.00001])
+add_opt('lr', [0.0001])
 add_opt('epochs', [100])
-# add_opt('shuffle', [1])
-# add_opt('distance', ['mse'])
+add_opt('shuffle', [1])
+add_opt('distance', ['sinkhorn'])
+add_opt('mix_qs', [0])
+add_opt('coupling', [0])
 add_opt('gclip', [5])
 add_opt('nstack', [5])
 add_opt('nblocks', [3])
-add_opt('nodes', [64])
-add_opt('nbins', [30])
+add_opt('nodes', [20])
+add_opt('nbins', [10])
 
 curr_path = str(pathlib.Path().absolute())
 

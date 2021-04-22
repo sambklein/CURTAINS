@@ -9,6 +9,8 @@
 /experiments/data
 /experiments/logs
 /data/downloads
+/data/saved_models
+/data/slims
 submit.txt
   
 # Byte-compiled / optimized / DLL files

@@ -4,7 +4,8 @@ import numpy as np
 
 import torch
 from .io import get_top_dir
-from .plotting import plot2Dhist, getFeaturePlot, get_bins
+from .plotting import getFeaturePlot, get_bins, getCrossFeaturePlot, hist_features, hist_features_single, \
+    plot_single_feature_mass_diagnostic
 
 import os
 
@@ -186,24 +187,6 @@ def post_process_jets(model, test_data, anomaly_set=None, anomaly_theshold=3.5, 
         fig.savefig(sv_dir + '/hlo_anomalies_{}.png'.format(nm))
 
 
-def get_counts(data, to_slice, bound=4, nbins=50):
-    bin_edges = np.linspace(-bound, bound, nbins + 1)
-    # Apply a slice to the data
-    mask = torch.all((to_slice > 0) & (to_slice < 2), 1)
-    data = data[mask.type(torch.bool)].cpu().numpy()
-    return np.histogram2d(data[:, 0], data[:, 1], bins=bin_edges)[0]
-
-
-def hist_features(originals, sample, model, data_dim, axs):
-    for i in range(data_dim):
-        bins = get_bins(originals[:, i])
-        axs[i].hist(model.get_numpy(originals[:, i]), label='original', alpha=0.5, density=True, bins=bins)
-        # Plot samples drawn from the model
-        axs[i].hist(model.get_numpy(sample[:, i]), label='samples', alpha=0.5, density=True, bins=bins)
-        axs[i].set_title('Feature {}'.format(i))
-        axs[i].legend()
-
-
 def post_process_anode(model, datasets, sup_title='NSF', quantiles=True):
     sv_dir = get_top_dir() + '/images' + '/' + model.dir
     if not os.path.exists(sv_dir):
@@ -283,23 +266,53 @@ def post_process_curtains(model, datasets, sup_title='NSF'):
     nm = model.exp_name
 
     high_mass_datasets = [datasets.signalset, high_mass_training, datasets.validationset]
+    high_mass_datasets = {'Signal Set': datasets.signalset, 'SB2': high_mass_training,
+                          'Validation Set': datasets.validationset}
     low_mass_sample = low_mass_training
 
     low_mass_sample.data = low_mass_sample.data.to(model.device)
-    nplot = len(high_mass_datasets)
 
-    for i in range(nplot):
-        high_mass_sample = high_mass_datasets[i]
-        print(f"Now evaluating sample {i}")
+    # TODO we also want to look at how the higher mass training set looks when interpolated into the signal region
+    nshuffle = 10
+    for i, set in enumerate(high_mass_datasets):
+        high_mass_sample = high_mass_datasets[set]
+        print(f"Now evaluating sample {set}")
         high_mass_sample.data = high_mass_sample.data.to(model.device)
         s1 = low_mass_sample.shape[0]
         s2 = high_mass_sample.shape[0]
         nsamp = min(s1, s2)
-        samples = model.transform_to_data(low_mass_sample[:nsamp], high_mass_sample[:nsamp])
+        samples = torch.zeros((nsamp * nshuffle, datasets.nfeatures))
+        for j in range(nshuffle):
+            samples[j * nsamp:(j + 1) * nsamp] = model.transform_to_data(low_mass_sample[:nsamp],
+                                                                         high_mass_sample[torch.randperm(s2)][:nsamp])
         # TODO: Fix the unnormalizing
         # samples = high_mass_sample.unnormalize(samples)
         # high_mass_sample.unnormalize()
-        getFeaturePlot(model, high_mass_sample[:nsamp], samples, nm, sv_dir, i, datasets.nfeatures)
+        getFeaturePlot(model, high_mass_sample, samples, nm, sv_dir, set, datasets.signalset.feature_nms)
+        plot_single_feature_mass_diagnostic(model, samples, low_mass_sample, datasets.signalset.feature_nms, sv_dir, i,
+                                            set)
+
+    nmass = 5
+    masses = np.linspace(datasets.trainset.data2.data[:, -1].min().item(),
+                         datasets.trainset.data2.data[:, -1].max().item(), nmass)
+
+    nfeatures = datasets.nfeatures
+    fig, ax = plt.subplots(1, nfeatures, figsize=(5 * nfeatures + 2, 5))
+    bns = []
+    for i in range(nfeatures):
+        bns += [get_bins(low_mass_sample[:, i])]
+    hist_features_single(low_mass_sample, model, datasets.signalset.feature_nms, ax, bns, label='SB1')
+    for mass in masses:
+        samples = model.transform_to_data(low_mass_sample, mass * torch.ones((low_mass_sample.data.shape[0], 1)))
+        # TODO: Fix the unnormalizing
+        # samples = high_mass_sample.unnormalize(samples)
+        # high_mass_sample.unnormalize()
+        getCrossFeaturePlot(model, low_mass_sample, samples, nm, sv_dir, mass, datasets.signalset.feature_nms)
+        hist_features_single(samples, model, datasets.signalset.feature_nms, ax, bns, label=f'Mass: {mass:.2f}')
+    handles, labels = ax[0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc='upper right')
+    fig.tight_layout()
+    fig.savefig(sv_dir + '/feature_distributions')
 
 
 def post_process_flows_for_flows(model, datasets, sup_title='NSF'):
