@@ -35,7 +35,7 @@ def _get_args():
                         help='Choose the base output directory',
                         required=True)
     parser.add_argument('-n', '--outputname', type=str,
-                        help='Set the output name directory')
+                        help='Set the output name directory', default='NSF')
     # parser.add_argument('--save-arch', action='count',
     #                     help='Save the NN architectures to json file')
     # parser.add_argument('--train-data', type=str,
@@ -45,18 +45,18 @@ def _get_args():
     #                     help='File containing validation data. If not provided, training data will be split.',
     #                     )
     parser.add_argument('--squeue', type=str, default='shared-gpu,private-dpnc-gpu')
-    parser.add_argument('--stime', type=str, default='00-04:00:00')
+    parser.add_argument('--stime', type=str, default='00-01:00:00')
     parser.add_argument('--smem', type=str, default='10GB')
-    parser.add_argument('--work-dir', type=str, default='/home/users/k/kleins/MLproject/CURTAINS')
+    parser.add_argument('--work-dir', type=str, default='/home/users/s/senguptd/UniGe/Anomaly/curtains/CURTAINS')
     parser.add_argument('--submit', action='store_true',
                         dest='submit')
     parser.add_argument('--sbatch-output', type=str, default='submit.txt')
     parser.add_argument('--singularity-instance', type=str,
-                        default='/home/users/k/kleins/MLproject/CURTAINS/container/latest_latest.sif')
+                        default='/home/users/s/senguptd/UniGe/Anomaly/curtains/curt_img/curtain-pole.sif')
     parser.add_argument('--singularity-mounts', type=str,
                         default='/srv/beegfs/scratch/groups/dpnc/atlas/AnomalousJets:/srv/beegfs/scratch/groups/dpnc/atlas/AnomalousJets')
     parser.add_argument('--experiment', type=str,
-                        default='ANODE.py')
+                        default='validate_interpolation.py')
     parser.set_defaults(submit=False)
     return parser.parse_args()
 
@@ -84,7 +84,7 @@ def main():
 #SBATCH --cpus-per-task=1
 #SBATCH --time={1}
 #SBATCH --partition={2}
-#SBATCH --output=/home/users/k/kleins/MLproject/CURTAINS/jobs/slurm-%A-%x_%a.out
+#SBATCH --output=/home/users/s/senguptd/UniGe/Anomaly/curtains/jobs/slurm-%A-%x_%a.out
 #SBATCH --chdir={3}
 #SBATCH --mem={4}
 #SBATCH --gres=gpu:1
