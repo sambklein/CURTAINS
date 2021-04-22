@@ -4,7 +4,7 @@ import numpy as np
 
 import torch
 from .io import get_top_dir
-from .plotting import plot2Dhist, getFeaturePlot
+from .plotting import plot2Dhist, getFeaturePlot, get_bins
 
 import os
 
@@ -84,12 +84,6 @@ def post_process_hepmass(model, test_data, sup_title=''):
     fig.savefig(sv_dir + '/post_processing_{}.png'.format(nm))
 
     print('There are {} trainable parameters'.format(nparams))
-
-
-def get_bins(data, nbins=20):
-    max_ent = data.max().item()
-    min_ent = data.min().item()
-    return np.linspace(min_ent, max_ent, num=nbins)
 
 
 def post_process_jets(model, test_data, anomaly_set=None, anomaly_theshold=3.5, sup_title=''):
@@ -283,7 +277,7 @@ def post_process_curtains(model, datasets, sup_title='NSF'):
     low_mass_training = datasets.trainset.data1
     high_mass_training = datasets.trainset.data2
 
-    sv_dir = get_top_dir() + '/images' + '/' + model.exp_name
+    sv_dir = get_top_dir() + '/images' + '/' + model.dir
     if not os.path.exists(sv_dir):
         os.makedirs(sv_dir)
     nm = model.exp_name
@@ -302,5 +296,8 @@ def post_process_curtains(model, datasets, sup_title='NSF'):
         s2 = high_mass_sample.shape[0]
         nsamp = min(s1, s2)
         samples = model.transform_to_data(low_mass_sample[:nsamp], high_mass_sample[:nsamp])
+        # TODO: Fix the unnormalizing
+        # samples = high_mass_sample.unnormalize(samples)
+        # high_mass_sample.unnormalize()
         getFeaturePlot(model, high_mass_sample[:nsamp], samples, nm, sv_dir, i)
 
