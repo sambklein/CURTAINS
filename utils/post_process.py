@@ -1,10 +1,9 @@
 import matplotlib.pyplot as plt
-
 import numpy as np
-
 import torch
+
 from .io import get_top_dir
-from .plotting import plot2Dhist, getFeaturePlot
+from .plotting import plot2Dhist
 
 import os
 
@@ -84,6 +83,7 @@ def post_process_hepmass(model, test_data, sup_title=''):
     fig.savefig(sv_dir + '/post_processing_{}.png'.format(nm))
 
     print('There are {} trainable parameters'.format(nparams))
+
 
 
 def get_bins(data, nbins=20):
@@ -208,7 +208,7 @@ def hist_features(originals, sample, model, data_dim, axs):
         axs[i].hist(model.get_numpy(sample[:, i]), label='samples', alpha=0.5, density=True, bins=bins)
         axs[i].set_title('Feature {}'.format(i))
         axs[i].legend()
- 
+
 
 def post_process_anode(model, datasets, sup_title='NSF', quantiles=True):
     sv_dir = get_top_dir() + '/images' + '/' + model.dir
@@ -283,24 +283,37 @@ def post_process_curtains(model, datasets, sup_title='NSF'):
     low_mass_training = datasets.trainset.data1
     high_mass_training = datasets.trainset.data2
 
-    sv_dir = get_top_dir() + '/images' + '/' + model.exp_name
+    sv_dir = get_top_dir() + '/images' + '/' + model.dir
     if not os.path.exists(sv_dir):
         os.makedirs(sv_dir)
     nm = model.exp_name
 
-    high_mass_datasets = [datasets.signalset, high_mass_training, datasets.validationset]
+    high_mass_datasets = [high_mass_training, datasets.signalset, datasets.validationset]
     low_mass_sample = low_mass_training
-    
+    # TODO: FIx this
     low_mass_sample.data = low_mass_sample.data.to(model.device)
     nplot = len(high_mass_datasets)
-    
+    fig, ax = plt.subplots(nplot, datasets.nfeatures, figsize=(5 * datasets.nfeatures + 2, 5 * nplot + 2))
     for i in range(nplot):
         high_mass_sample = high_mass_datasets[i]
-        print(f"Now evaluating sample {i}")
+        # TODO: FIx this
         high_mass_sample.data = high_mass_sample.data.to(model.device)
         s1 = low_mass_sample.shape[0]
         s2 = high_mass_sample.shape[0]
-        nsamp = min(s1, s2)
+        nsamp = s1 if s1 < s2 else s2
         samples = model.transform_to_data(low_mass_sample[:nsamp], high_mass_sample[:nsamp])
-        getFeaturePlot(model, high_mass_sample[:nsamp], samples, nm, sv_dir, i)
+        # samples = high_mass_sample.unnormalize(samples)
+        # high_mass_sample.unnormalize()
+        hist_features(high_mass_sample, samples, model, datasets.nfeatures, ax[i])
+    fig.savefig(sv_dir + '/post_processing_{}_{}.png'.format(nm, 'transformed_data'))
 
+
+def post_process_flows_for_flows(model, datasets, sup_title='NSF'):
+    sv_dir = get_top_dir() + '/images' + '/' + model.dir
+    nm = model.exp_name
+    low_mass_training = datasets.trainset.data1
+    sample = model.sample(low_mass_training.data.shape[0])
+    nplot = 1
+    fig, ax = plt.subplots(nplot, datasets.nfeatures, figsize=(5 * datasets.nfeatures + 2, 5 * nplot + 2))
+    hist_features(low_mass_training, sample, model, datasets.nfeatures, ax)
+    fig.savefig(sv_dir + '/post_processing_{}_{}.png'.format(nm, 'base_dist_sample'))

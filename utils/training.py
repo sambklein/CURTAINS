@@ -108,7 +108,7 @@ def fit(model, optimizers, dataset, n_epochs, batch_size, writer, schedulers=Non
         trainset = dataset[train_inds]
         valset = dataset[val_inds]
     top_dir = get_top_dir()
-    sv_dir = top_dir + '/images' + '/' + model.exp_name
+    sv_dir = top_dir + '/images' + '/' + model.dir
     if not os.path.exists(sv_dir):
         os.makedirs(sv_dir)
 
