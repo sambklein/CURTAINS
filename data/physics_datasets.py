@@ -78,7 +78,7 @@ class Curtains(BasePhysics):
 
     @staticmethod
     def get_features(df):
-        nfeatures = 5 # TODO: Make this optional?
+        nfeatures = 5
         data = np.zeros((df.shape[0], nfeatures + 1))
         # The last data feature is always the context
         # data[:, 0] = df['tau3s'] / df['taus']
@@ -115,8 +115,7 @@ class CurtainsTrainSet(Dataset):
         self.data2 = data2
         self.s1 = self.data1.shape[0]
         self.s2 = self.data2.shape[0]
-        # self.ndata = self.s1 if self.s1 < self.s2 else self.s2
-        self.ndata = min(self.s1, self.s2)
+        self.ndata = self.s1 if self.s1 < self.s2 else self.s2
         self.data = self.get_data()
         self.shape = [self.ndata, *self.data1.shape[1:]]
 
