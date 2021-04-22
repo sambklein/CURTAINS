@@ -201,9 +201,9 @@ class WrappingCurtains():
         self.scale_data()
         self.bins = bins
 
-        self.ndata = self.trainset.shape[0]
+        self.ndata = self.trainset.data.shape[0]
         # The last feature of the dataset is the context
-        self.nfeatures = self.trainset.shape[1] - 1
+        self.nfeatures = self.signalset.shape[1] - 1
 
     def scale_data(self):
         if self.scale:

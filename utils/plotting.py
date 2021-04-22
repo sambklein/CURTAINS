@@ -37,125 +37,6 @@ def plot2Dhist(data, ax, bins=50, bounds=None):
               )
 
 
-def get_colors(num_colors):
-    colors = []
-    for i in np.arange(0., 360., 360. / num_colors):
-        hue = i / 360.
-        lightness = (50 + np.random.rand() * 10) / 100.
-        saturation = (90 + np.random.rand() * 10) / 100.
-        colors.append(colorsys.hls_to_rgb(hue, lightness, saturation))
-    return colors
-
-
-def plot_embedding(embed, y_test, clrs, ax=None, title='', dims=(8, 8)):
-    if not ax:
-        plt.figure(figsize=dims)
-        ax = plt
-    else:
-        ax.set_title(title)
-    for i in range(9):
-        mx = y_test == i
-        ax.plot(embed[:, 0][mx], embed[:, 1][mx], 'x', color=clrs[i], alpha=0.3)
-
-
-def hist_latents(inp, title='', bins=20):
-    fig, ax = plt.subplots(1, inp.shape[1], figsize=(20, 5))
-    fig.suptitle(title, fontsize=16)
-    for i in range(inp.shape[1]):
-        ax[i].hist(inp[:, i], bins=bins)
-
-
-def plot_latents(encoder, data, title=None):
-    enc_ims = encoder(data)
-    if enc_ims.shape[1] > 2:
-        x_embeddor = TSNE(n_components=2)
-        X_emb = x_embeddor.fit_transform(enc_ims)
-    else:
-        X_emb = enc_ims
-
-    clrs = get_colors(9)
-    fig, ax = plt.subplots(1, 1, figsize=(8, 8))
-    plot_embedding(X_emb, clrs, ax=ax, title='Latent Space')
-    if title:
-        plt.savefig(title)
-
-
-def plot_samples_mnist(samples, title='', subtitles=None, subfnt=50):
-    samples = np.array(samples)
-    nsamples = len(samples)
-    fig, ax = plt.subplots(1, nsamples, figsize=(10 * nsamples, 10))
-    for i, sample in enumerate(samples):
-        sample = sample.reshape(28, 28)
-        ax[i].imshow(sample)
-        if subtitles:
-            ax[i].set_title(subtitles[i], fontsize=subfnt)
-    fig.suptitle(title, fontsize=100)
-    return fig
-
-
-def plot_slice(counts, nm, bound=4):
-    fig, ax = plt.subplots(1, 1, figsize=(5, 5))
-    counts[counts == 0] = np.nan
-    ax.imshow(counts.T,
-              origin='lower', aspect='auto',
-              extent=[-bound, bound, -bound, bound],
-              )
-    fig.savefig(nm)
-
-
-def plot_coloured(data, to_mask, ax, name, base_dist):
-    try:
-        to_mask = to_mask.detach().cpu().numpy()
-    except Exception as e:
-        print(e)
-        pass
-
-    marker_size = 2
-    alpha = 0.1
-    x = data[:, 0]
-    y = data[:, 1]
-    mx_low_prob = (x ** 2 + y ** 2) ** (0.5) > 3
-    mx_checkers = ((y / 2).floor() % 2).type(torch.bool)
-
-    def scatter(mx, color, alpha):
-        # This must also be cast to a numpy, otherwise the masked array is also a tensor
-        mx = mx.detach().cpu().numpy()
-        ax.scatter(to_mask[mx, 0], to_mask[mx, 1], s=marker_size, color=color, alpha=alpha)
-
-    def scatter_mask(id, color):
-        if base_dist != 'checkerboard':
-            mx = id & ~mx_low_prob
-        else:
-            mx = id & ~mx_checkers
-        # ax.scatter(to_mask[mx, 0], to_mask[mx, 1], s=marker_size, color=color, alpha=alpha)
-        scatter(mx, color, alpha)
-        if base_dist != 'checkerboard':
-            mx = id & mx_low_prob
-            # ax.scatter(to_mask[mx, 0], to_mask[mx, 1], s=2, color='grey', alpha=1)
-            scatter(mx, 'grey', 1)
-        else:
-            mx = id & mx_checkers
-            # ax.scatter(to_mask[mx, 0], to_mask[mx, 1], s=marker_size, color='dark' + color, alpha=alpha)
-            scatter(mx, 'dark' + color, alpha)
-
-    id = torch.logical_and(x < 0, y < 0)
-    scatter_mask(id, 'red')
-
-    id = torch.logical_and(x > 0, y < 0)
-    scatter_mask(id, 'green')
-
-    id = torch.logical_and(x < 0, y > 0)
-    scatter_mask(id, 'blue')
-
-    id = torch.logical_and(x > 0, y > 0)
-    scatter_mask(id, 'slategrey')
-
-    bound = 4.5
-    ax.set_xlim([-bound, bound])
-    ax.set_ylim([-bound, bound])
-    ax.set_title(name)
-
-
 # From Johnny
 def projectiontionLS_2D(dim1, dim2, latent_space, *args, **kwargs):
     '''Plot a two dimension latent space projection with marginals showing each dimension.
@@ -208,15 +89,14 @@ def projectiontionLS_2D(dim1, dim2, latent_space, *args, **kwargs):
     return g
 
 
-def getFeaturePlot(model, original, sampled, nm, savedir, region):
-    nfeatures = 4
-    fig, axes = plt.subplots(nfeatures, nfeatures, figsize=(10, 7))
+def getFeaturePlot(model, original, sampled, nm, savedir, region, nfeatures):
+    fig, axes = plt.subplots(nfeatures, nfeatures, figsize=(2 * nfeatures + 2, 2 * nfeatures - 1))
     sigcolour = ['red', 'blue']
     signal_handle = [mpatches.Patch(color=colors) for colors in sigcolour]
     signal_labels = ["Original", "Sampled"]
-    for i in range(4):
+    for i in range(nfeatures):
         axes[i, 0].set_ylabel('Feature {}'.format(i + 1))
-        for j in range(4):
+        for j in range(nfeatures):
             axes[0, j].set_title('Feature {}'.format(j + 1))
 
             if i == j:
@@ -240,4 +120,3 @@ def getFeaturePlot(model, original, sampled, nm, savedir, region):
     fig.legend(signal_handle, signal_labels, bbox_to_anchor=(1.001, 0.99), frameon=False, loc='upper left')
     fig.suptitle(f"Region: {region + 1}")
     plt.savefig(savedir + '/featurespread_{}_{}_{}.png'.format(region, nm, 'transformed_data'))
-

@@ -299,7 +299,7 @@ def post_process_curtains(model, datasets, sup_title='NSF'):
         # TODO: Fix the unnormalizing
         # samples = high_mass_sample.unnormalize(samples)
         # high_mass_sample.unnormalize()
-        getFeaturePlot(model, high_mass_sample[:nsamp], samples, nm, sv_dir, i)
+        getFeaturePlot(model, high_mass_sample[:nsamp], samples, nm, sv_dir, i, datasets.nfeatures)
 
 
 def post_process_flows_for_flows(model, datasets, sup_title='NSF'):

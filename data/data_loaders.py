@@ -46,15 +46,20 @@ def load_jets(sm='QCD', split=0.1, normalize=True, dtype='float32'):
     return trainset, testset
 
 
-# TODO: make this a wrapper for loading/saving slim files for generic datasets.
 def load_curtains_pd():
-    slim_file = get_top_dir() + '/data/slims/final_jj_1MEvents_substructure.h5'
+    # TODO: make this a wrapper for loading generic pandas files
+    data_dir = '/srv/beegfs/scratch/groups/dpnc/atlas/AnomalousJets'
+    slim_dir = get_top_dir() + '/data/slims'
+    filename = 'final_jj_1MEvents_substructure.h5'
+    data_file = data_dir + '/' + filename
+    slim_file = slim_dir + '/' + filename
     # If you aren't on the cluster load a local slim version for testing
     if on_cluster():
-        df = pd.read_hdf('/srv/beegfs/scratch/groups/dpnc/atlas/AnomalousJets/final_jj_1MEvents_substructure.h5')
+        df = pd.read_hdf(data_file)
         # If you are on the cluster and the slim file doesn't exist, make it
         if not os.path.isfile(slim_file):
             df_sv = df.take(list(range(5000)))
+            os.makedirs(slim_dir)
             df_sv.to_csv(slim_file, index=False)
     else:
         df = pd.read_csv(slim_file)

@@ -111,7 +111,7 @@ def torch_dists(nm, latent_dim):
 
 
 def get_measure(name):
-    if name == 'None' or name == 'none':
+    if name.casefold() == 'None':
         def dist(x, y):
             return torch.tensor(0)
 
@@ -121,10 +121,10 @@ def get_measure(name):
     if name == 'sinkhorn1':
         dist = SamplesLoss('sinkhorn', scaling=0.5, blur=0.01, p=1)
 
-    if name == 'mmd':
+    if name.casefold() == 'mmd':
         dist = SamplesLoss('gaussian')
 
-    if name == 'mse':
+    if name.casefold() == 'mse':
         dist = torch.nn.MSELoss()
 
     def dist_measure(x, y):

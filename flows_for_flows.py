@@ -99,7 +99,7 @@ print(device)
 # Set up base transformation
 bdist_shift = None
 if args.base_dist == 'uniform':
-    tail_bound = 1.
+    tail_bound = 1.2
     tails = None
     # tails = 'linear'
 if args.base_dist == 'normal':
