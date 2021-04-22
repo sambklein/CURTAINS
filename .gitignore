@@ -9,6 +9,7 @@
 /experiments/data
 /experiments/logs
 /data/downloads
+submit.txt
   
 # Byte-compiled / optimized / DLL files
 __pycache__/

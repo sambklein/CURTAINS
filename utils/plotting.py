@@ -3,8 +3,15 @@ import colorsys
 import numpy as np
 import torch
 from matplotlib import pyplot as plt
+import matplotlib.patches as mpatches
 from sklearn.manifold import TSNE
 import seaborn as sns
+
+
+def get_bins(data, nbins=20):
+    max_ent = data.max().item()
+    min_ent = data.min().item()
+    return np.linspace(min_ent, max_ent, num=nbins)
 
 
 def get_mask(x, bound):
@@ -199,3 +206,38 @@ def projectiontionLS_2D(dim1, dim2, latent_space, *args, **kwargs):
     if labels[0] is not None:
         g.ax_joint.legend()
     return g
+
+
+def getFeaturePlot(model, original, sampled, nm, savedir, region):
+    nfeatures = 4
+    fig, axes = plt.subplots(nfeatures, nfeatures, figsize=(10, 7))
+    sigcolour = ['red', 'blue']
+    signal_handle = [mpatches.Patch(color=colors) for colors in sigcolour]
+    signal_labels = ["Original", "Sampled"]
+    for i in range(4):
+        axes[i, 0].set_ylabel('Feature {}'.format(i + 1))
+        for j in range(4):
+            axes[0, j].set_title('Feature {}'.format(j + 1))
+
+            if i == j:
+                bin = get_bins(original[:, i])
+                _, bins, _ = axes[i, j].hist(model.get_numpy(original[:, i]), bins=bin, density=True, histtype='step',
+                                             color='red')
+                axes[i, j].hist(model.get_numpy(sampled[:, i]), density=True, bins=bins, histtype='step', color='blue')
+
+            if i < j:
+                bini = get_bins(original[:, i])
+                binj = get_bins(original[:, j])
+                axes[i, j].hist2d(model.get_numpy(original[:, i]), model.get_numpy(original[:, j]), bins=[bini, binj],
+                                  density=True, cmap='Reds')
+
+            if i > j:
+                bini = get_bins(sampled[:, i])
+                binj = get_bins(sampled[:, j])
+                axes[i, j].hist2d(model.get_numpy(sampled[:, j]), model.get_numpy(sampled[:, i]), bins=[binj, bini],
+                                  density=True, cmap="Blues")
+
+    fig.legend(signal_handle, signal_labels, bbox_to_anchor=(1.001, 0.99), frameon=False, loc='upper left')
+    fig.suptitle(f"Region: {region + 1}")
+    plt.savefig(savedir + '/featurespread_{}_{}_{}.png'.format(region, nm, 'transformed_data'))
+

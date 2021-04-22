@@ -27,6 +27,8 @@ add_opt('nblocks', [3])
 add_opt('nodes', [64])
 add_opt('nbins', [30])
 
+curr_path = str(pathlib.Path().absolute())
+
 
 def _get_args():
     parser = argparse.ArgumentParser()
@@ -47,20 +49,12 @@ def _get_args():
     parser.add_argument('--squeue', type=str, default='shared-gpu,private-dpnc-gpu')
     parser.add_argument('--stime', type=str, default='00-04:00:00')
     parser.add_argument('--smem', type=str, default='10GB')
-    parser.add_argument('--work-dir', type=str, default='/home/users/k/kleins/MLproject/CURTAINS')
+    parser.add_argument('--work-dir', type=str, default=curr_path)
     parser.add_argument('--submit', action='store_true',
                         dest='submit')
     parser.add_argument('--sbatch-output', type=str, default='submit.txt')
-<<<<<<< HEAD
-    parser.add_argument('--work-dir', type=str, default='/home/users/k/kleins/MLproject/CURTAINS')
-=======
     parser.add_argument('--singularity-instance', type=str,
-<<<<<<< HEAD
-                        default='/home/users/s/senguptd/UniGe/Anomaly/curtains/curt_img/curtain-pole.sif')
->>>>>>> 9779a15ea9413646cf0a8163434ac431823c8c5c
-=======
                         default='/home/users/k/kleins/MLproject/CURTAINS/container/latest_latest.sif')
->>>>>>> f5b409ae6678058bde772dd32df7aa5ef1ddda96
     parser.add_argument('--singularity-mounts', type=str,
                         default='/srv/beegfs/scratch/groups/dpnc/atlas/AnomalousJets:/srv/beegfs/scratch/groups/dpnc/atlas/AnomalousJets')
     parser.add_argument('--experiment', type=str,
