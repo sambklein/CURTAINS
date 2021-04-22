@@ -51,7 +51,12 @@ def _get_args():
     parser.add_argument('--submit', action='store_true',
                         dest='submit')
     parser.add_argument('--sbatch-output', type=str, default='submit.txt')
+<<<<<<< HEAD
     parser.add_argument('--work-dir', type=str, default='/home/users/k/kleins/MLproject/CURTAINS')
+=======
+    parser.add_argument('--singularity-instance', type=str,
+                        default='/home/users/s/senguptd/UniGe/Anomaly/curtains/curt_img/curtain-pole.sif')
+>>>>>>> 9779a15ea9413646cf0a8163434ac431823c8c5c
     parser.add_argument('--singularity-mounts', type=str,
                         default='/srv/beegfs/scratch/groups/dpnc/atlas/AnomalousJets:/srv/beegfs/scratch/groups/dpnc/atlas/AnomalousJets')
     parser.add_argument('--experiment', type=str,
