@@ -127,7 +127,6 @@ def getFeaturePlot(model, original, sampled, nm, savedir, region, feature_names)
 def getCrossFeaturePlot(model, original, sampled, nm, savedir, mass, feature_names):
     nfeatures = len(feature_names) - 1
     fig, axes = plt.subplots(nfeatures, nfeatures, figsize=(2 * nfeatures + 2, 2 * nfeatures - 1))
-    sigcolour = ['red', 'blue']
     for i in range(nfeatures):
         axes[i, 0].set_ylabel(feature_names[i])
         for j in range(nfeatures):
