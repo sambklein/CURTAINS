@@ -38,12 +38,11 @@ parser.add_argument('-n', type=str, default='Transformer', help='The name with w
 parser.add_argument('-d', type=str, default='NSF_CURT', help='Directory to save contents into.')
 
 ## Hyper parameters
-parser.add_argument('--distance', type=str, default='sinkhorn', help='Type of dist measure to use.')
-parser.add_argument('--coupling', type=int, default=0, help='One to use coupling layers, zero for autoregressive.')
+parser.add_argument('--distance', type=str, default='mse', help='Type of dist measure to use.')
+parser.add_argument('--coupling', type=int, default=1, help='One to use coupling layers, zero for autoregressive.')
 parser.add_argument('--two_way', type=int, default=1,
                     help='One to train mapping from high mass to low mass, and low mass to high mass.')
 parser.add_argument('--shuffle', type=int, default=1, help='Shuffle on epoch end.')
-parser.add_argument('--mix_qs', type=int, default=0, help='Whether to mix the quantiles when drawing batches.')
 
 parser.add_argument('--batch_size', type=int, default=10, help='Size of batch for training.')
 parser.add_argument('--epochs', type=int, default=1,
@@ -88,7 +87,9 @@ log_dir = sv_dir + '/logs/' + exp_name
 writer = SummaryWriter(log_dir=log_dir)
 
 # Make datasets
-datasets = get_data(args.dataset, quantiles=args.quantiles, mix_qs=args.mix_qs)
+# If the distance measure is the sinkhorn distance then don't mix samples between quantiles
+mix_qs = distance != 'sinkhorn'
+datasets = get_data(args.dataset, quantiles=args.quantiles, mix_qs=mix_qs)
 ndata = datasets.ndata
 inp_dim = datasets.nfeatures
 print('There are {} training examples, {} validation examples and {} signal examples.'.format(
@@ -113,6 +114,7 @@ if args.coupling:
     mx = [1] * int(np.ceil(datasets.nfeatures / 2)) + [0] * int(datasets.nfeatures - np.ceil(datasets.nfeatures / 2))
     # TODO: should make a wrapper for this to be able to change the parameters
     # this has to be an nn.module that takes as first arg the input dim and second the output dim
+    # def set_params(inp_dim, maker):
     maker = dense_net
     INN = coupling_spline(inp_dim, maker, nstack=args.nstack, tail_bound=tail_bound, tails=tails, lu=0,
                           num_bins=args.nbins, mask=mx)

@@ -170,7 +170,7 @@ def hist_features_single(originals, model, feature_nms, axs, bins, label='data')
         # axs[i].legend()
 
 
-def plot_single_feature_mass_diagnostic(model, samples, generating_data, feature_names, sv_dir, region, title):
+def plot_single_feature_mass_diagnostic(model, samples, generating_data, feature_names, sv_dir, region, title, nm):
     generating_mass = torch.cat([generating_data[:, -1]] * int(samples.shape[0] / generating_data.shape[0]))
     nfeatures = samples.shape[1]
     fig, ax = plt.subplots(1, nfeatures, figsize=(5 * nfeatures + 2, 5))
@@ -182,4 +182,4 @@ def plot_single_feature_mass_diagnostic(model, samples, generating_data, feature
         ax[i].set_ylabel(feature_names[i])
         ax[i].set_xlabel('Gen Mass')
     fig.suptitle(title)
-    fig.savefig(sv_dir + f'/features_mass_diagnostic_{region}')
+    fig.savefig(sv_dir + f'/features_mass_diagnostic_{region}_{nm}')

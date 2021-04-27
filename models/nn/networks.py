@@ -7,9 +7,22 @@ def norm_exception():
     raise Exception("Can't set both layer and batch normalization")
 
 
-class dense_net(nn.Module):
+class base_network(nn.Module):
+
+    def forward(self, data, context=None):
+        NotImplementedError('Must implement a forward method')
+
+    # TODO: make this take data and a batch_size arg so that you can automatically batch the data
+    def batch_predict(self, data, context=None):
+        store = []
+        for data in data:
+            store += [self(data, context)]
+        return torch.cat(store)
+
+
+class dense_net(base_network):
     def __init__(self, input_dim, latent_dim, islast=True, output_activ=nn.Identity(), layers=[64, 64, 64], drp=0,
-                 batch_norm=False, layer_norm=False, int_activ=torch.relu):
+                 batch_norm=False, layer_norm=False, int_activ=torch.relu, context_features=2):
         super(dense_net, self).__init__()
         layers = deepcopy(layers)
         # If adding additional layers to the encoder, don't compress directly to the latent dimension
@@ -18,11 +31,19 @@ class dense_net(nn.Module):
         self.latent_dim = latent_dim
         self.drp_p = drp
         self.inner_activ = int_activ
+        # This is necessary for scaling the outputs to softmax when using splines
+        self.register_buffer("hidden_features", torch.tensor(layers[-1]))
+
+        if context_features is not None:
+            self.context_layer = nn.Linear(context_features, layers[0])
 
         self.functions = nn.ModuleList([nn.Linear(input_dim, layers[0])])
+
         if islast:
             layers += [latent_dim]
+
         self.functions.extend(nn.ModuleList([nn.Linear(layers[i], layers[i + 1]) for i in range(len(layers) - 1)]))
+
         # Change the initilization
         for function in self.functions:
             torch.nn.init.xavier_uniform_(function.weight)
@@ -45,6 +66,8 @@ class dense_net(nn.Module):
     def forward(self, x, context=None):
         for i, function in enumerate(self.functions[:-1]):
             x = function(x)
+            if (context is not None) and (i == 0):
+                x += self.context_layer(context)
             if self.norm:
                 x = self.norm_funcs[i](x)
             x = self.inner_activ(x)

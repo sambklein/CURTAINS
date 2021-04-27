@@ -288,9 +288,11 @@ def post_process_curtains(model, datasets, sup_title='NSF'):
         # TODO: Fix the unnormalizing
         # samples = high_mass_sample.unnormalize(samples)
         # high_mass_sample.unnormalize()
-        getFeaturePlot(model, high_mass_sample, samples, nm, sv_dir, set, datasets.signalset.feature_nms)
+        # For the feature plot we only want to look at as many samples as there are in SB1
+        getFeaturePlot(model, high_mass_sample, samples[:nsamp], nm, sv_dir, set, datasets.signalset.feature_nms)
+        # For the mass diagnostic we want to look across samples
         plot_single_feature_mass_diagnostic(model, samples, low_mass_sample, datasets.signalset.feature_nms, sv_dir, i,
-                                            set)
+                                            set, nm)
 
     nmass = 5
     masses = np.linspace(datasets.trainset.data2.data[:, -1].min().item(),
@@ -312,7 +314,7 @@ def post_process_curtains(model, datasets, sup_title='NSF'):
     handles, labels = ax[0].get_legend_handles_labels()
     fig.legend(handles, labels, loc='upper right')
     fig.tight_layout()
-    fig.savefig(sv_dir + '/feature_distributions')
+    fig.savefig(sv_dir + f'/feature_distributions_{nm}')
 
 
 def post_process_flows_for_flows(model, datasets, sup_title='NSF'):
