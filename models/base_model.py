@@ -57,3 +57,9 @@ class base_model(ABC, nn.Module):
     def set_loss_dict(self, loss):
         # Given a list of losses, ordered in the same way as the models
         self.loss_dict = {self.loss_names[i]: loss for i, loss in enumerate(loss)}
+
+    # TODO: should this be a method of the base model? Could be nice
+    # def fit(self, curtain_runner, optimizer, training_data, n_epochs, bsize, writer, schedulers=None,
+    #         schedulers_epoch_end=None, gclip=5, shuffle_epoch_end=True):
+    #     fit(curtain_runner, optimizer, training_data, n_epochs, bsize, writer, schedulers=schedulers,
+    #         schedulers_epoch_end=schedulers_epoch_end, gclip=gclip, shuffle_epoch_end=shuffle_epoch_end)
