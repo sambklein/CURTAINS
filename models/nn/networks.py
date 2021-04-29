@@ -32,7 +32,7 @@ class dense_net(base_network):
         self.drp_p = drp
         self.inner_activ = int_activ
         # This is necessary for scaling the outputs to softmax when using splines
-        self.register_buffer("hidden_features", torch.tensor(layers[-1]))
+        self.hidden_features = layers[-1]
 
         if context_features is not None:
             self.context_layer = nn.Linear(context_features, layers[0])

@@ -194,64 +194,72 @@ def post_process_anode(model, datasets, sup_title='NSF', quantiles=True):
     nm = model.exp_name
     nfeatures = datasets.nfeatures
 
-    def hist_dataset(dataset, sv_name):
+    def hist_dataset(dataset, sv_name, nms):
         context_valid = dataset.data[:, -1].view(-1, 1).to(model.device)
         data_valid = dataset.data[:, :-1]
 
         with torch.no_grad():
             valid_samples = model.sample(1, context_valid).squeeze()
 
-        ncols = int(np.ceil(nfeatures / 5))
-        fig, axs_ = plt.subplots(ncols, 5, figsize=(5 * 5 + 2, 5 * ncols + 2))
+        ncols = int(np.ceil(nfeatures / 4))
+        fig, axs_ = plt.subplots(ncols, 4, figsize=(5 * 5 + 2, 5 * ncols))
         axs = fig.axes
-        hist_features(data_valid, valid_samples, model, nfeatures, axs)
+        hist_features(data_valid, valid_samples, model, nfeatures, axs, nms)
+        fig.suptitle(sv_name)
         fig.savefig(sv_dir + '/post_processing_{}_{}.png'.format(nm, sv_name))
 
-    hist_dataset(datasets.validationset, 'validation')
-    hist_dataset(datasets.signalset, 'signal')
+    hist_dataset(datasets.validationset, 'validation', datasets.signalset.feature_nms)
+    hist_dataset(datasets.signalset, 'signal', datasets.signalset.feature_nms)
 
     # TODO: look at distributions across observables, and the average log prob in each of the bins
 
-    def get_outlier_sample(dataset, mult_sampl=1, threshold=0.95):
+    def get_outlier_sample(dataset, mult_sampl=1, threshold=0.95, set_cut=None):
         context = dataset.data[:, -1].view(-1, 1).to(model.device)
-
         with torch.no_grad():
             samples = model.sample(mult_sampl, context).squeeze()
-            # TODO if mult_sample > 1 this doesn't work at present
             lp = model.flow.log_prob(samples, context=context)
-            cut = torch.quantile(lp, 1 - threshold)
+            if set_cut is None:
+                cut = torch.quantile(lp, 1 - threshold)
+            else:
+                cut = set_cut
             outliers = samples[:, -1][lp < cut]
 
-        return outliers
+        if set_cut is None:
+            return outliers, cut
+        else:
+            return outliers
 
-    # TODO: plot this for multiple different cuts instead of one fixed one.
-    valid_outlier_context = get_outlier_sample(datasets.validationset)
-    sample_outlier_context = get_outlier_sample(datasets.signalset)
-    print('There are {}% samples in the validation set, and {}% outliers in the signal region'.format(
-        len(valid_outlier_context) / len(datasets.validationset) * 100,
-        len(sample_outlier_context) / len(datasets.signalset) * 100))
+    threshold = 0.95
+    data_outlier_context, cut = get_outlier_sample(datasets.trainset, threshold=0.95)
+    valid_outlier_context = get_outlier_sample(datasets.validationset, set_cut=cut)
+    sample_outlier_context = get_outlier_sample(datasets.signalset, set_cut=cut)
+    print(
+        'There are {}% samples in the validation set, and {}% outliers in the signal region. \n'
+        'There are {}% in the training data.'.format(
+            len(valid_outlier_context) / len(datasets.validationset) * 100,
+            len(sample_outlier_context) / len(datasets.signalset) * 100,
+        (1 - threshold) * 100))
 
-    samples = torch.cat((valid_outlier_context, sample_outlier_context))
-
-    fig, ax = plt.subplots(1, 1, figsize=(5 + 2, 5 + 2))
-    ax.hist(model.get_numpy(samples))
-    if quantiles:
-        lm = datasets.trainset.data1[:, -1]
-        hm = datasets.trainset.data2[:, -1]
-        bands = [lm.min(), lm.max(), hm.min(), hm.max()]
-    else:
-        # Label the sideband region
-        bands = [elem * 4 for elem in datasets.bins]
-    ax.set_xticks(np.append(ax.get_xticks(), bands))
-    ax.get_xticklabels(ax.get_xticklabels() + ['sb'] * len(bands))
-    fig.savefig(sv_dir + '/post_processing_{}_{}.png'.format(nm, 'outliers'))
+    # samples = torch.cat((valid_outlier_context, sample_outlier_context))
+    # fig, ax = plt.subplots(1, 1, figsize=(5 + 2, 5 + 2))
+    # ax.hist(model.get_numpy(samples))
+    # if quantiles:
+    #     lm = datasets.trainset.data1[:, -1]
+    #     hm = datasets.trainset.data2[:, -1]
+    #     bands = [lm.min(), lm.max(), hm.min(), hm.max()]
+    # else:
+    #     # Label the sideband region
+    #     bands = [elem * 4 for elem in datasets.bins]
+    # ax.set_xticks(np.append(ax.get_xticks(), bands))
+    # ax.get_xticklabels(ax.get_xticklabels() + ['sb'] * len(bands))
+    # fig.savefig(sv_dir + '/post_processing_{}_{}.png'.format(nm, 'outliers'))
 
     # Do this at the end where you won't use signalset after
     # TODO: clean this up and don't overwrite
     dl = datasets.trainset.data1
     dh = datasets.trainset.data2
     datasets.signalset.data = torch.cat((dl.data, dh.data), 0)
-    hist_dataset(datasets.signalset, 'training')
+    hist_dataset(datasets.signalset, 'training', datasets.signalset.feature_nms)
 
     return 0
 
@@ -295,7 +303,7 @@ def post_process_curtains(model, datasets, sup_title='NSF'):
                                             set, nm)
 
     nmass = 5
-    masses = np.linspace(datasets.trainset.data2.data[:, -1].min().item(),
+    masses = np.linspace(datasets.signalset.data[:, -1].min().item(),
                          datasets.trainset.data2.data[:, -1].max().item(), nmass)
 
     nfeatures = datasets.nfeatures

@@ -71,7 +71,7 @@ def load_curtains():
     return Curtains(df)
 
 
-def get_data(dataset, bins=None, quantiles=None, normalize=True, mix_qs=False):
+def get_data(dataset, bins=None, quantiles=None, normalize=True, mix_qs=False, flow=False):
     # Using bins and quantiles to separate semantics between separating base on self defined mass bins and quantiles
     if dataset == 'curtains':
         df = load_curtains_pd()
@@ -97,7 +97,7 @@ def get_data(dataset, bins=None, quantiles=None, normalize=True, mix_qs=False):
 
         lm = get_quantile(0)
         hm = get_quantile(2)
-        training_data = CurtainsTrainSet(lm, hm, mix_qs=mix_qs)
+        training_data = CurtainsTrainSet(lm, hm, mix_qs=mix_qs, stack=flow)
         # Set the normalization factors for the other datasets
         scale = training_data.set_and_get_norm_facts()
         validation_data = get_quantile(3, norm=scale)

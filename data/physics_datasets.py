@@ -111,35 +111,41 @@ class Curtains(BasePhysics):
 
 class CurtainsTrainSet(Dataset):
 
-    def __init__(self, data1, data2, mix_qs=False):
+    def __init__(self, data1, data2, mix_qs=False, stack=False):
         self.data1 = data1
         self.data2 = data2
         self.s1 = self.data1.shape[0]
         self.s2 = self.data2.shape[0]
         self.ndata = min(self.s1, self.s2)
         self.mix_qs = mix_qs
+        self.stack=stack
         self.data = self.get_data()
         self.shape = [self.ndata, *self.data1.shape[1:]]
 
     def get_data(self):
-        if self.mix_qs:
-            # This method will shuffle samples between classes
-            # With this you also learn to map within the same class
-            d1 = self.data1[torch.randperm(self.s1)]
-            d2 = self.data2[torch.randperm(self.s2)]
-            data = torch.cat((d1[:self.ndata].data, d2[:self.ndata].data), 0)
-            data_shuffled = data[torch.randperm(data.shape[0])]
-            data = torch.cat((data_shuffled[:self.ndata], data_shuffled[self.ndata:]), 1)
-            # Sort so that map goes from low mass to high mass
-            ndf = self.data1.data.shape[1]
-            data2 = torch.cat((data_shuffled[self.ndata:], data_shuffled[:self.ndata]), 1)
-            data = torch.where(data[:, ndf - 1] < data[:, -1], data.t(), data2.t()).t()
-            return data
-        else:
+        if self.stack:
             # This method keeps the high mass and low mass regions separated
-            d1 = self.data1[torch.randperm(self.s1)]
-            d2 = self.data2[torch.randperm(self.s2)]
-            return torch.cat((d1[:self.ndata].data, d2[:self.ndata].data), 1)
+            data = torch.cat((self.data1.data, self.data2.data), 0)
+            return data[torch.randperm(self.s1 + self.s2)]
+        else:
+            if self.mix_qs:
+                # This method will shuffle samples between classes
+                # With this you also learn to map within the same class
+                d1 = self.data1[torch.randperm(self.s1)]
+                d2 = self.data2[torch.randperm(self.s2)]
+                data = torch.cat((d1[:self.ndata].data, d2[:self.ndata].data), 0)
+                data_shuffled = data[torch.randperm(data.shape[0])]
+                data = torch.cat((data_shuffled[:self.ndata], data_shuffled[self.ndata:]), 1)
+                # Sort so that map goes from low mass to high mass
+                ndf = self.data1.data.shape[1]
+                data2 = torch.cat((data_shuffled[self.ndata:], data_shuffled[:self.ndata]), 1)
+                data = torch.where(data[:, ndf - 1] < data[:, -1], data.t(), data2.t()).t()
+                return data
+            else:
+                # This method keeps the high mass and low mass regions separated
+                d1 = self.data1[torch.randperm(self.s1)]
+                d2 = self.data2[torch.randperm(self.s2)]
+                return torch.cat((d1[:self.ndata].data, d2[:self.ndata].data), 1)
 
     def set_norm_fact(self, scale):
         self.norm_fact = scale
@@ -208,6 +214,7 @@ class WrappingCurtains():
         self.ndata = self.trainset.data.shape[0]
         # The last feature of the dataset is the context
         self.nfeatures = self.signalset.shape[1] - 1
+        self.feature_nms = self.signalset.feature_nms
 
     def scale_data(self):
         if self.scale:

@@ -82,7 +82,7 @@ log_dir = sv_dir + '/logs/' + exp_name
 writer = SummaryWriter(log_dir=log_dir)
 
 # Make datasets
-datasets = get_data(args.dataset, quantiles=args.quantiles)
+datasets = get_data(args.dataset, quantiles=args.quantiles, flow=True)
 ndata = datasets.ndata
 inp_dim = datasets.nfeatures
 print('There are {} training examples, {} validation examples and {} signal examples.'.format(

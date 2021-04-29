@@ -150,14 +150,17 @@ def get_counts(data, to_slice, bound=4, nbins=50):
     return np.histogram2d(data[:, 0], data[:, 1], bins=bin_edges)[0]
 
 
-def hist_features(originals, sample, model, data_dim, axs):
+def hist_features(originals, sample, model, data_dim, axs, axs_nms=None):
     for i in range(data_dim):
         bins = get_bins(originals[:, i])
         axs[i].hist(model.get_numpy(originals[:, i]), label='original', alpha=0.5, density=True, bins=bins,
                     histtype='step')
         # Plot samples drawn from the model
         axs[i].hist(model.get_numpy(sample[:, i]), label='samples', alpha=0.5, density=True, bins=bins, histtype='step')
-        axs[i].set_title('Feature {}'.format(i))
+        if axs_nms:
+            axs[i].set_title(axs_nms[i])
+        else:
+            axs[i].set_title('Feature {}'.format(i))
         axs[i].legend()
 
 
@@ -180,6 +183,6 @@ def plot_single_feature_mass_diagnostic(model, samples, generating_data, feature
         ax[i].hist2d(model.get_numpy(generating_mass), model.get_numpy(samples[:, i]), alpha=0.5, density=True,
                      bins=[binx, biny])
         ax[i].set_ylabel(feature_names[i])
-        ax[i].set_xlabel('Gen Mass')
+        ax[i].set_xlabel('SB1 Mass')
     fig.suptitle(title)
     fig.savefig(sv_dir + f'/features_mass_diagnostic_{region}_{nm}')
