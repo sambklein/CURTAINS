@@ -6,6 +6,7 @@ import numpy as np
 class BasePhysics(Dataset):
 
     def __init__(self, data, scale=None):
+        super(BasePhysics, self).__init__()
         self.data = data
         self.num_points = data.shape[0]
         self.scale_norm = 1
@@ -16,7 +17,7 @@ class BasePhysics(Dataset):
         self.shape = self.data.shape
 
     def set_scale(self, scale):
-        if scale == None:
+        if scale is None:
             # If no scaling variable is passed then this is the train set, so find the scaling vars
             self.max_vals = []
             self.min_vals = []
@@ -30,14 +31,16 @@ class BasePhysics(Dataset):
     def scale(self, scale_fact):
         # This will keep track of multiple scalings
         self.scale_norm *= scale_fact
-        self.data *= self.scale_norm
+        self.data *= scale_fact
         self.scaled = True
 
-    def unscale(self, data=None):
-        if data == None:
+    def unscale(self, data_in=None):
+        if data_in is None:
             data = self.data
+        else:
+            data = data_in
         data /= self.scale_norm
-        if data == None:
+        if data_in is None:
             self.scale_norm = 1
         return data
 
@@ -49,17 +52,19 @@ class BasePhysics(Dataset):
             self.data.t()[i] = (zo - 0.5) * 2
         self.normed = True
 
-    def unnormalize(self, data=None):
+    def unnormalize(self, data_in=None):
 
-        data = self.unscale(data)
+        data = self.unscale(data_in)
 
-        if self.normed or (data != None):
+        if self.normed or (data_in is not None):
+            temp = torch.empty_like(data)
             for i, train_feature in enumerate(data.t()):
                 min_val = self.min_vals[i]
                 max_val = self.max_vals[i]
-                zo = train_feature * 2 + 0.5
-                data.t()[i] = zo * (max_val - min_val) + min_val
-            if data == None:
+                zo = train_feature / 2 + 0.5
+                temp.t()[i] = zo * (max_val - min_val) + min_val
+            data = temp
+            if data_in is None:
                 self.normed = False
         return data
 
@@ -83,20 +88,33 @@ class Curtains(BasePhysics):
         nfeatures = 4
         data = np.zeros((df.shape[0], nfeatures + 1))
         # The last data feature is always the context
-        # data[:, 0] = df['tau3s'] / df['taus']
-        # data[:, 1] = df['tau3s'] / df['tau2s']
-        # data[:, 2] = df['Qws']
-        # data[:, 3] = df['d34s']
-        # data[:, 4] = df['m']
-        data[:, 0] = df['Qws']
-        data[:, 1] = df['tau2s'] / df['taus']
-        data[:, 2] = df['tau3s'] / df['tau2s']
-        data[:, 3] = df['d34s']
-        data[:, 4] = df['m']
-        # data[:, 0] = df['pt']
-        # data[:, 1] = df['e']
-        # data[:, 2] = df['m']
-        return data, ['Qws', 'tau2s/taus', 'tau3s/tau2s', 'd34s', 'm']
+        # 'pt', 'eta', 'phi', 'mass', 'tau1', 'tau2', 'tau3', 'd12', 'd23', 'ECF2', 'ECF3'
+        data[:, 0] = df['tau2'] / df['tau1']
+        data[:, 1] = df['tau3'] / df['tau2']
+        data[:, 2] = df['d23']
+        data[:, 3] = df['d12']
+        data[:, 4] = df['mass']
+        return data, ['tau2s/taus', 'tau3s/tau2s', 'd23', 'd12', 'mass']
+
+    # @staticmethod
+    # def get_features(df):
+    #     nfeatures = 4
+    #     data = np.zeros((df.shape[0], nfeatures + 1))
+    #     # The last data feature is always the context
+    #     # data[:, 0] = df['tau3s'] / df['taus']
+    #     # data[:, 1] = df['tau3s'] / df['tau2s']
+    #     # data[:, 2] = df['Qws']
+    #     # data[:, 3] = df['d34s']
+    #     # data[:, 4] = df['m']
+    #     data[:, 0] = df['Qws']
+    #     data[:, 1] = df['tau2s'] / df['taus']
+    #     data[:, 2] = df['tau3s'] / df['tau2s']
+    #     data[:, 3] = df['d34s']
+    #     data[:, 4] = df['m']
+    #     # data[:, 0] = df['pt']
+    #     # data[:, 1] = df['e']
+    #     # data[:, 2] = df['m']
+    #     return data, ['Qws', 'tau2s/taus', 'tau3s/tau2s', 'd34s', 'm']
 
     def get_quantile(self, quantile):
         # Returns a numpy array of the training features, plus the context feature on the end
@@ -118,7 +136,7 @@ class CurtainsTrainSet(Dataset):
         self.s2 = self.data2.shape[0]
         self.ndata = min(self.s1, self.s2)
         self.mix_qs = mix_qs
-        self.stack=stack
+        self.stack = stack
         self.data = self.get_data()
         self.shape = [self.ndata, *self.data1.shape[1:]]
 
@@ -126,15 +144,15 @@ class CurtainsTrainSet(Dataset):
         if self.stack:
             # This method keeps the high mass and low mass regions separated
             data = torch.cat((self.data1.data, self.data2.data), 0)
-            return data[torch.randperm(self.s1 + self.s2)]
+            return data[torch.randperm(self.s1 + self.s2, device='cpu')]
         else:
             if self.mix_qs:
                 # This method will shuffle samples between classes
                 # With this you also learn to map within the same class
-                d1 = self.data1[torch.randperm(self.s1)]
-                d2 = self.data2[torch.randperm(self.s2)]
+                d1 = self.data1[torch.randperm(self.s1, device='cpu')]
+                d2 = self.data2[torch.randperm(self.s2, device='cpu')]
                 data = torch.cat((d1[:self.ndata].data, d2[:self.ndata].data), 0)
-                data_shuffled = data[torch.randperm(data.shape[0])]
+                data_shuffled = data[torch.randperm(data.shape[0], device='cpu')]
                 data = torch.cat((data_shuffled[:self.ndata], data_shuffled[self.ndata:]), 1)
                 # Sort so that map goes from low mass to high mass
                 ndf = self.data1.data.shape[1]
@@ -143,8 +161,8 @@ class CurtainsTrainSet(Dataset):
                 return data
             else:
                 # This method keeps the high mass and low mass regions separated
-                d1 = self.data1[torch.randperm(self.s1)]
-                d2 = self.data2[torch.randperm(self.s2)]
+                d1 = self.data1[torch.randperm(self.s1, device='cpu')]
+                d2 = self.data2[torch.randperm(self.s2, device='cpu')]
                 return torch.cat((d1[:self.ndata].data, d2[:self.ndata].data), 1)
 
     def set_norm_fact(self, scale):
@@ -177,7 +195,8 @@ class CurtainsTrainSet(Dataset):
         self.data = self.get_data()
 
     def shuffle(self):
-        self.data = self.get_data()
+        device = self.data.device
+        self.data = self.get_data().to(device)
 
     def copy_construct(self, inds):
         # At present this does not need to be more detailed, we don't care about the scaling properties while training
@@ -186,6 +205,8 @@ class CurtainsTrainSet(Dataset):
         dataset.set_norm_fact(self.norm_fact)
         if self.data1.normed:
             dataset.normalize()
+        # Manually place on the same device
+        dataset.data = dataset.data.to(self.data.device)
         return dataset
 
     def get_valid(self, inds_valid, inds_train):

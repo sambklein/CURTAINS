@@ -89,7 +89,7 @@ def projectiontionLS_2D(dim1, dim2, latent_space, *args, **kwargs):
     return g
 
 
-def getFeaturePlot(model, original, sampled, nm, savedir, region, feature_names):
+def getFeaturePlot(model, original, sampled, lm_sample, nm, savedir, region, feature_names):
     nfeatures = len(feature_names) - 1
     fig, axes = plt.subplots(nfeatures, nfeatures, figsize=(2 * nfeatures + 2, 2 * nfeatures - 1))
     sigcolour = ['red', 'blue']
@@ -103,8 +103,11 @@ def getFeaturePlot(model, original, sampled, nm, savedir, region, feature_names)
             if i == j:
                 bin = get_bins(original[:, i])
                 _, bins, _ = axes[i, j].hist(model.get_numpy(original[:, i]), bins=bin, density=True, histtype='step',
-                                             color='red')
-                axes[i, j].hist(model.get_numpy(sampled[:, i]), density=True, bins=bins, histtype='step', color='blue')
+                                             color='red', label='Original')
+                axes[i, j].hist(model.get_numpy(sampled[:, i]), density=True, bins=bins, histtype='step', color='blue',
+                                label='Sampled')
+                axes[i, j].hist(model.get_numpy(lm_sample[:, i]), density=True, bins=bins, histtype='step',
+                                color='black', linestyle='dashed', label='Input Sample')
 
             if i < j:
                 bini = get_bins(original[:, i])
@@ -118,7 +121,9 @@ def getFeaturePlot(model, original, sampled, nm, savedir, region, feature_names)
                 axes[i, j].hist2d(model.get_numpy(sampled[:, j]), model.get_numpy(sampled[:, i]), bins=[binj, bini],
                                   density=True, cmap="Blues")
 
-    fig.legend(signal_handle, signal_labels, bbox_to_anchor=(1.001, 0.99), frameon=False)
+    # fig.legend(signal_handle, signal_labels, bbox_to_anchor=(1.001, 0.99), frameon=False)
+    handles, labels = axes[0, 0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc='upper right')
     fig.suptitle(region)
     fig.tight_layout()
     plt.savefig(savedir + '/featurespread_{}_{}_{}.png'.format(region, nm, 'transformed_data'))
@@ -173,7 +178,7 @@ def hist_features_single(originals, model, feature_nms, axs, bins, label='data')
         # axs[i].legend()
 
 
-def plot_single_feature_mass_diagnostic(model, samples, generating_data, feature_names, sv_dir, region, title, nm):
+def plot_single_feature_mass_diagnostic(model, samples, generating_data, feature_names, sv_dir, title, nm):
     generating_mass = torch.cat([generating_data[:, -1]] * int(samples.shape[0] / generating_data.shape[0]))
     nfeatures = samples.shape[1]
     fig, ax = plt.subplots(1, nfeatures, figsize=(5 * nfeatures + 2, 5))
@@ -183,6 +188,6 @@ def plot_single_feature_mass_diagnostic(model, samples, generating_data, feature
         ax[i].hist2d(model.get_numpy(generating_mass), model.get_numpy(samples[:, i]), alpha=0.5, density=True,
                      bins=[binx, biny])
         ax[i].set_ylabel(feature_names[i])
-        ax[i].set_xlabel('SB1 Mass')
+        ax[i].set_xlabel('Target Mass')
     fig.suptitle(title)
-    fig.savefig(sv_dir + f'/features_mass_diagnostic_{region}_{nm}')
+    fig.savefig(sv_dir + f'/features_mass_diagnostic_{nm}')

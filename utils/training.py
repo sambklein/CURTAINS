@@ -119,8 +119,10 @@ def fit(model, optimizers, dataset, n_epochs, batch_size, writer, schedulers=Non
     n_work = 0
     ntrain = trainset.data.shape[0]
     trainset.data = trainset.data[:ntrain - (ntrain % batch_size), :]
-    training_data = torch.utils.data.DataLoader(trainset, batch_size=batch_size, shuffle=True, num_workers=n_work)
-    val_data = torch.utils.data.DataLoader(valset, batch_size=batch_size, shuffle=True, num_workers=n_work)
+    training_data = torch.utils.data.DataLoader(trainset, batch_size=batch_size, shuffle=False, num_workers=n_work,
+                                                pin_memory=False)
+    val_data = torch.utils.data.DataLoader(valset, batch_size=batch_size, shuffle=False, num_workers=n_work,
+                                           pin_memory=False)
 
     # If a monitoring interval is not passed set a default
     if not monitor_interval:

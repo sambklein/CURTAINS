@@ -12,7 +12,7 @@ from utils.hyperparams import get_measure
 
 from utils.training import fit
 
-from models.OT_models import curtains_transformer, two_way_curtains_transformer
+from models.OT_models import curtains_transformer, tucan
 from models.nn.flows import spline_flow, coupling_spline
 
 from utils import hyperparams
@@ -31,7 +31,8 @@ parser.add_argument('--dataset', type=str, default='curtains', help='The dataset
 parser.add_argument('--resonant_feature', type=str, default='mass', help='The resonant feature to use for binning.')
 
 ## Binning parameters
-parser.add_argument("--quantiles", nargs="*", type=float, default=[0, 1, 2, 3])
+parser.add_argument("--quantiles", nargs="*", type=float, default=[1, 2, 3, 4])
+parser.add_argument("--bins", nargs="*", type=float, default=[55, 65, 75, 85, 95, 105])
 
 ## Names for saving
 parser.add_argument('-n', type=str, default='Transformer', help='The name with which to tag saved outputs.')
@@ -79,7 +80,7 @@ n_epochs = args.epochs
 exp_name = args.n
 distance = args.distance
 
-# measure(x, y) returns distance from x to y (N, D) for N samples in D dimensions, or (B, N, D) with a bacth index
+# measure(x, y) returns distance from x to y (N, D) for N samples in D dimensions, or (B, N, D) with a batch index
 measure = get_measure(distance)
 
 sv_dir = get_top_dir()
@@ -89,7 +90,8 @@ writer = SummaryWriter(log_dir=log_dir)
 # Make datasets
 # If the distance measure is the sinkhorn distance then don't mix samples between quantiles
 mix_qs = distance != 'sinkhorn'
-datasets = get_data(args.dataset, quantiles=args.quantiles, mix_qs=mix_qs)
+# datasets = get_data(args.dataset, quantiles=args.quantiles, mix_qs=mix_qs)
+datasets = get_data(args.dataset, bins=args.bins, mix_qs=mix_qs)
 ndata = datasets.ndata
 inp_dim = datasets.nfeatures
 print('There are {} training examples, {} validation examples and {} signal examples.'.format(
@@ -125,7 +127,7 @@ else:
 
 # Build model
 if args.two_way:
-    transformer = two_way_curtains_transformer
+    transformer = tucan
 else:
     transformer = curtains_transformer
 
@@ -140,6 +142,9 @@ if args.reduce_lr_plat:
     reduce_lr_inn = [optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min')]
 else:
     reduce_lr_inn = None
+
+# Switch back to the default tensor being on cpu, otherwise there are memory issues while training with the DataLoader
+torch.set_default_tensor_type('torch.FloatTensor')
 
 # Fit the model
 fit(curtain_runner, optimizer, datasets.trainset, n_epochs, bsize, writer, schedulers=scheduler,

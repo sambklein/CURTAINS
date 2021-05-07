@@ -15,7 +15,7 @@ def add_opt(key, val):
 
 
 # CURTAINS settings
-add_opt('batch_size', [300])
+add_opt('batch_size', [1000])
 add_opt('activ', ['leaky_relu'])
 add_opt('lr', [0.0001])
 add_opt('epochs', [100])
@@ -48,7 +48,7 @@ def _get_args():
     #                     help='File containing validation data. If not provided, training data will be split.',
     #                     )
     parser.add_argument('--squeue', type=str, default='shared-gpu,private-dpnc-gpu')
-    parser.add_argument('--stime', type=str, default='00-04:00:00')
+    parser.add_argument('--stime', type=str, default='00-12:00:00')
     parser.add_argument('--smem', type=str, default='10GB')
     parser.add_argument('--work-dir', type=str, default=curr_path)
     parser.add_argument('--submit', action='store_true',
@@ -57,9 +57,9 @@ def _get_args():
     parser.add_argument('--singularity-instance', type=str,
                         default='/home/users/k/kleins/MLproject/CURTAINS/container/latest_latest.sif')
     parser.add_argument('--singularity-mounts', type=str,
-                        default='/srv/beegfs/scratch/groups/dpnc/atlas/AnomalousJets:/srv/beegfs/scratch/groups/dpnc/atlas/AnomalousJets')
+                        default='/srv/beegfs/scratch/groups/rodem/anomalous_jets/data/')
     parser.add_argument('--experiment', type=str,
-                        default='ANODE.py')
+                        default='validate_interpolation.py')
     parser.set_defaults(submit=False)
     return parser.parse_args()
 

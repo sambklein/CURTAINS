@@ -46,24 +46,47 @@ def load_jets(sm='QCD', split=0.1, normalize=True, dtype='float32'):
     return trainset, testset
 
 
-def load_curtains_pd():
-    # TODO: make this a wrapper for loading generic pandas files
-    data_dir = '/srv/beegfs/scratch/groups/dpnc/atlas/AnomalousJets'
-    slim_dir = get_top_dir() + '/data/slims'
-    filename = 'final_jj_1MEvents_substructure.h5'
-    data_file = data_dir + '/' + filename
-    slim_file = slim_dir + '/' + filename
-    # If you aren't on the cluster load a local slim version for testing
-    if on_cluster():
-        df = pd.read_hdf(data_file)
-        # If you are on the cluster and the slim file doesn't exist, make it
-        if not os.path.isfile(slim_file):
-            df_sv = df.take(list(range(5000)))
-            os.makedirs(slim_dir)
-            df_sv.to_csv(slim_file, index=False)
-    else:
-        df = pd.read_csv(slim_file)
-    return df.dropna()
+# def load_curtains_pd():
+#     # TODO: make this a wrapper for loading generic pandas files
+#     data_dir = '/srv/beegfs/scratch/groups/dpnc/atlas/AnomalousJets'
+#     slim_dir = get_top_dir() + '/data/slims'
+#     filename = 'final_jj_1MEvents_substructure.h5'
+#     data_file = data_dir + '/' + filename
+#     slim_file = slim_dir + '/' + filename
+#     # If you aren't on the cluster load a local slim version for testing
+#     if on_cluster():
+#         df = pd.read_hdf(data_file)
+#         # If you are on the cluster and the slim file doesn't exist, make it
+#         if not os.path.isfile(slim_file):
+#             df_sv = df.take(list(range(5000)))
+#             os.makedirs(slim_dir)
+#             df_sv.to_csv(slim_file, index=False)
+#     else:
+#         df = pd.read_csv(slim_file)
+#     return df.dropna()
+
+# TODO: this is stupid code duplication from the pytorch-utils repo in the anomaly tools.
+def fill_array(to_fill, obj, dtype):
+    arr = np.array(obj, dtype=dtype)
+    to_fill[:len(arr)] = arr
+
+def load_curtains_pd(sm='QCDjj_pT', dtype='float32'):
+    directory = '/srv/beegfs/scratch/groups/rodem/anomalous_jets/data/'
+    nchunks = 6
+    lo_obs = np.empty((nchunks, 180000, 11))
+    nlo_obs = np.empty((nchunks, 180000, 11))
+    for i in range(nchunks):
+        with h5py.File(directory + f"20210430_{sm}_450_1200_nevents_1M/merged_selected_{i}.h5", 'r') as readfile:
+            fill_array(lo_obs[i], readfile["objects/jets/jet1_obs"][:], dtype)
+            fill_array(nlo_obs[i], readfile["objects/jets/jet2_obs"][:], dtype)
+
+    low_level_names = ['pt', 'eta', 'phi', 'mass', 'tau1', 'tau2', 'tau3', 'd12', 'd23', 'ECF2', 'ECF3']
+    lo_obs = np.vstack(lo_obs)
+    mx = lo_obs[:, 0] != 0
+    df = pd.DataFrame(np.hstack((lo_obs[mx], np.vstack(nlo_obs)[mx])),
+                        columns=low_level_names + ['nlo_' + nm for nm in low_level_names])
+    df = df.dropna()
+    return df
 
 
 def load_curtains():
@@ -83,12 +106,21 @@ def get_data(dataset, bins=None, quantiles=None, normalize=True, mix_qs=False, f
 
     if bins:
         # Split the data into different datasets based on the binning
-        context_feature = features[:, -1]
-        validation_data = df.loc[(context_feature < bins[0]) | (context_feature > bins[-1])]
-        signal_data = df.loc[(context_feature < bins[2]) & (context_feature > bins[1])]
-        training_data = df.loc[((context_feature < bins[1]) & (context_feature > bins[0])) | (
-                (context_feature < bins[-1]) & (context_feature > bins[1]))]
+        context_feature = df['mass']
+
+        lm = Curtains(df.loc[(context_feature < bins[2]) & (context_feature > bins[1])])
+        hm = Curtains(df.loc[(context_feature < bins[4]) & (context_feature > bins[3])])
+        training_data = CurtainsTrainSet(lm, hm, mix_qs=mix_qs, stack=flow)
+
+        # Set the normalization factors for the other datasets
+        scale = training_data.set_and_get_norm_facts()
+        validation_data = Curtains(df.loc[(context_feature > bins[4]) & (context_feature < bins[5])], norm=scale)
+        # TODO: we also have this validation set now, it needs to be included
+        # validation_data = Curtains(df.loc[(context_feature > bins[0]) & (context_feature < bins[1])], norm=scale)
+        signal_data = Curtains(df.loc[(context_feature < bins[3]) & (context_feature > bins[2])], norm=scale)
+
         drape = WrappingCurtains(training_data, signal_data, validation_data, bins)
+
     elif quantiles:
         # Split the data into different datasets based on the binning
         # TODO: need to make get_quantiles accept lists as well as ints to have more validation regions
