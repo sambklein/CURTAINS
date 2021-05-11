@@ -93,8 +93,6 @@ def getFeaturePlot(model, original, sampled, lm_sample, nm, savedir, region, fea
     nfeatures = len(feature_names) - 1
     fig, axes = plt.subplots(nfeatures, nfeatures, figsize=(2 * nfeatures + 2, 2 * nfeatures - 1))
     sigcolour = ['red', 'blue']
-    signal_handle = [mpatches.Patch(color=colors) for colors in sigcolour]
-    signal_labels = ["Original", "Sampled"]
     for i in range(nfeatures):
         axes[i, 0].set_ylabel(feature_names[i])
         for j in range(nfeatures):
@@ -105,7 +103,7 @@ def getFeaturePlot(model, original, sampled, lm_sample, nm, savedir, region, fea
                 _, bins, _ = axes[i, j].hist(model.get_numpy(original[:, i]), bins=bin, density=True, histtype='step',
                                              color='red', label='Original')
                 axes[i, j].hist(model.get_numpy(sampled[:, i]), density=True, bins=bins, histtype='step', color='blue',
-                                label='Sampled')
+                                label='Transformed')
                 axes[i, j].hist(model.get_numpy(lm_sample[:, i]), density=True, bins=bins, histtype='step',
                                 color='black', linestyle='dashed', label='Input Sample')
 
@@ -179,6 +177,7 @@ def hist_features_single(originals, model, feature_nms, axs, bins, label='data')
 
 
 def plot_single_feature_mass_diagnostic(model, samples, generating_data, feature_names, sv_dir, title, nm):
+    print([generating_data[:, -1]] * int(samples.shape[0] / generating_data.shape[0]))
     generating_mass = torch.cat([generating_data[:, -1]] * int(samples.shape[0] / generating_data.shape[0]))
     nfeatures = samples.shape[1]
     fig, ax = plt.subplots(1, nfeatures, figsize=(5 * nfeatures + 2, 5))

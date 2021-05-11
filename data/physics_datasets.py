@@ -91,8 +91,8 @@ class Curtains(BasePhysics):
         # 'pt', 'eta', 'phi', 'mass', 'tau1', 'tau2', 'tau3', 'd12', 'd23', 'ECF2', 'ECF3'
         data[:, 0] = df['tau2'] / df['tau1']
         data[:, 1] = df['tau3'] / df['tau2']
-        data[:, 2] = df['d23']
-        data[:, 3] = df['d12']
+        data[:, 2] = df['d23']  # np.log(df['d23'] + 1)
+        data[:, 3] = df['d12']  # np.log(df['d12'] + 1)
         data[:, 4] = df['mass']
         return data, ['tau2s/taus', 'tau3s/tau2s', 'd23', 'd12', 'mass']
 

@@ -267,6 +267,7 @@ def post_process_anode(model, datasets, sup_title='NSF', quantiles=True):
 def post_process_curtains(model, datasets, sup_title='NSF'):
     low_mass_training = datasets.trainset.data1
     high_mass_training = datasets.trainset.data2
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     sv_dir = get_top_dir() + '/images' + '/' + model.dir
     if not os.path.exists(sv_dir):
@@ -291,10 +292,8 @@ def post_process_curtains(model, datasets, sup_title='NSF'):
             samples = model.transform_to_data(low_mass_sample[:nsamp],
                                               high_mass_sample[torch.randperm(s2, device=torch.device('cpu'))][:nsamp],
                                               batch_size=1000)
-        samples = high_mass_sample.unnormalize(samples)
-        hm = high_mass_sample.unnormalize(high_mass_sample.data)
         # For the feature plot we only want to look at as many samples as there are in SB1
-        getFeaturePlot(model, hm, samples[:nsamp], high_mass_sample.unnormalize(low_mass_sample.data), nm, sv_dir, set,
+        getFeaturePlot(model, high_mass_sample, samples[:nsamp], low_mass_sample, nm, sv_dir, set,
                        datasets.signalset.feature_nms)
 
     nmass = 5
@@ -310,8 +309,8 @@ def post_process_curtains(model, datasets, sup_title='NSF'):
     hist_features_single(lm, model, datasets.signalset.feature_nms, ax, bns, label='SB1')
     for mass in masses:
         with torch.no_grad():
-            samples = model.transform_to_data(low_mass_sample, mass * torch.ones((low_mass_sample.data.shape[0], 1)))
-        samples = low_mass_sample.unnormalize(samples)
+            samples = model.transform_to_data(low_mass_sample.data.to(device),
+                                              mass * torch.ones((low_mass_sample.data.shape[0], 1)).to(device))
         # getCrossFeaturePlot(model, low_mass_sample.unnormalize(low_mass_sample.data), samples, nm, sv_dir, mass,
         #                     datasets.signalset.feature_nms)
         hist_features_single(samples, model, datasets.signalset.feature_nms, ax, bns,
@@ -329,10 +328,12 @@ def post_process_curtains(model, datasets, sup_title='NSF'):
     for i in range(nshuffle):
         mass_sample = (min_mass - max_mass) * torch.rand(nsamp, 1) + max_mass
         with torch.no_grad():
-            samples[i] = model.transform_to_data(low_mass_sample[:nsamp], mass_sample)
+            samples[i] = model.transform_to_data(low_mass_sample[:nsamp], mass_sample.to(device))
 
     smp = low_mass_sample.unnormalize(samples.view(-1, nfeatures))
-    plot_single_feature_mass_diagnostic(model, smp, smp, datasets.signalset.feature_nms, sv_dir, 'Mass Diagnostic', nm)
+    print(smp)
+    plot_single_feature_mass_diagnostic(model, samples, smp, datasets.signalset.feature_nms, sv_dir,
+                                        'Mass Diagnostic', nm)
 
 
 def post_process_flows_for_flows(model, datasets, sup_title='NSF'):

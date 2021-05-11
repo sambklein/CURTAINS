@@ -12,7 +12,8 @@ from utils.hyperparams import get_measure
 
 from utils.training import fit
 
-from models.OT_models import curtains_transformer, tucan
+from models.OT_models import curtains_transformer, tucan, delta_mass_tucan, delta_tucan, \
+    delta_mass_curtains_transformer, delta_curtains_transformer
 from models.nn.flows import spline_flow, coupling_spline
 
 from utils import hyperparams
@@ -64,6 +65,8 @@ parser.add_argument('--gclip', type=int, default=None,
                     help='The value to clip the gradient by.')
 parser.add_argument('--nbins', type=int, default=10,
                     help='The number of bins to use in each spline transformation.')
+parser.add_argument('--ncond', type=int, default=2,
+                    help='The number of features to condition on.')
 
 ## reproducibility
 parser.add_argument('--seed', type=int, default=1638128,
@@ -114,22 +117,31 @@ tails = 'linear'  # This will ensure that any samples from outside of [-tail_bou
 if args.coupling:
     # TODO clean this up
     mx = [1] * int(np.ceil(datasets.nfeatures / 2)) + [0] * int(datasets.nfeatures - np.ceil(datasets.nfeatures / 2))
-    # TODO: should make a wrapper for this to be able to change the parameters
+
+
     # this has to be an nn.module that takes as first arg the input dim and second the output dim
-    # def set_params(inp_dim, maker):
-    maker = dense_net
+    def maker(input_dim, output_dim):
+        return dense_net(input_dim, output_dim, layers=[64, 64, 64], context_features=args.ncond)
+
+
     INN = coupling_spline(inp_dim, maker, nstack=args.nstack, tail_bound=tail_bound, tails=tails, lu=0,
                           num_bins=args.nbins, mask=mx)
 else:
     INN = spline_flow(inp_dim, args.nodes, num_blocks=args.nblocks, nstack=args.nstack, tail_bound=tail_bound,
                       tails=tails, activation=hyperparams.activations[args.activ], num_bins=args.nbins,
-                      context_features=2)
+                      context_features=args.ncond)
 
 # Build model
 if args.two_way:
-    transformer = tucan
+    if args.ncond == 2:
+        transformer = delta_mass_tucan  # tucan
+    else:
+        transformer = delta_tucan  # tucan
 else:
-    transformer = curtains_transformer
+    if args.ncond == 2:
+        transformer = delta_mass_curtains_transformer
+    else:
+        transformer = delta_curtains_transformer
 
 curtain_runner = transformer(INN, device, exp_name, measure, datasets.nfeatures, dir=args.d)
 
