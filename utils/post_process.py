@@ -331,8 +331,7 @@ def post_process_curtains(model, datasets, sup_title='NSF'):
             samples[i] = model.transform_to_data(low_mass_sample[:nsamp], mass_sample.to(device))
 
     smp = low_mass_sample.unnormalize(samples.view(-1, nfeatures))
-    print(smp)
-    plot_single_feature_mass_diagnostic(model, samples, smp, datasets.signalset.feature_nms, sv_dir,
+    plot_single_feature_mass_diagnostic(model, samples.view(-1, nfeatures), smp, datasets.signalset.feature_nms, sv_dir,
                                         'Mass Diagnostic', nm)
 
 

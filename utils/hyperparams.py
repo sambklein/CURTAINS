@@ -131,4 +131,3 @@ def get_measure(name):
         return dist(x, y)
 
     return dist_measure
-

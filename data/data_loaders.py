@@ -72,9 +72,9 @@ def fill_array(to_fill, obj, dtype):
 
 def load_curtains_pd(sm='QCDjj_pT', dtype='float32'):
     directory = '/srv/beegfs/scratch/groups/rodem/anomalous_jets/data/'
-    nchunks = 6
-    lo_obs = np.empty((nchunks, 180000, 11))
-    nlo_obs = np.empty((nchunks, 180000, 11))
+    nchunks = 6 if sm[:3] == 'QCD' else 5
+    lo_obs = np.empty((nchunks, 190000, 11))
+    nlo_obs = np.empty((nchunks, 190000, 11))
     for i in range(nchunks):
         with h5py.File(directory + f"20210430_{sm}_450_1200_nevents_1M/merged_selected_{i}.h5", 'r') as readfile:
             fill_array(lo_obs[i], readfile["objects/jets/jet1_obs"][:], dtype)
@@ -85,7 +85,6 @@ def load_curtains_pd(sm='QCDjj_pT', dtype='float32'):
     mx = lo_obs[:, 0] != 0
     df = pd.DataFrame(np.hstack((lo_obs[mx], np.vstack(nlo_obs)[mx])),
                         columns=low_level_names + ['nlo_' + nm for nm in low_level_names])
-    df = df.dropna()
     return df
 
 

@@ -2,10 +2,10 @@
 import colorsys
 import numpy as np
 import torch
-from matplotlib import pyplot as plt, pyplot
-import matplotlib.patches as mpatches
-from sklearn.manifold import TSNE
-import seaborn as sns
+from matplotlib import pyplot as plt #, pyplot
+# import matplotlib.patches as mpatches
+# from sklearn.manifold import TSNE
+# import seaborn as sns
 
 
 def get_bins(data, nbins=20):
@@ -37,56 +37,56 @@ def plot2Dhist(data, ax, bins=50, bounds=None):
               )
 
 
-# From Johnny
-def projectiontionLS_2D(dim1, dim2, latent_space, *args, **kwargs):
-    '''Plot a two dimension latent space projection with marginals showing each dimension.
-    Can overlay multiple different datasets by passing more than one latent_space argument.
-    Inputs:
-        dim1: First LS dimension to plot on x axis
-        dim2: Second LS dimension to plot on y axis
-        latent_space (latent_space2, latent_space3...): the data to plot
-    Optional:
-        xrange: specify xrange in form [xmin,xmax]
-        yrange: specify xrange in form [ymin,ymax]
-        labels: labels in form ['ls1','ls2','ls3'] to put in legend
-        Additional options will be passed to the JointGrid __init__ function
-    Returns:
-        seaborn JointGrid object
-    '''
-    if 'xrange' in kwargs:
-        xrange = kwargs.get('xrange')
-    else:
-        xrange = (np.floor(np.quantile(latent_space[:, dim1], 0.02)), np.ceil(np.quantile(latent_space[:, dim1], 0.98)))
-    if 'yrange' in kwargs:
-        yrange = kwargs.get('yrange')
-    else:
-        yrange = (np.floor(np.quantile(latent_space[:, dim2], 0.02)), np.ceil(np.quantile(latent_space[:, dim2], 0.98)))
-    labels = [None] * (1 + len(args))
-    if 'labels' in kwargs:
-        labels = kwargs.get('labels')
-    kwargs.pop('xrange', None)
-    kwargs.pop('yrange', None)
-    kwargs.pop('labels', None)
-    g = sns.JointGrid(latent_space[:, dim1], latent_space[:, dim2], xlim=xrange, ylim=yrange, **kwargs)
-    # for label in [0,1]:
-    sns.kdeplot(latent_space[:, dim1], ax=g.ax_marg_x, legend=False, shade=True, alpha=0.3, label=labels[0])
-    sns.kdeplot(latent_space[:, dim2], ax=g.ax_marg_y, vertical=True, legend=False, shade=True, alpha=0.3,
-                label=labels[0])
-    sns.kdeplot(latent_space[:, dim1], latent_space[:, dim2], ax=g.ax_joint, shade=True, shade_lowest=False, bw=0.2,
-                alpha=1, label=labels[0])
-    i = 1
-    for ls in args:
-        sns.kdeplot(ls[:, dim1], ax=g.ax_marg_x, legend=False, shade=True, alpha=0.3, label=labels[i])
-        sns.kdeplot(ls[:, dim2], ax=g.ax_marg_y, vertical=True, legend=False, shade=True, alpha=0.3, label=labels[i])
-        sns.kdeplot(ls[:, dim1], ls[:, dim2], ax=g.ax_joint, shade=True, shade_lowest=False, bw=0.2, alpha=0.4,
-                    label=labels[i])
-        i += 1
-    g.ax_joint.spines['right'].set_visible(True)
-    g.ax_joint.spines['top'].set_visible(True)
-    g.set_axis_labels('LS Dim. {}'.format(dim1), 'LS Dim. {}'.format(dim2))
-    if labels[0] is not None:
-        g.ax_joint.legend()
-    return g
+# # From Johnny
+# def projectiontionLS_2D(dim1, dim2, latent_space, *args, **kwargs):
+#     '''Plot a two dimension latent space projection with marginals showing each dimension.
+#     Can overlay multiple different datasets by passing more than one latent_space argument.
+#     Inputs:
+#         dim1: First LS dimension to plot on x axis
+#         dim2: Second LS dimension to plot on y axis
+#         latent_space (latent_space2, latent_space3...): the data to plot
+#     Optional:
+#         xrange: specify xrange in form [xmin,xmax]
+#         yrange: specify xrange in form [ymin,ymax]
+#         labels: labels in form ['ls1','ls2','ls3'] to put in legend
+#         Additional options will be passed to the JointGrid __init__ function
+#     Returns:
+#         seaborn JointGrid object
+#     '''
+#     if 'xrange' in kwargs:
+#         xrange = kwargs.get('xrange')
+#     else:
+#         xrange = (np.floor(np.quantile(latent_space[:, dim1], 0.02)), np.ceil(np.quantile(latent_space[:, dim1], 0.98)))
+#     if 'yrange' in kwargs:
+#         yrange = kwargs.get('yrange')
+#     else:
+#         yrange = (np.floor(np.quantile(latent_space[:, dim2], 0.02)), np.ceil(np.quantile(latent_space[:, dim2], 0.98)))
+#     labels = [None] * (1 + len(args))
+#     if 'labels' in kwargs:
+#         labels = kwargs.get('labels')
+#     kwargs.pop('xrange', None)
+#     kwargs.pop('yrange', None)
+#     kwargs.pop('labels', None)
+#     g = sns.JointGrid(latent_space[:, dim1], latent_space[:, dim2], xlim=xrange, ylim=yrange, **kwargs)
+#     # for label in [0,1]:
+#     sns.kdeplot(latent_space[:, dim1], ax=g.ax_marg_x, legend=False, shade=True, alpha=0.3, label=labels[0])
+#     sns.kdeplot(latent_space[:, dim2], ax=g.ax_marg_y, vertical=True, legend=False, shade=True, alpha=0.3,
+#                 label=labels[0])
+#     sns.kdeplot(latent_space[:, dim1], latent_space[:, dim2], ax=g.ax_joint, shade=True, shade_lowest=False, bw=0.2,
+#                 alpha=1, label=labels[0])
+#     i = 1
+#     for ls in args:
+#         sns.kdeplot(ls[:, dim1], ax=g.ax_marg_x, legend=False, shade=True, alpha=0.3, label=labels[i])
+#         sns.kdeplot(ls[:, dim2], ax=g.ax_marg_y, vertical=True, legend=False, shade=True, alpha=0.3, label=labels[i])
+#         sns.kdeplot(ls[:, dim1], ls[:, dim2], ax=g.ax_joint, shade=True, shade_lowest=False, bw=0.2, alpha=0.4,
+#                     label=labels[i])
+#         i += 1
+#     g.ax_joint.spines['right'].set_visible(True)
+#     g.ax_joint.spines['top'].set_visible(True)
+#     g.set_axis_labels('LS Dim. {}'.format(dim1), 'LS Dim. {}'.format(dim2))
+#     if labels[0] is not None:
+#         g.ax_joint.legend()
+#     return g
 
 
 def getFeaturePlot(model, original, sampled, lm_sample, nm, savedir, region, feature_names):
@@ -177,11 +177,11 @@ def hist_features_single(originals, model, feature_nms, axs, bins, label='data')
 
 
 def plot_single_feature_mass_diagnostic(model, samples, generating_data, feature_names, sv_dir, title, nm):
-    print([generating_data[:, -1]] * int(samples.shape[0] / generating_data.shape[0]))
-    generating_mass = torch.cat([generating_data[:, -1]] * int(samples.shape[0] / generating_data.shape[0]))
+    generating_mass = generating_data[:, -1]
     nfeatures = samples.shape[1]
     fig, ax = plt.subplots(1, nfeatures, figsize=(5 * nfeatures + 2, 5))
     binx = get_bins(generating_mass)
+    # TODO: this is SLOW, need ot write something that can do histograms in batches and accumulate
     for i in range(nfeatures):
         biny = get_bins(samples[:, i])
         ax[i].hist2d(model.get_numpy(generating_mass), model.get_numpy(samples[:, i]), alpha=0.5, density=True,
