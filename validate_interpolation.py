@@ -18,7 +18,7 @@ from models.nn.flows import spline_flow, coupling_spline
 
 from utils import hyperparams
 from utils.post_process import post_process_curtains
-from utils.io import get_top_dir
+from utils.io import get_top_dir, register_experiment
 
 from data.data_loaders import get_data
 
@@ -164,3 +164,6 @@ fit(curtain_runner, optimizer, datasets.trainset, n_epochs, bsize, writer, sched
 
 # Generate test data and preprocess etc
 post_process_curtains(curtain_runner, datasets, sup_title='NSF')
+
+# Save options used for running
+register_experiment(sv_dir, exp_name, args)
