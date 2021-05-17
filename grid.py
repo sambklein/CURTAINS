@@ -17,10 +17,10 @@ def add_opt(key, val):
 # CURTAINS settings
 add_opt('batch_size', [1000])
 add_opt('activ', ['leaky_relu'])
-add_opt('lr', [0.0001])
-add_opt('epochs', [1])
+add_opt('lr', [0.00001])
+add_opt('epochs', [500])
 add_opt('shuffle', [1])
-add_opt('distance', ['sinkhorn', 'mse'])
+add_opt('distance', ['sinkhorn'])
 add_opt('coupling', [1])
 add_opt('gclip', [5])
 add_opt('nstack', [3])
@@ -28,7 +28,6 @@ add_opt('nblocks', [3])
 add_opt('nodes', [20])
 add_opt('nbins', [10])
 add_opt('ncond', [1])
-
 
 curr_path = str(pathlib.Path().absolute())
 

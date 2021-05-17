@@ -47,7 +47,9 @@ class curtains_transformer(base_model):
         return self.transformer.inverse(features, context=torch.cat((lm, hm), 1))[0]
 
     # Transform to ... given data
-    def inverse_transform_to_data(self, dl, dh):
+    def inverse_transform_to_data(self, dl, dh, batch_size=None):
+        # TODO: Need to implement the batch size
+        batch_size = None
         # The last feature is the mass or resonant feature (lm = low mass, hm = high mass)
         lm = dl[:, -1].view(-1, 1)
         hm = dh[:, -1].view(-1, 1)

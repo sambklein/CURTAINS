@@ -277,24 +277,50 @@ def post_process_curtains(model, datasets, sup_title='NSF'):
     high_mass_datasets = {'Signal Set': datasets.signalset, 'SB2': high_mass_training,
                           'Validation Set': datasets.validationset}
     low_mass_sample = low_mass_training
-
     low_mass_sample.data = low_mass_sample.data.to(model.device)
 
-    # TODO we also want to look at how the higher mass training set looks when interpolated into the signal region
-    for i, set in enumerate(high_mass_datasets):
-        high_mass_sample = high_mass_datasets[set]
-        print(f"Now evaluating sample {set}")
-        high_mass_sample.data = high_mass_sample.data.to(model.device)
-        s1 = low_mass_sample.shape[0]
-        s2 = high_mass_sample.shape[0]
+    # TODO: move these functions somewhere nicer
+    def get_samples(input_dataset, target_sample, direction):
+        target_sample.data = target_sample.data.to(model.device)
+        s1 = input_dataset.data.shape[0]
+        s2 = target_sample.data.shape[0]
         nsamp = min(s1, s2)
         with torch.no_grad():
-            samples = model.transform_to_data(low_mass_sample[:nsamp],
-                                              high_mass_sample[torch.randperm(s2, device=torch.device('cpu'))][:nsamp],
-                                              batch_size=1000)
-        # For the feature plot we only want to look at as many samples as there are in SB1
-        getFeaturePlot(model, high_mass_sample, samples[:nsamp], low_mass_sample, nm, sv_dir, set,
-                       datasets.signalset.feature_nms)
+            if direction == 'forward':
+                samples = model.transform_to_data(input_dataset[:nsamp],
+                                                  target_sample[torch.randperm(s2, device=torch.device('cpu'))][
+                                                  :nsamp], batch_size=1000)
+            elif direction == 'inverse':
+                samples = model.inverse_transform_to_data(input_dataset[:nsamp],
+                                                          target_sample[
+                                                              torch.randperm(s2, device=torch.device('cpu'))][
+                                                          :nsamp], batch_size=1000)
+        return samples
+
+    def get_maps(base_name, input_dataset, target_datasets, direction='forward'):
+        for i, set in enumerate(target_datasets):
+            target_sample = target_datasets[set]
+            print(f"Now evaluating sample {set} from {base_name}")
+            samples = get_samples(input_dataset, target_sample, direction)
+            # For the feature plot we only want to look at as many samples as there are in SB1
+            getFeaturePlot(model, target_sample, samples, input_dataset, nm, sv_dir, f'{base_name} to {set}',
+                           datasets.signalset.feature_nms)
+
+    get_maps('SB1', low_mass_sample, high_mass_datasets)
+
+    # Then map the high mass sample to the low mass samples
+    low_mass_datasets = {'Signal Set': datasets.signalset, 'SB1': low_mass_training}  # TODO: add second validation set
+    high_mass_sample = high_mass_training
+    high_mass_sample.data = high_mass_sample.data.to(model.device)
+    get_maps('SB2', high_mass_sample, low_mass_datasets, direction='inverse')
+
+    # # And finally, map the combined side bands into the signal region
+    sb2_samples = get_samples(high_mass_sample, datasets.signalset, 'inverse')
+    sb1_samples = get_samples(low_mass_sample, datasets.signalset, 'forward')
+    samples = torch.cat((sb2_samples, sb1_samples))
+    # For the feature plot we only want to look at as many samples as there are in SB1
+    getFeaturePlot(model, datasets.signalset, samples, high_mass_sample, nm, sv_dir, 'SB1 and SB2 to Signal ',
+                   datasets.signalset.feature_nms)
 
     nmass = 5
     masses = np.linspace(datasets.signalset.data[:, -1].min().item(),
@@ -323,12 +349,13 @@ def post_process_curtains(model, datasets, sup_title='NSF'):
     # Look at the distributions at different fixed mass values
     max_mass = datasets.validationset.data[:, -1].max().item()
     min_mass = min(datasets.signalset.data[:, -1].min().item(), datasets.validationset.data[:, -1].min().item())
-    nshuffle = 10
+    nshuffle = 100
+    nsamp = low_mass_sample.shape[0]
     samples = torch.empty((nshuffle, nsamp, nfeatures))
     for i in range(nshuffle):
         mass_sample = (min_mass - max_mass) * torch.rand(nsamp, 1) + max_mass
         with torch.no_grad():
-            samples[i] = model.transform_to_data(low_mass_sample[:nsamp], mass_sample.to(device))
+            samples[i] = model.transform_to_data(low_mass_sample, mass_sample.to(device))
 
     smp = low_mass_sample.unnormalize(samples.view(-1, nfeatures))
     plot_single_feature_mass_diagnostic(model, samples.view(-1, nfeatures), smp, datasets.signalset.feature_nms, sv_dir,
