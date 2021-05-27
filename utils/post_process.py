@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import torch
+from utils.DRE import get_auc
+
 from .io import get_top_dir
 from .plotting import getFeaturePlot, get_bins, getCrossFeaturePlot, hist_features, hist_features_single, \
     plot_single_feature_mass_diagnostic
@@ -314,13 +316,19 @@ def post_process_curtains(model, datasets, sup_title='NSF'):
     high_mass_sample.data = high_mass_sample.data.to(model.device)
     get_maps('SB2', high_mass_sample, low_mass_datasets, direction='inverse')
 
-    # # And finally, map the combined side bands into the signal region
+    # # And finally, map the combined side bands into the signal region, this is the REAL deal and we will measure the
+    # performance of this map by training a classifier to separate interpolated samples from real.
     sb2_samples = get_samples(high_mass_sample, datasets.signalset, 'inverse')
     sb1_samples = get_samples(low_mass_sample, datasets.signalset, 'forward')
     samples = torch.cat((sb2_samples, sb1_samples))
     # For the feature plot we only want to look at as many samples as there are in SB1
     getFeaturePlot(model, datasets.signalset, samples, high_mass_sample, nm, sv_dir, 'SB1 and SB2 to Signal ',
                    datasets.signalset.feature_nms)
+
+    # Get the AUC of the ROC for a classifier trained to separate interpolated samples from data
+    auc = get_auc(samples, datasets.signalset.data[:, :-1], sv_dir, nm)
+    with open(sv_dir + '/auc_{}.npy'.format(nm), 'wb') as f:
+        np.save(f, auc)
 
     nmass = 5
     masses = np.linspace(datasets.signalset.data[:, -1].min().item(),

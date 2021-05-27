@@ -70,22 +70,31 @@ def fill_array(to_fill, obj, dtype):
     arr = np.array(obj, dtype=dtype)
     to_fill[:len(arr)] = arr
 
-def load_curtains_pd(sm='QCDjj_pT', dtype='float32'):
-    directory = '/srv/beegfs/scratch/groups/rodem/anomalous_jets/data/'
-    nchunks = 6 if sm[:3] == 'QCD' else 5
-    lo_obs = np.empty((nchunks, 190000, 11))
-    nlo_obs = np.empty((nchunks, 190000, 11))
-    for i in range(nchunks):
-        with h5py.File(directory + f"20210430_{sm}_450_1200_nevents_1M/merged_selected_{i}.h5", 'r') as readfile:
-            fill_array(lo_obs[i], readfile["objects/jets/jet1_obs"][:], dtype)
-            fill_array(nlo_obs[i], readfile["objects/jets/jet2_obs"][:], dtype)
 
-    low_level_names = ['pt', 'eta', 'phi', 'mass', 'tau1', 'tau2', 'tau3', 'd12', 'd23', 'ECF2', 'ECF3']
-    lo_obs = np.vstack(lo_obs)
-    mx = lo_obs[:, 0] != 0
-    df = pd.DataFrame(np.hstack((lo_obs[mx], np.vstack(nlo_obs)[mx])),
-                        columns=low_level_names + ['nlo_' + nm for nm in low_level_names])
-    return df
+def load_curtains_pd(sm='QCDjj_pT', dtype='float32'):
+    if on_cluster():
+
+        directory = '/srv/beegfs/scratch/groups/rodem/anomalous_jets/data/'
+        nchunks = 6 if sm[:3] == 'QCD' else 5
+        lo_obs = np.empty((nchunks, 190000, 11))
+        nlo_obs = np.empty((nchunks, 190000, 11))
+        for i in range(nchunks):
+            with h5py.File(directory + f"20210430_{sm}_450_1200_nevents_1M/merged_selected_{i}.h5", 'r') as readfile:
+                fill_array(lo_obs[i], readfile["objects/jets/jet1_obs"][:], dtype)
+                fill_array(nlo_obs[i], readfile["objects/jets/jet2_obs"][:], dtype)
+
+        low_level_names = ['pt', 'eta', 'phi', 'mass', 'tau1', 'tau2', 'tau3', 'd12', 'd23', 'ECF2', 'ECF3']
+        lo_obs = np.vstack(lo_obs)
+        mx = lo_obs[:, 0] != 0
+        df = pd.DataFrame(np.hstack((lo_obs[mx], np.vstack(nlo_obs)[mx])),
+                          columns=low_level_names + ['nlo_' + nm for nm in low_level_names])
+        return df
+
+    else:
+        slim_dir = get_top_dir() + '/data/slims'
+        filename = 'final_jj_1MEvents_substructure.h5'
+        slim_file = slim_dir + '/' + filename
+        return pd.read_csv(slim_file)
 
 
 def load_curtains():
@@ -103,7 +112,7 @@ def get_data(dataset, bins=None, quantiles=None, normalize=True, mix_qs=False, f
     dset = Curtains(df)
     features = dset.data
 
-    if bins:
+    if bins and on_cluster():
         # Split the data into different datasets based on the binning
         context_feature = df['mass']
 
@@ -120,7 +129,10 @@ def get_data(dataset, bins=None, quantiles=None, normalize=True, mix_qs=False, f
 
         drape = WrappingCurtains(training_data, signal_data, validation_data, bins)
 
-    elif quantiles:
+    elif quantiles or (not on_cluster()):
+        if not on_cluster():
+            quantiles = [0, 1, 2, 3]
+
         # Split the data into different datasets based on the binning
         # TODO: need to make get_quantiles accept lists as well as ints to have more validation regions
         def get_quantile(ind, norm=None):

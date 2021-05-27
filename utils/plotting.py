@@ -2,7 +2,9 @@
 import colorsys
 import numpy as np
 import torch
-from matplotlib import pyplot as plt #, pyplot
+from matplotlib import pyplot as plt  # , pyplot
+
+
 # import matplotlib.patches as mpatches
 # from sklearn.manifold import TSNE
 # import seaborn as sns
@@ -88,8 +90,28 @@ def plot2Dhist(data, ax, bins=50, bounds=None):
 #         g.ax_joint.legend()
 #     return g
 
+def add_error_hist(ax, data, bins, color):
+    y, binEdges = np.histogram(data, bins=bins)
+    bincenters = 0.5 * (binEdges[1:] + binEdges[:-1])
+    width = 0.05
+    n_fact = np.sum(y)
+    menStd = np.sqrt(y) / n_fact
+    y = y / n_fact
+    ax.bar(bincenters, menStd, width=width, edgecolor=color, lw=0, fc=(0, 0, 0, 0),
+           bottom=y, hatch='\\\\\\\\\\')
+    ax.bar(bincenters, -menStd, width=width, edgecolor=color, lw=0, fc=(0, 0, 0, 0),
+           bottom=y, hatch='\\\\\\\\\\')
 
-def getFeaturePlot(model, original, sampled, lm_sample, nm, savedir, region, feature_names):
+
+def add_hist(ax, data, bin, color, label):
+    ax.hist(data, bins=bin, density=False, histtype='step', color=color, label=label, weights=get_weights(data))
+
+
+def get_weights(data):
+    return np.ones_like(data) / len(data)
+
+
+def getFeaturePlot(model, original, sampled, lm_sample, nm, savedir, region, feature_names, nbins=20):
     nfeatures = len(feature_names) - 1
     fig, axes = plt.subplots(nfeatures, nfeatures, figsize=(2 * nfeatures + 2, 2 * nfeatures - 1))
     sigcolour = ['red', 'blue']
@@ -99,13 +121,18 @@ def getFeaturePlot(model, original, sampled, lm_sample, nm, savedir, region, fea
             axes[0, j].set_title(feature_names[j])
 
             if i == j:
-                bin = get_bins(original[:, i])
-                _, bins, _ = axes[i, j].hist(model.get_numpy(original[:, i]), bins=bin, density=True, histtype='step',
-                                             color='red', label='Original')
-                axes[i, j].hist(model.get_numpy(sampled[:, i]), density=True, bins=bins, histtype='step', color='blue',
-                                label='Transformed')
-                axes[i, j].hist(model.get_numpy(lm_sample[:, i]), density=True, bins=bins, histtype='step',
-                                color='black', linestyle='dashed', label='Input Sample')
+                bin = get_bins(original[:, i], nbins=nbins)
+                # _, bins, _ = axes[i, j].hist(model.get_numpy(original[:, i]), bins=bin, density=True, histtype='step',
+                #                              color='red', label='Original')
+                # axes[i, j].hist(model.get_numpy(sampled[:, i]), density=True, bins=bins, histtype='step', color='blue',
+                #                 label='Transformed')
+                add_hist(axes[i, j], model.get_numpy(original[:, i]), bin, 'red', 'Original')
+                add_hist(axes[i, j], model.get_numpy(sampled[:, i]), bin, 'blue', 'Transformed')
+                add_error_hist(axes[i, j], model.get_numpy(original[:, i]), bins=bin, color='red')
+                add_error_hist(axes[i, j], model.get_numpy(sampled[:, i]), bins=bin, color='blue')
+                data = model.get_numpy(lm_sample[:, i])
+                axes[i, j].hist(data, density=False, bins=bin, histtype='step',
+                                color='black', linestyle='dashed', label='Input Sample', weights=get_weights(data))
 
             if i < j:
                 bini = get_bins(original[:, i])
