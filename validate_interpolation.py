@@ -14,7 +14,7 @@ from utils.training import fit
 
 from models.OT_models import curtains_transformer, tucan, delta_mass_tucan, delta_tucan, \
     delta_mass_curtains_transformer, delta_curtains_transformer
-from models.nn.flows import spline_flow, coupling_spline
+from models.nn.flows import spline_flow, coupling_inn
 
 from utils import hyperparams
 from utils.post_process import post_process_curtains
@@ -42,6 +42,7 @@ parser.add_argument('-d', type=str, default='NSF_CURT', help='Directory to save 
 ## Hyper parameters
 parser.add_argument('--distance', type=str, default='mse', help='Type of dist measure to use.')
 parser.add_argument('--coupling', type=int, default=1, help='One to use coupling layers, zero for autoregressive.')
+parser.add_argument('--spline', type=int, default=0, help='One to use spline transformations.')
 parser.add_argument('--two_way', type=int, default=1,
                     help='One to train mapping from high mass to low mass, and low mass to high mass.')
 parser.add_argument('--shuffle', type=int, default=1, help='Shuffle on epoch end.')
@@ -65,7 +66,7 @@ parser.add_argument('--gclip', type=int, default=None,
                     help='The value to clip the gradient by.')
 parser.add_argument('--nbins', type=int, default=10,
                     help='The number of bins to use in each spline transformation.')
-parser.add_argument('--ncond', type=int, default=2,
+parser.add_argument('--ncond', type=int, default=1,
                     help='The number of features to condition on.')
 
 ## reproducibility
@@ -139,8 +140,8 @@ if args.coupling:
         return dense_net(input_dim, output_dim, layers=[64, 64, 64], context_features=args.ncond)
 
 
-    INN = coupling_spline(inp_dim, maker, nstack=args.nstack, tail_bound=tail_bound, tails=tails, lu=0,
-                          num_bins=args.nbins, mask=mx)
+    INN = coupling_inn(inp_dim, maker, nstack=args.nstack, tail_bound=tail_bound, tails=tails, lu=0,
+                       num_bins=args.nbins, mask=mx, spline=args.spline)
 else:
     INN = spline_flow(inp_dim, args.nodes, num_blocks=args.nblocks, nstack=args.nstack, tail_bound=tail_bound,
                       tails=tails, activation=hyperparams.activations[args.activ], num_bins=args.nbins,
@@ -174,8 +175,8 @@ else:
 torch.set_default_tensor_type('torch.FloatTensor')
 
 # Fit the model
-# fit(curtain_runner, optimizer, datasets.trainset, n_epochs, bsize, writer, schedulers=scheduler,
-#     schedulers_epoch_end=reduce_lr_inn, gclip=args.gclip, shuffle_epoch_end=args.shuffle)
+fit(curtain_runner, optimizer, datasets.trainset, n_epochs, bsize, writer, schedulers=scheduler,
+    schedulers_epoch_end=reduce_lr_inn, gclip=args.gclip, shuffle_epoch_end=args.shuffle)
 
 # Generate test data and preprocess etc
 post_process_curtains(curtain_runner, datasets, sup_title='NSF')

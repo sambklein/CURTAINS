@@ -282,21 +282,20 @@ def post_process_curtains(model, datasets, sup_title='NSF'):
     low_mass_sample.data = low_mass_sample.data.to(model.device)
 
     # TODO: move these functions somewhere nicer
-    def get_samples(input_dataset, target_sample, direction):
-        target_sample.data = target_sample.data.to(model.device)
-        s1 = input_dataset.data.shape[0]
-        s2 = target_sample.data.shape[0]
+    def get_samples(input_dist, target_dist, direction):
+        target_dist.data = target_dist.data.to(model.device)
+        s1 = input_dist.data.shape[0]
+        s2 = target_dist.data.shape[0]
         nsamp = min(s1, s2)
         with torch.no_grad():
             if direction == 'forward':
-                samples = model.transform_to_data(input_dataset[:nsamp],
-                                                  target_sample[torch.randperm(s2, device=torch.device('cpu'))][
-                                                  :nsamp], batch_size=1000)
+                samples = model.transform_to_data(input_dist[:nsamp],
+                                                  target_dist[torch.randperm(s2, device=torch.device('cpu'))][:nsamp],
+                                                  batch_size=1000)
             elif direction == 'inverse':
-                samples = model.inverse_transform_to_data(input_dataset[:nsamp],
-                                                          target_sample[
-                                                              torch.randperm(s2, device=torch.device('cpu'))][
-                                                          :nsamp], batch_size=1000)
+                samples = model.inverse_transform_to_data(
+                    target_dist[torch.randperm(s2, device=torch.device('cpu'))][:nsamp], input_dist[:nsamp],
+                    batch_size=1000)
         return samples
 
     def get_maps(base_name, input_dataset, target_datasets, direction='forward'):

@@ -19,8 +19,8 @@ class curtains_transformer(base_model):
         # so we take the first arg
         return self.transformer(features, context=torch.cat((lm, hm), 1))[0]
 
-    # Transform to ... given data
     def transform_to_data(self, dl, dh, batch_size=None):
+        """Transform features in dl to the masses given in dh"""
         # TODO: when passing batches we need to handle the excess that prevent from reshaping how we would like
         batch_size = None
         if batch_size:
@@ -48,6 +48,7 @@ class curtains_transformer(base_model):
 
     # Transform to ... given data
     def inverse_transform_to_data(self, dl, dh, batch_size=None):
+        """Transform features in dh to the masses given in dl"""
         # TODO: Need to implement the batch size
         batch_size = None
         # The last feature is the mass or resonant feature (lm = low mass, hm = high mass)
@@ -93,7 +94,7 @@ class delta_mass_curtains_transformer(curtains_transformer):
     def inverse_transform_to_mass(self, features, lm, hm):
         return self.transformer.inverse(features, context=torch.cat((lm, hm - lm), 1))[0]
 
-    # TODO: this.
+    # TODO: this ie) negative delta trainings
     # def compute_loss(self, data, batch_size):
     #     # The data is passed with concatenated pairs of low mass and high mass features
     #     # The first #self.take are the low mass samples (dl = data low)
@@ -128,10 +129,10 @@ class tucan(curtains_transformer):
         dl = data[:, :self.take]
         # The next #self.take are the high mass samples (dl = data low)
         dh = data[:, self.take:]
-        # This returns the transformation from low mass to high mass
-        transformed_hm = self.transform_to_data(dl, dh)
         # This returns the transformation from high mass to low mass
         transformed_lm = self.inverse_transform_to_data(dl, dh)
+        # This returns the transformation from low mass to high mass
+        transformed_hm = self.transform_to_data(dl, dh)
         # Drop the mass from the feature sample
         high_mass_features = dh[:, :-1]
         low_mass_features = dl[:, :-1]
