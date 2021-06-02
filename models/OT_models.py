@@ -118,6 +118,7 @@ class tucan(curtains_transformer):
 
     def __init__(self, INN, device, exp_name, dist_measure, nfeatures, dir='INN_test'):
         super(tucan, self).__init__(INN, device, exp_name, dist_measure, nfeatures, dir=dir)
+        self.iter = 0
         self.set_loss_names()
 
     def set_loss_names(self):
@@ -140,7 +141,13 @@ class tucan(curtains_transformer):
         forward_dists = self.dist_measure(transformed_hm, high_mass_features)
         inverse_dists = self.dist_measure(transformed_lm, low_mass_features)
         self.set_loss_dict([forward_dists, inverse_dists])
-        return sum([self.loss_dict[nm] for nm in self.loss_names])
+        # return sum([self.loss_dict[nm] for nm in self.loss_names])
+        if self.iter:
+            self.iter = 0
+            return forward_dists
+        else:
+            self.iter = 1
+            return inverse_dists
 
 
 class delta_tucan(delta_curtains_transformer, tucan):

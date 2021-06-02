@@ -85,7 +85,7 @@ def fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, n_
 
 
 def get_auc(interpolated, truth, directory, exp_name, split=0.5):
-    sv_dir = directory + '/exp_name'
+    sv_dir = directory + f'/{exp_name}'
     n_inliers_train = int(len(interpolated) * split)
     n_valid = int(0.1 * n_inliers_train / 2)
     n_test_train = int(len(truth) * split)
@@ -94,7 +94,7 @@ def get_auc(interpolated, truth, directory, exp_name, split=0.5):
                                      truth[(n_test_train - n_valid):n_test_train])
     test_data = SupervisedDataClass(interpolated[:n_inliers_train], truth[:n_test_train])
     batch_size = 100
-    nepochs = 1
+    nepochs = 100
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -112,6 +112,16 @@ def get_auc(interpolated, truth, directory, exp_name, split=0.5):
     labels_test = test_data.targets.cpu().numpy()
     fpr, tpr, _ = roc_curve(labels_test, y_scores)
     roc_auc = auc(fpr, tpr)
+
+    # Plot a roc curve
+    fig, ax = plt.subplots(1, 1, figsize=(5, 5))
+    ax.plot(fpr, tpr, linewidth=2)
+    ax.plot([0, 1], [0, 1], 'k--')
+    ax.set_xticks(np.arange(0, 1.1, 0.1))
+    ax.set_xlabel('False positive rate')
+    ax.set_ylabel('True positive rate')
+    ax.set_title(f'{roc_auc}')
+    fig.savefig(sv_dir + 'roc.png')
 
     print(f'ROC AUC {roc_auc}')
 

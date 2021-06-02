@@ -21,7 +21,7 @@ def get_top_dir():
 def register_experiment(sv_dir, exp_name, args):
     log_dict = vars(args)
     json_dict = json.dumps(log_dict)
-    with open(sv_dir + exp_name + "_exp.json", "w") as file_name:
+    with open(sv_dir + '/images/' + exp_name + "_exp.json", "w") as file_name:
         json.dump(json_dict, file_name)
 
 
