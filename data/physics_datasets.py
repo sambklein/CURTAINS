@@ -216,11 +216,12 @@ class WrappingCurtains():
     This is just for wrapping three curtains datasets into one for ease of use, handling them all, and scaling etc
     """
 
-    def __init__(self, trainset, signalset, validationset, bins, scale=None):
+    def __init__(self, trainset, signalset, validationset, validationset_lm, bins, scale=None):
         self.scale = scale
         self.trainset = trainset
         self.signalset = signalset
         self.validationset = validationset
+        self.validationset_lm = validationset_lm
         self.scale_data()
         self.bins = bins
 

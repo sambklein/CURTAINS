@@ -122,7 +122,7 @@ def get_measure(name):
         dist = SamplesLoss('sinkhorn', scaling=0.5, blur=0.01, p=1)
 
     if name == 'sinkhorn_slow':
-        dist = SamplesLoss('sinkhorn', scaling=0.95, blur=0.05)
+        dist = SamplesLoss('sinkhorn', scaling=0.9, blur=0.05)
 
     if name.casefold() == 'mmd':
         dist = SamplesLoss('gaussian')

@@ -2,6 +2,7 @@ import torch
 import numpy as np
 from sklearn.metrics import roc_curve, auc
 import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
 
 from models.classifier import Classifier
 from models.nn.networks import dense_net
@@ -12,10 +13,10 @@ import torch
 
 
 class SupervisedDataClass(Dataset):
-    def __init__(self, inliers, outliers):
+    def __init__(self, data, labels, dtype=torch.float32):
         super(SupervisedDataClass, self).__init__()
-        self.data = torch.cat((inliers, outliers), 0)
-        self.targets = torch.cat((torch.ones(len(inliers)), torch.zeros(len(outliers))), 0).view(-1, 1)
+        self.data = torch.tensor(data, dtype=dtype)
+        self.targets = torch.tensor(labels, dtype=dtype)
         self.nfeatures = self.data.shape[1]
 
     def __getitem__(self, item):
@@ -84,15 +85,19 @@ def fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, n_
     print('Finished Training')
 
 
-def get_auc(interpolated, truth, directory, exp_name, split=0.5):
+def get_auc(interpolated, truth, directory, exp_name, split=0.5, anomaly_data=None):
     sv_dir = directory + f'/{exp_name}'
-    n_inliers_train = int(len(interpolated) * split)
-    n_valid = int(0.1 * n_inliers_train / 2)
-    n_test_train = int(len(truth) * split)
-    train_data = SupervisedDataClass(interpolated[:(n_inliers_train - n_valid)], truth[:(n_test_train - n_valid)])
-    valid_data = SupervisedDataClass(interpolated[(n_inliers_train - n_valid):n_inliers_train],
-                                     truth[(n_test_train - n_valid):n_test_train])
-    test_data = SupervisedDataClass(interpolated[:n_inliers_train], truth[:n_test_train])
+    if anomaly_data is not None:
+        truth = torch.cat((anomaly_data, truth), 0)
+    X, y = torch.cat((interpolated, truth), 0).cpu().numpy(), torch.cat(
+        (torch.ones(len(interpolated)), torch.zeros(len(truth))), 0).view(-1, 1).cpu().numpy()
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=split, random_state=1, stratify=y)
+    X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.1, random_state=1, stratify=y_train)
+
+    train_data = SupervisedDataClass(X_train, y_train)
+    valid_data = SupervisedDataClass(X_val, y_val)
+    test_data = SupervisedDataClass(X_test, y_test)
+
     batch_size = 100
     nepochs = 100
 
@@ -108,7 +113,7 @@ def get_auc(interpolated, truth, directory, exp_name, split=0.5):
     fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, nepochs, device, sv_dir)
 
     with torch.no_grad():
-        y_scores = classifier.predict(test_data.data).cpu().numpy()
+        y_scores = classifier.predict(test_data.data.to(device)).cpu().numpy()
     labels_test = test_data.targets.cpu().numpy()
     fpr, tpr, _ = roc_curve(labels_test, y_scores)
     roc_auc = auc(fpr, tpr)

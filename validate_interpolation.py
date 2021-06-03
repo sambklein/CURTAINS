@@ -20,7 +20,7 @@ from utils import hyperparams
 from utils.post_process import post_process_curtains
 from utils.io import get_top_dir, register_experiment
 
-from data.data_loaders import get_data
+from data.data_loaders import get_data, get_bin
 
 import argparse
 
@@ -96,24 +96,25 @@ writer = SummaryWriter(log_dir=log_dir)
 mix_qs = distance != 'sinkhorn'
 # datasets = get_data(args.dataset, quantiles=args.quantiles, mix_qs=mix_qs)
 datasets = get_data(args.dataset, bins=args.bins, mix_qs=mix_qs)
+anomaly_data = get_bin('WZ_allhad_pT', args.bins[2:4], datasets.validationset)
 ndata = datasets.ndata
 inp_dim = datasets.nfeatures
 print('There are {} training examples, {} validation examples and {} signal examples.'.format(
     datasets.trainset.data.shape[0], datasets.validationset.data.shape[0], datasets.signalset.data.shape[0]))
 
-# TODO: remove the saving and fit the mass distribution
-sb_masses = torch.cat((datasets.trainset.data1[:, -1], datasets.trainset.data2[:, -1]))
-signal_masses = datasets.signalset.data[:, -1]
-with open(sv_dir + '/data/slims/mass.npy', 'rb') as f:
-    sb_masses = np.load(f)
-    signal_masses = np.load(f)
-import matplotlib.pyplot as plt
-plt.figure()
-plt.hist(sb_masses + 1)
-# plt.xscale('log')
-plt.yscale('log')
-plt.savefig(sv_dir + '/images/mass.png')
-# TODO remove between this and previous TODO
+# # TODO: remove the saving and fit the mass distribution
+# sb_masses = torch.cat((datasets.trainset.data1[:, -1], datasets.trainset.data2[:, -1]))
+# signal_masses = datasets.signalset.data[:, -1]
+# with open(sv_dir + '/data/slims/mass.npy', 'rb') as f:
+#     sb_masses = np.load(f)
+#     signal_masses = np.load(f)
+# import matplotlib.pyplot as plt
+# plt.figure()
+# plt.hist(sb_masses + 1)
+# # plt.xscale('log')
+# plt.yscale('log')
+# plt.savefig(sv_dir + '/images/mass.png')
+# # TODO remove between this and previous TODO
 
 
 # Set all tensors to be created on gpu, this must be done after dataset creation, and before the INN creation
@@ -179,7 +180,7 @@ fit(curtain_runner, optimizer, datasets.trainset, n_epochs, bsize, writer, sched
     schedulers_epoch_end=reduce_lr_inn, gclip=args.gclip, shuffle_epoch_end=args.shuffle)
 
 # Generate test data and preprocess etc
-post_process_curtains(curtain_runner, datasets, sup_title='NSF')
+post_process_curtains(curtain_runner, datasets, sup_title='NSF', anomaly_data=anomaly_data)
 
 # Save options used for running
 register_experiment(sv_dir, exp_name, args)

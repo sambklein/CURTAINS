@@ -266,7 +266,7 @@ def post_process_anode(model, datasets, sup_title='NSF', quantiles=True):
     return 0
 
 
-def post_process_curtains(model, datasets, sup_title='NSF'):
+def post_process_curtains(model, datasets, sup_title='NSF', anomaly_data=None):
     low_mass_training = datasets.trainset.data1
     high_mass_training = datasets.trainset.data2
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -275,11 +275,6 @@ def post_process_curtains(model, datasets, sup_title='NSF'):
     if not os.path.exists(sv_dir):
         os.makedirs(sv_dir)
     nm = model.exp_name
-
-    high_mass_datasets = {'Signal Set': datasets.signalset, 'SB2': high_mass_training,
-                          'Validation Set': datasets.validationset}
-    low_mass_sample = low_mass_training
-    low_mass_sample.data = low_mass_sample.data.to(model.device)
 
     # TODO: move these functions somewhere nicer
     def get_samples(input_dist, target_dist, direction):
@@ -307,13 +302,25 @@ def post_process_curtains(model, datasets, sup_title='NSF'):
             getFeaturePlot(model, target_sample, samples, input_dataset, nm, sv_dir, f'{base_name} to {set}',
                            datasets.signalset.feature_nms)
 
+    # Map low mass samples to high mass
+    high_mass_datasets = {'Signal Set': datasets.signalset, 'SB2': high_mass_training,
+                          'Validation SB2': datasets.validationset}
+    low_mass_sample = low_mass_training
+    low_mass_sample.data = low_mass_sample.data.to(model.device)
     get_maps('SB1', low_mass_sample, high_mass_datasets)
 
     # Then map the high mass sample to the low mass samples
-    low_mass_datasets = {'Signal Set': datasets.signalset, 'SB1': low_mass_training}  # TODO: add second validation set
+    low_mass_datasets = {'Signal Set': datasets.signalset, 'SB1': low_mass_training,
+                         'Validation SB1': datasets.validationset_lm}
     high_mass_sample = high_mass_training
     high_mass_sample.data = high_mass_sample.data.to(model.device)
     get_maps('SB2', high_mass_sample, low_mass_datasets, direction='inverse')
+
+    # Validation set one, SB2 to one mass bin higher
+    get_maps('SB2', high_mass_training, {'Validation SB2': datasets.validationset}, direction='forward')
+
+    # Validation set two, SB1 to one mass bin lower
+    get_maps('SB1', low_mass_training, {'Validation SB1': datasets.validationset_lm}, direction='inverse')
 
     # # And finally, map the combined side bands into the signal region, this is the REAL deal and we will measure the
     # performance of this map by training a classifier to separate interpolated samples from real.
@@ -325,8 +332,16 @@ def post_process_curtains(model, datasets, sup_title='NSF'):
                    datasets.signalset.feature_nms)
 
     # Get the AUC of the ROC for a classifier trained to separate interpolated samples from data
+    print('Benchmark classifier separating samples from anomalies')
+    auc_supervised = get_auc(anomaly_data.data[:, :-1].to(device), datasets.signalset.data[:, :-1], sv_dir, nm)
+    print('With anomalies injected')
+    auc_anomalies = get_auc(samples, datasets.signalset.data[:, :-1], sv_dir, nm,
+                            anomaly_data=anomaly_data.data[:, :-1].to(device))
+    print('Without anomalies injected')
     auc = get_auc(samples, datasets.signalset.data[:, :-1], sv_dir, nm)
     with open(sv_dir + '/auc_{}.npy'.format(nm), 'wb') as f:
+        np.save(f, auc_supervised)
+        np.save(f, auc_anomalies)
         np.save(f, auc)
 
     nmass = 5

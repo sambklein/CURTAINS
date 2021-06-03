@@ -102,6 +102,19 @@ def load_curtains():
     return Curtains(df)
 
 
+def get_bin(process, bin, trainset=None, normalize=True):
+    df = load_curtains_pd(sm=process)
+    context_feature = df['mass']
+    df = df.loc[(context_feature < bin[1]) & (context_feature > bin[0])]
+    if trainset is None:
+        return df
+    else:
+        data = Curtains(df, norm=[trainset.max_vals, trainset.min_vals])
+        if normalize:
+            data.normalize()
+        return data
+
+
 def get_data(dataset, bins=None, quantiles=None, normalize=True, mix_qs=False, flow=False):
     # Using bins and quantiles to separate semantics between separating base on self defined mass bins and quantiles
     if dataset == 'curtains':
@@ -123,18 +136,16 @@ def get_data(dataset, bins=None, quantiles=None, normalize=True, mix_qs=False, f
         # Set the normalization factors for the other datasets
         scale = training_data.set_and_get_norm_facts()
         validation_data = Curtains(df.loc[(context_feature > bins[4]) & (context_feature < bins[5])], norm=scale)
-        # TODO: we also have this validation set now, it needs to be included
-        # validation_data = Curtains(df.loc[(context_feature > bins[0]) & (context_feature < bins[1])], norm=scale)
+        validation_data_lm = Curtains(df.loc[(context_feature > bins[0]) & (context_feature < bins[1])], norm=scale)
         signal_data = Curtains(df.loc[(context_feature < bins[3]) & (context_feature > bins[2])], norm=scale)
 
-        drape = WrappingCurtains(training_data, signal_data, validation_data, bins)
+        drape = WrappingCurtains(training_data, signal_data, validation_data, validation_data_lm, bins)
 
     elif quantiles or (not on_cluster()):
         if not on_cluster():
             quantiles = [0, 1, 2, 3]
 
         # Split the data into different datasets based on the binning
-        # TODO: need to make get_quantiles accept lists as well as ints to have more validation regions
         def get_quantile(ind, norm=None):
             return Curtains(df.loc[dset.get_quantile_mask(quantiles[ind])], norm=norm)
 
