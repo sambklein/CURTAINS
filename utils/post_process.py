@@ -325,7 +325,11 @@ def post_process_curtains(model, datasets, sup_title='NSF', anomaly_data=None):
     # # And finally, map the combined side bands into the signal region, this is the REAL deal and we will measure the
     # performance of this map by training a classifier to separate interpolated samples from real.
     sb2_samples = get_samples(high_mass_sample, datasets.signalset, 'inverse')
+    print('SB2 from signal set')
+    auc_sb2 = get_auc(sb2_samples, datasets.signalset.data[:, :-1], sv_dir, nm + 'SB2')
     sb1_samples = get_samples(low_mass_sample, datasets.signalset, 'forward')
+    print('SB1 from signal set')
+    auc_sb1 = get_auc(sb1_samples, datasets.signalset.data[:, :-1], sv_dir, nm + 'SB1')
     samples = torch.cat((sb2_samples, sb1_samples))
     # For the feature plot we only want to look at as many samples as there are in SB1
     getFeaturePlot(model, datasets.signalset, samples, high_mass_sample, nm, sv_dir, 'SB1 and SB2 to Signal ',
@@ -333,13 +337,15 @@ def post_process_curtains(model, datasets, sup_title='NSF', anomaly_data=None):
 
     # Get the AUC of the ROC for a classifier trained to separate interpolated samples from data
     print('Benchmark classifier separating samples from anomalies')
-    auc_supervised = get_auc(anomaly_data.data[:, :-1].to(device), datasets.signalset.data[:, :-1], sv_dir, nm)
+    auc_supervised = get_auc(anomaly_data.data[:, :-1].to(device), datasets.signalset.data[:, :-1], sv_dir, nm + 'Super')
     print('With anomalies injected')
-    auc_anomalies = get_auc(samples, datasets.signalset.data[:, :-1], sv_dir, nm,
+    auc_anomalies = get_auc(samples, datasets.signalset.data[:, :-1], sv_dir, nm + 'Anomalies',
                             anomaly_data=anomaly_data.data[:, :-1].to(device))
     print('Without anomalies injected')
-    auc = get_auc(samples, datasets.signalset.data[:, :-1], sv_dir, nm)
+    auc = get_auc(samples, datasets.signalset.data[:, :-1], sv_dir, nm + 'SB12')
     with open(sv_dir + '/auc_{}.npy'.format(nm), 'wb') as f:
+        np.save(f, auc_sb2)
+        np.save(f, auc_sb1)
         np.save(f, auc_supervised)
         np.save(f, auc_anomalies)
         np.save(f, auc)
