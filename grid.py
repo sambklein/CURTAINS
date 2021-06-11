@@ -57,7 +57,7 @@ def _get_args():
                         dest='submit')
     parser.add_argument('--sbatch-output', type=str, default='submit.txt')
     parser.add_argument('--singularity-instance', type=str,
-                        default='/home/users/k/kleins/MLproject/CURTAINS/container/latest_latest.sif')
+                        default='/home/users/s/senguptd/UniGe/Anomaly/curtain/CURTAINS/container/latest_latest.sif')
     parser.add_argument('--singularity-mounts', type=str,
                         default='/srv/beegfs/scratch/groups/rodem/anomalous_jets/data/')
     parser.add_argument('--experiment', type=str,
@@ -89,7 +89,7 @@ def main():
 #SBATCH --cpus-per-task=1
 #SBATCH --time={1}
 #SBATCH --partition={2}
-#SBATCH --output=/home/users/k/kleins/MLproject/CURTAINS/jobs/slurm-%A-%x_%a.out
+#SBATCH --output=/home/users/s/senguptd/UniGe/Anomaly/curtain/CURTAINS/jobs/slurm-%A-%x_%a.out
 #SBATCH --chdir={3}
 #SBATCH --mem={4}
 #SBATCH --gres=gpu:1

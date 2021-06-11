@@ -102,20 +102,7 @@ def load_curtains():
     return Curtains(df)
 
 
-def get_bin(process, bin, trainset=None, normalize=True):
-    df = load_curtains_pd(sm=process)
-    context_feature = df['mass']
-    df = df.loc[(context_feature < bin[1]) & (context_feature > bin[0])]
-    if trainset is None:
-        return df
-    else:
-        data = Curtains(df, norm=[trainset.max_vals, trainset.min_vals])
-        if normalize:
-            data.normalize()
-        return data
-
-
-def get_data(dataset, bins=None, quantiles=None, normalize=True, mix_qs=False, flow=False):
+def get_data(dataset, bins=None, quantiles=None, normalize=True, mix_qs=False, flow=False, save_mass=False):
     # Using bins and quantiles to separate semantics between separating base on self defined mass bins and quantiles
     if dataset == 'curtains':
         df = load_curtains_pd()
@@ -132,6 +119,12 @@ def get_data(dataset, bins=None, quantiles=None, normalize=True, mix_qs=False, f
         lm = Curtains(df.loc[(context_feature < bins[2]) & (context_feature > bins[1])])
         hm = Curtains(df.loc[(context_feature < bins[4]) & (context_feature > bins[3])])
         training_data = CurtainsTrainSet(lm, hm, mix_qs=mix_qs, stack=flow)
+
+        if save_mass:
+            sbmass = torch.cat((training_data.data1[:, -1], training_data.data2[:, -1]))
+            filename = f'{get_top_dir()}/data/slims/mass.npy'
+            os.makedirs(os.path.dirname(filename), exist_ok=True)
+            np.save(filename, sbmass)
 
         # Set the normalization factors for the other datasets
         scale = training_data.set_and_get_norm_facts()

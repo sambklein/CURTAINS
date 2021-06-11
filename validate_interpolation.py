@@ -1,23 +1,21 @@
 # TODO: all that changes between this and ANODE is the data loader and the model that you load, should be called with one script
 # A standard inn model
-import numpy as np
+import argparse
+import os
 
+import numpy as np
 import torch
 import torch.optim as optim
-
 from tensorboardX import SummaryWriter
 
+from data.data_loaders import get_data
+from models.nn.flows import coupling_inn, spline_flow
 from models.nn.networks import dense_net
-from utils.hyperparams import get_measure
-
-from utils.training import fit
-
-from models.OT_models import curtains_transformer, tucan, delta_mass_tucan, delta_tucan, \
-    delta_mass_curtains_transformer, delta_curtains_transformer
-from models.nn.flows import spline_flow, coupling_inn
-
+from models.OT_models import (curtains_transformer, delta_curtains_transformer,
+                              delta_mass_curtains_transformer,
+                              delta_mass_tucan, delta_tucan, tucan)
 from utils import hyperparams
-from utils.post_process import post_process_curtains
+from utils.hyperparams import get_measure
 from utils.io import get_top_dir, register_experiment
 
 from data.data_loaders import get_data, get_bin
@@ -95,8 +93,7 @@ writer = SummaryWriter(log_dir=log_dir)
 # If the distance measure is the sinkhorn distance then don't mix samples between quantiles
 mix_qs = distance != 'sinkhorn'
 # datasets = get_data(args.dataset, quantiles=args.quantiles, mix_qs=mix_qs)
-datasets = get_data(args.dataset, bins=args.bins, mix_qs=mix_qs)
-anomaly_data = get_bin('WZ_allhad_pT', args.bins[2:4], datasets.validationset)
+datasets = get_data(args.dataset, bins=args.bins, mix_qs=mix_qs, save_mass=True)
 ndata = datasets.ndata
 inp_dim = datasets.nfeatures
 print('There are {} training examples, {} validation examples and {} signal examples.'.format(
