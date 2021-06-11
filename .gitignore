@@ -83,4 +83,7 @@ venv.bak/
 # images
 *.png
 
-
+#things that shouldn't be VCd
+grid.py
+submit.txt
+submit.sh

@@ -129,6 +129,9 @@ def get_measure(name):
 
     if name.casefold() == 'mse':
         dist = torch.nn.MSELoss()
+    
+    if name.casefold() == 'huber':
+        dist = torch.nn.SmoothL1Loss() #Can update this once we update pytorch.
 
     def dist_measure(x, y):
         return dist(x, y)
