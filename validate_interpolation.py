@@ -95,7 +95,7 @@ writer = SummaryWriter(log_dir=log_dir)
 # If the distance measure is the sinkhorn distance then don't mix samples between quantiles
 mix_qs = distance != 'sinkhorn'
 # datasets = get_data(args.dataset, quantiles=args.quantiles, mix_qs=mix_qs)
-datasets = get_data(args.dataset, bins=args.bins, mix_qs=mix_qs, save_mass=True)
+datasets = get_data(args.dataset, bins=args.bins, mix_qs=mix_qs)
 anomaly_data = get_bin('WZ_allhad_pT', args.bins[2:4], datasets.validationset)
 ndata = datasets.ndata
 inp_dim = datasets.nfeatures

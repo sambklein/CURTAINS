@@ -197,18 +197,21 @@ def fit(model, optimizers, dataset, n_epochs, batch_size, writer, schedulers=Non
         mdl_dir = top_dir + '/data/saved_models/'
         path = mdl_dir + 'model_{}'.format(model.exp_name)
         if not os.path.exists(mdl_dir):
-            os.makedirs(mdl_dir)
+            os.makedirs(mdl_dir, exist_ok=True)
         model.save(path)
 
         val_loss = []
-        for i, data in enumerate(val_data, 0):
-            if isinstance(data, list):
-                data = data[0]
-            data = data.to(model.device)
-            # This updates the internal loss states which we want to access, the actual outputs are weighted sums
-            model.compute_loss(data, batch_size)
-            # Get the current loss state to 4 sf
-            val_loss += [list(model.get_loss_state(4).values())]
+        model.eval()
+        with torch.no_grad():
+            for i, data in enumerate(val_data, 0):
+                if isinstance(data, list):
+                    data = data[0]
+                data = data.to(model.device)
+                # This updates the internal loss states which we want to access, the actual outputs are weighted sums
+                model.compute_loss(data, batch_size)
+                # Get the current loss state to 4 sf
+                val_loss += [list(model.get_loss_state(4).values())]
+        model.train()
         # Calculate the averages and make a dictionary of the losses.
         # TODO in cross-val we are interested in the full list - pandas dataframe
         val_loss = np.mean(np.array(val_loss), axis=0)

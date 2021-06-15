@@ -11,6 +11,8 @@ from models.nn.networks import dense_net
 from torch.utils.data import Dataset
 import torch
 
+from utils.plotting import add_error_hist, get_bins
+
 
 class SupervisedDataClass(Dataset):
     def __init__(self, data, labels, dtype=torch.float32):
@@ -85,8 +87,8 @@ def fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, n_
     print('Finished Training')
 
 
-def get_auc(interpolated, truth, directory, exp_name, split=0.5, anomaly_data=None):
-    sv_dir = directory + f'/{exp_name}'
+def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, mass_incl=True):
+    sv_dir = directory + f'/{name}'
     if anomaly_data is not None:
         truth = torch.cat((anomaly_data, truth), 0)
     X, y = torch.cat((interpolated, truth), 0).cpu().numpy(), torch.cat(
@@ -94,16 +96,20 @@ def get_auc(interpolated, truth, directory, exp_name, split=0.5, anomaly_data=No
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=split, random_state=1, stratify=y)
     X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.1, random_state=1, stratify=y_train)
 
+    if mass_incl:
+        test_mass = X_test[:, -1]
+        X_train, X_val, X_test = X_train[:, :-1], X_val[:, :-1], X_test[:, :-1]
+
     train_data = SupervisedDataClass(X_train, y_train)
     valid_data = SupervisedDataClass(X_val, y_val)
     test_data = SupervisedDataClass(X_test, y_test)
 
     batch_size = 100
-    nepochs = 100
+    nepochs = 1
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    classifier = Classifier(net, train_data.nfeatures, 1, exp_name, directory=directory,
+    classifier = Classifier(net, train_data.nfeatures, 1, name, directory=directory,
                             activation=torch.sigmoid).to(device)
 
     # Make an optimizer object
@@ -127,6 +133,25 @@ def get_auc(interpolated, truth, directory, exp_name, split=0.5, anomaly_data=No
     ax.set_ylabel('True positive rate')
     ax.set_title(f'{roc_auc}')
     fig.savefig(sv_dir + 'roc.png')
+
+    if mass_incl:
+        # TODO: convert back to the orginial mass
+        # Plot the mass distribution for different cuts on the classifier
+        thresholds = [0, 1e-1, 1e-2, 2e-3, 3e-4]
+        fig, ax = plt.subplots(1, 1)
+        color = 'blue'
+        mx = labels_test == 0
+        bg_mass = test_mass[~mx]
+        signal_mass = test_mass[mx]
+        bins = None
+        for at in (thresholds):
+            threshold = np.quantile(y_scores[mx], 1 - at)
+            plt_mass = test_mass[y_scores[:, -1] < threshold]
+            if bins is None:
+                bins = get_bins(plt_mass)
+            add_error_hist(ax, plt_mass, bins, color, error_bars=True, normalised=False, label=)
+        ax.set_yscale('log')
+        fig.savefig(f'{sv_dir}_mass_dist_{name}.png')
 
     print(f'ROC AUC {roc_auc}')
 

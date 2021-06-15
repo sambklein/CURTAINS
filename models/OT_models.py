@@ -21,18 +21,21 @@ class curtains_transformer(base_model):
 
     def transform_to_data(self, dl, dh, batch_size=None):
         """Transform features in dl to the masses given in dh"""
-        # TODO: when passing batches we need to handle the excess that prevent from reshaping how we would like
         batch_size = None
         if batch_size:
+            n_full = int(dl.shape[0] // batch_size)
+            nfit = n_full * batch_size
             # The last feature is the mass or resonant feature (lm = low mass, hm = high mass)
-            lm = dl[:, -1].view(-1, batch_size, 1)
-            hm = dh[:, -1].view(-1, batch_size, 1)
-            low_mass_features = dl[:, :-1].view(-1, batch_size, self.take - 1)
+            lm = dl[:nfit, -1].view(-1, batch_size, 1)
+            hm = dh[:nfit, -1].view(-1, batch_size, 1)
+            low_mass_features = dl[:nfit, :-1].view(-1, batch_size, self.take - 1)
             nbatches = lm.size[1]
             sampled_features = torch.empty_like(low_mass_features)
             for i in range(nbatches):
                 sampled_features[i] = self.transform_to_mass(low_mass_features[i], lm[i], hm[i])
-            return sampled_features.view(-1, self.take - 1)
+            sampled_features = sampled_features.view(-1, self.take - 1)
+            return torch.cat(
+                (sampled_features, self.transform_to_mass(low_mass_features[nfit:, :-1], dl[nfit:, -1], dh[nfit:, -1])))
         else:
             # The last feature is the mass or resonant feature (lm = low mass, hm = high mass)
             lm = dl[:, -1].view(-1, 1)

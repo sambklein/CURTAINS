@@ -11,6 +11,8 @@ from .plotting import getFeaturePlot, get_bins, getCrossFeaturePlot, hist_featur
 
 import os
 
+from .sampling_utils import signalMassSampler
+
 
 def calculate_mass(four_vector):
     return four_vector[:, 0] ** 2 - torch.sum(four_vector[:, 1:4] * four_vector[:, 1:4], axis=1)
@@ -276,22 +278,55 @@ def post_process_curtains(model, datasets, sup_title='NSF', anomaly_data=None):
         os.makedirs(sv_dir)
     nm = model.exp_name
 
+    # Fit the mass to use for sampling
+    m1 = datasets.trainset.data1[:, -1]
+    m2 = datasets.trainset.data2[:, -1]
+    masses = torch.cat((m1, m2))
+    # TODO: these should be calculated and retrieved from the training data class.
+    edge1 = m1.max()
+    edge2 = m2.min()
+    mass_sampler = signalMassSampler(masses.detach().cpu().numpy(), edge1.item(), edge2.item(), plt_sv_dir=sv_dir)
+
+    def transform_to_mass(data, lm, hm):
+        if lm > hm:
+            raise Exception('First input must be the low end of the mass window.')
+        data_mass = data.data[:, -1].view(-1, 1)
+        sample_mass = mass_sampler.sample(len(data_mass), limits=(lm.item(), hm.item())).numpy()
+        sample_mass = torch.tensor(sample_mass, dtype=torch.float32).to(model.device)
+        if data_mass.min() >= hm:
+            direction = 'inverse'
+        elif data_mass.max() <= lm:
+            direction = 'forward'
+        else:
+            raise NotImplementedError('The mass range to which you map cannot overlap with the input mass range.')
+
+        with torch.no_grad():
+            feature_sample = {'forward': model.transform_to_mass, 'inverse': model.inverse_transform_to_mass}[
+                direction](data.data[:, :-1], data_mass, sample_mass)
+        return torch.cat((feature_sample, sample_mass), 1)
+
     # TODO: move these functions somewhere nicer
-    def get_samples(input_dist, target_dist, direction):
+    def get_samples(input_dist, target_dist, direction, r_mass=False):
         target_dist.data = target_dist.data.to(model.device)
         s1 = input_dist.data.shape[0]
         s2 = target_dist.data.shape[0]
         nsamp = min(s1, s2)
         with torch.no_grad():
+            mx = torch.randperm(s2, device=torch.device('cpu'))
             if direction == 'forward':
                 samples = model.transform_to_data(input_dist[:nsamp],
-                                                  target_dist[torch.randperm(s2, device=torch.device('cpu'))][:nsamp],
+                                                  target_dist[mx][:nsamp],
                                                   batch_size=1000)
+                mass = target_dist[mx][:nsamp, -1].view(-1, 1)
             elif direction == 'inverse':
                 samples = model.inverse_transform_to_data(
-                    target_dist[torch.randperm(s2, device=torch.device('cpu'))][:nsamp], input_dist[:nsamp],
+                    target_dist[mx][:nsamp], input_dist[:nsamp],
                     batch_size=1000)
-        return samples
+                mass = target_dist[mx][:nsamp, -1].view(-1, 1)
+        if r_mass:
+            return torch.cat((samples, mass), -1)
+        else:
+            return samples
 
     def get_maps(base_name, input_dataset, target_datasets, direction='forward'):
         for i, set in enumerate(target_datasets):
@@ -322,14 +357,16 @@ def post_process_curtains(model, datasets, sup_title='NSF', anomaly_data=None):
     # Validation set two, SB1 to one mass bin lower
     get_maps('SB1', low_mass_training, {'Validation SB1': datasets.validationset_lm}, direction='inverse')
 
-    # # And finally, map the combined side bands into the signal region, this is the REAL deal and we will measure the
-    # performance of this map by training a classifier to separate interpolated samples from real.
-    sb2_samples = get_samples(high_mass_sample, datasets.signalset, 'inverse')
+    # And finally, map the combined side bands into the signal region
+    side_band_data = torch.cat((high_mass_sample.data, low_mass_sample.data))
+    sb2_samples = get_samples(high_mass_sample, datasets.signalset, 'inverse', r_mass=True)
+    # sb2_samples = transform_to_mass(high_mass_sample, edge1, edge2)
     print('SB2 from signal set')
-    auc_sb2 = get_auc(sb2_samples, datasets.signalset.data[:, :-1], sv_dir, nm + 'SB2')
-    sb1_samples = get_samples(low_mass_sample, datasets.signalset, 'forward')
+    auc_sb2 = get_auc(sb2_samples, datasets.signalset.data, sv_dir, nm + 'SB2')
+    sb1_samples = get_samples(low_mass_sample, datasets.signalset, 'forward', r_mass=True)
+    # sb1_samples = transform_to_mass(low_mass_sample, edge1, edge2)
     print('SB1 from signal set')
-    auc_sb1 = get_auc(sb1_samples, datasets.signalset.data[:, :-1], sv_dir, nm + 'SB1')
+    auc_sb1 = get_auc(sb1_samples, datasets.signalset.data, sv_dir, nm + 'SB1')
     samples = torch.cat((sb2_samples, sb1_samples))
     # For the feature plot we only want to look at as many samples as there are in SB1
     getFeaturePlot(model, datasets.signalset, samples, high_mass_sample, nm, sv_dir, 'SB1 and SB2 to Signal ',
@@ -337,12 +374,13 @@ def post_process_curtains(model, datasets, sup_title='NSF', anomaly_data=None):
 
     # Get the AUC of the ROC for a classifier trained to separate interpolated samples from data
     print('Benchmark classifier separating samples from anomalies')
-    auc_supervised = get_auc(anomaly_data.data[:, :-1].to(device), datasets.signalset.data[:, :-1], sv_dir, nm + 'Super')
+    auc_supervised = get_auc(anomaly_data.data.to(device), datasets.signalset.data, sv_dir,
+                             nm + 'Super')
     print('With anomalies injected')
-    auc_anomalies = get_auc(samples, datasets.signalset.data[:, :-1], sv_dir, nm + 'Anomalies',
-                            anomaly_data=anomaly_data.data[:, :-1].to(device))
+    auc_anomalies = get_auc(samples, datasets.signalset.data, sv_dir, nm + 'Anomalies',
+                            anomaly_data=anomaly_data.data.to(device))
     print('Without anomalies injected')
-    auc = get_auc(samples, datasets.signalset.data[:, :-1], sv_dir, nm + 'SB12')
+    auc = get_auc(samples, datasets.signalset.data, sv_dir, nm + 'SB12')
     with open(sv_dir + '/auc_{}.npy'.format(nm), 'wb') as f:
         np.save(f, auc_sb2)
         np.save(f, auc_sb1)

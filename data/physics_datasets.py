@@ -86,27 +86,17 @@ class Curtains(BasePhysics):
 
     @staticmethod
     def get_features(df):
-        if on_cluster():
-            # TODO: better handling of this for outputting names and selecting features in one place - list of lists?
-            nfeatures = 4
-            data = np.zeros((df.shape[0], nfeatures + 1))
-            # The last data feature is always the context
-            # 'pt', 'eta', 'phi', 'mass', 'tau1', 'tau2', 'tau3', 'd12', 'd23', 'ECF2', 'ECF3'
-            data[:, 0] = df['tau2'] / df['tau1']
-            data[:, 1] = df['tau3'] / df['tau2']
-            data[:, 2] = np.log(df['d23'] + 1)
-            data[:, 3] = np.log(df['d12'] + 1)
-            data[:, 4] = df['mass']
-            return data, ['tau2s/taus', 'tau3s/tau2s', 'd23', 'd12', 'mass']
-        else:
-            nfeatures = 4
-            data = np.zeros((df.shape[0], nfeatures + 1))
-            data[:, 0] = df['Qws']
-            data[:, 1] = df['tau2s'] / df['taus']
-            data[:, 2] = df['tau3s'] / df['tau2s']
-            data[:, 3] = df['d34s']
-            data[:, 4] = df['m']
-            return data, ['Qws', 'tau2s/taus', 'tau3s/tau2s', 'd34s', 'm']
+        # TODO: better handling of this for outputting names and selecting features in one place - list of lists?
+        nfeatures = 4
+        data = np.zeros((df.shape[0], nfeatures + 1))
+        # The last data feature is always the context
+        # 'pt', 'eta', 'phi', 'mass', 'tau1', 'tau2', 'tau3', 'd12', 'd23', 'ECF2', 'ECF3'
+        data[:, 0] = df['tau2'] / df['tau1']
+        data[:, 1] = df['tau3'] / df['tau2']
+        data[:, 2] = np.log(df['d23'] + 1)
+        data[:, 3] = np.log(df['d12'] + 1)
+        data[:, 4] = df['mass']
+        return data, ['tau2s/taus', 'tau3s/tau2s', 'd23', 'd12', 'mass']
 
     def get_quantile(self, quantile):
         # Returns a numpy array of the training features, plus the context feature on the end

@@ -40,10 +40,7 @@ class base_model(ABC, nn.Module):
 
     def get_numpy(self, x):
         if torch.is_tensor(x):
-            x = x.detach()
-            if self.device != 'cpu':
-                x = x.cpu()
-            x = x.numpy()
+            x = x.detach().cpu().numpy()
         return x
 
     def my_round(self, x, nsf):

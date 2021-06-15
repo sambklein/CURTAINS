@@ -88,11 +88,19 @@ def load_curtains_pd(sm='QCDjj_pT', dtype='float32'):
         mx = lo_obs[:, 0] != 0
         df = pd.DataFrame(np.hstack((lo_obs[mx], np.vstack(nlo_obs)[mx])),
                           columns=low_level_names + ['nlo_' + nm for nm in low_level_names])
+
+        slim_file = get_top_dir() + f'/data/slims/{sm}.csv'
+        if not os.path.isfile(slim_file):
+            if not os.path.isfile(slim_file):
+                df_sv = df.take(list(range(10000)))
+                os.makedirs(get_top_dir() + '/data/slims/', exist_ok=True)
+                df_sv.to_csv(slim_file, index=False)
+
         return df
 
     else:
         slim_dir = get_top_dir() + '/data/slims'
-        filename = 'final_jj_1MEvents_substructure.h5'
+        filename = f'{sm}.csv'
         slim_file = slim_dir + '/' + filename
         return pd.read_csv(slim_file)
 
@@ -102,7 +110,20 @@ def load_curtains():
     return Curtains(df)
 
 
-def get_data(dataset, bins=None, quantiles=None, normalize=True, mix_qs=False, flow=False, save_mass=False):
+def get_bin(process, bin, trainset=None, normalize=True):
+    df = load_curtains_pd(sm=process)
+    context_feature = df['mass']
+    df = df.loc[(context_feature < bin[1]) & (context_feature > bin[0])]
+    if trainset is None:
+        return df
+    else:
+        data = Curtains(df, norm=[trainset.max_vals, trainset.min_vals])
+        if normalize:
+            data.normalize()
+        return data
+
+
+def get_data(dataset, bins=None, quantiles=None, normalize=True, mix_qs=False, flow=False):
     # Using bins and quantiles to separate semantics between separating base on self defined mass bins and quantiles
     if dataset == 'curtains':
         df = load_curtains_pd()
@@ -112,19 +133,13 @@ def get_data(dataset, bins=None, quantiles=None, normalize=True, mix_qs=False, f
     dset = Curtains(df)
     features = dset.data
 
-    if bins and on_cluster():
+    if bins:
         # Split the data into different datasets based on the binning
         context_feature = df['mass']
 
         lm = Curtains(df.loc[(context_feature < bins[2]) & (context_feature > bins[1])])
         hm = Curtains(df.loc[(context_feature < bins[4]) & (context_feature > bins[3])])
         training_data = CurtainsTrainSet(lm, hm, mix_qs=mix_qs, stack=flow)
-
-        if save_mass:
-            sbmass = torch.cat((training_data.data1[:, -1], training_data.data2[:, -1]))
-            filename = f'{get_top_dir()}/data/slims/mass.npy'
-            os.makedirs(os.path.dirname(filename), exist_ok=True)
-            np.save(filename, sbmass)
 
         # Set the normalization factors for the other datasets
         scale = training_data.set_and_get_norm_facts()
@@ -134,9 +149,7 @@ def get_data(dataset, bins=None, quantiles=None, normalize=True, mix_qs=False, f
 
         drape = WrappingCurtains(training_data, signal_data, validation_data, validation_data_lm, bins)
 
-    elif quantiles or (not on_cluster()):
-        if not on_cluster():
-            quantiles = [0, 1, 2, 3]
+    elif quantiles:
 
         # Split the data into different datasets based on the binning
         def get_quantile(ind, norm=None):
