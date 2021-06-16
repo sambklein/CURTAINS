@@ -108,6 +108,33 @@ class Curtains(BasePhysics):
         mx = self.df['mass_q{}'.format(quantile)]
         return np.array(mx, dtype='bool')
 
+    def unnorm_mass(self, mass):
+        not_tensor = not torch.is_tensor(mass)
+        if not_tensor:
+            mass = torch.tensor(mass)
+        mass = torch.tensor(mass)
+        min_val = self.min_vals[-1]
+        max_val = self.max_vals[-1]
+        zo = mass / 2 + 0.5
+        mass = zo * (max_val - min_val) + min_val
+        if not_tensor:
+            mass = mass.detach().cpu().numpy()
+        return mass
+
+    def norm_mass(self, mass):
+        not_tensor = not torch.is_tensor(mass)
+        if not_tensor:
+            dtype = type(mass)
+            mass = torch.tensor(mass)
+        min_val = self.min_vals[-1]
+        max_val = self.max_vals[-1]
+        zo = (mass - min_val) / (max_val - min_val)
+        mass = (zo - 0.5) * 2
+        if not_tensor:
+            mass = dtype(mass)
+        return mass
+
+
 
 class CurtainsTrainSet(Dataset):
 

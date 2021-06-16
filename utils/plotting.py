@@ -90,13 +90,14 @@ def plot2Dhist(data, ax, bins=50, bounds=None):
 #         g.ax_joint.legend()
 #     return g
 
-def add_error_hist(ax, data, bins, color, error_bars=False, normalised=True, label=''):
+def add_error_hist(ax, data, bins, color, error_bars=False, normalised=True, label='', norm=None):
     y, binEdges = np.histogram(data, bins=bins)
     bincenters = 0.5 * (binEdges[1:] + binEdges[:-1])
     width = 0.05
-    n_fact = np.sum(y)
+    norm_passed = norm is None
+    n_fact = np.sum(y) if norm_passed else norm
     menStd = np.sqrt(y)
-    if normalised:
+    if normalised or norm_passed:
         y = y / n_fact
         menStd = menStd / n_fact
     if error_bars:

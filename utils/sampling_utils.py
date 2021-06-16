@@ -78,7 +78,8 @@ def fitPlot(model, data, edges, plt_sv_dir, **kwargs):
     plt.clf()
 
 
-def signalMassSampler(masses, edge1, edge2, fitter='conventional', getStatus=False, plt_sv_dir=None):
+def signalMassSampler(masses, edge1, edge2, fitter='conventional', getStatus=False, plt_sv_dir=None, scaler=None,
+                      unscaler=None):
     '''
     Takes in the masses from sidebands, fits (unbinned) a pdf, and returns samples from
     the fitted pdf. Additionally returns the result of the fit.
@@ -97,13 +98,19 @@ def signalMassSampler(masses, edge1, edge2, fitter='conventional', getStatus=Fal
     if len(masses) <= 0:
         raise ValueError("No masses found to fit. Please pass a valid mass array.")
 
+    if scaler is not None:
+        masses = scaler(masses)
+        edge1 = scaler(edge1)
+        edge2 = scaler(edge2)
+    masses = masses.detach().cpu().numpy()
+
     sideband1 = zfit.Space('massRange', limits=(masses.min(), edge1))
     sideband2 = zfit.Space('massRange', limits=(edge2, masses.max()))
     massRange = sideband1 + sideband2
 
     data = zfit.Data.from_numpy(obs=massRange, array=masses)
 
-    model = linearPDF(obs=massRange, slope=f_slope, intercept=f_intercept)
+    model = linearPDF(obs=massRange, slope=f_slope, intercept=f_intercept, scaler=scaler, unscaler=unscaler)
 
     if plt_sv_dir is not None:
         fitPlot(model, data, (masses.min(), masses.max()), plt_sv_dir)

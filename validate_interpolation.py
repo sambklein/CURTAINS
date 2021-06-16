@@ -48,7 +48,7 @@ parser.add_argument('--two_way', type=int, default=1,
 parser.add_argument('--shuffle', type=int, default=1, help='Shuffle on epoch end.')
 
 parser.add_argument('--batch_size', type=int, default=10, help='Size of batch for training.')
-parser.add_argument('--epochs', type=int, default=1,
+parser.add_argument('--epochs', type=int, default=0,
                     help='The number of epochs to train for.')
 parser.add_argument('--nstack', type=int, default='3',
                     help='The number of spline transformations to stack in the inn.')
@@ -99,9 +99,9 @@ datasets = get_data(args.dataset, bins=args.bins, mix_qs=mix_qs)
 anomaly_data = get_bin('WZ_allhad_pT', args.bins[2:4], datasets.validationset)
 ndata = datasets.ndata
 inp_dim = datasets.nfeatures
-print('There are {} training examples, {} validation examples and {} signal examples.'.format(
-    datasets.trainset.data.shape[0], datasets.validationset.data.shape[0], datasets.signalset.data.shape[0]))
-
+print('There are {} training examples, {} validation examples, {} signal examples and {} anomaly samples.'.format(
+    datasets.trainset.data.shape[0], datasets.validationset.data.shape[0], datasets.signalset.data.shape[0],
+    anomaly_data.data.shape[0]))
 
 # Set all tensors to be created on gpu, this must be done after dataset creation, and before the INN creation
 if torch.cuda.is_available():

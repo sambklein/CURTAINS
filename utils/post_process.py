@@ -282,10 +282,10 @@ def post_process_curtains(model, datasets, sup_title='NSF', anomaly_data=None):
     m1 = datasets.trainset.data1[:, -1]
     m2 = datasets.trainset.data2[:, -1]
     masses = torch.cat((m1, m2))
-    # TODO: these should be calculated and retrieved from the training data class.
     edge1 = m1.max()
     edge2 = m2.min()
-    mass_sampler = signalMassSampler(masses.detach().cpu().numpy(), edge1.item(), edge2.item(), plt_sv_dir=sv_dir)
+    mass_sampler = signalMassSampler(masses, edge1.item(), edge2.item(), plt_sv_dir=sv_dir,
+                                     scaler=low_mass_training.unnorm_mass, unscaler=low_mass_training.norm_mass)
 
     def transform_to_mass(data, lm, hm):
         if lm > hm:
@@ -362,11 +362,11 @@ def post_process_curtains(model, datasets, sup_title='NSF', anomaly_data=None):
     sb2_samples = get_samples(high_mass_sample, datasets.signalset, 'inverse', r_mass=True)
     # sb2_samples = transform_to_mass(high_mass_sample, edge1, edge2)
     print('SB2 from signal set')
-    auc_sb2 = get_auc(sb2_samples, datasets.signalset.data, sv_dir, nm + 'SB2')
+    auc_sb2 = get_auc(sb2_samples, datasets.signalset.data, sv_dir, nm + 'SB2', mscaler=low_mass_training.unnorm_mass)
     sb1_samples = get_samples(low_mass_sample, datasets.signalset, 'forward', r_mass=True)
     # sb1_samples = transform_to_mass(low_mass_sample, edge1, edge2)
     print('SB1 from signal set')
-    auc_sb1 = get_auc(sb1_samples, datasets.signalset.data, sv_dir, nm + 'SB1')
+    auc_sb1 = get_auc(sb1_samples, datasets.signalset.data, sv_dir, nm + 'SB1', mscaler=low_mass_training.unnorm_mass)
     samples = torch.cat((sb2_samples, sb1_samples))
     # For the feature plot we only want to look at as many samples as there are in SB1
     getFeaturePlot(model, datasets.signalset, samples, high_mass_sample, nm, sv_dir, 'SB1 and SB2 to Signal ',
@@ -375,12 +375,14 @@ def post_process_curtains(model, datasets, sup_title='NSF', anomaly_data=None):
     # Get the AUC of the ROC for a classifier trained to separate interpolated samples from data
     print('Benchmark classifier separating samples from anomalies')
     auc_supervised = get_auc(anomaly_data.data.to(device), datasets.signalset.data, sv_dir,
-                             nm + 'Super')
+                             nm + 'Super', mscaler=low_mass_training.unnorm_mass)
     print('With anomalies injected')
-    auc_anomalies = get_auc(samples, datasets.signalset.data, sv_dir, nm + 'Anomalies',
-                            anomaly_data=anomaly_data.data.to(device))
+    for beta in [0.001, 0.01, 0.5, 1, 5, 10]:
+        auc_anomalies = get_auc(samples, datasets.signalset.data, sv_dir, nm + f'Anomalies{beta}%',
+                                anomaly_data=anomaly_data.data.to(device), beta=beta / 100,
+                                sup_title=f'Anomalies {beta:.2f}%', mscaler=low_mass_training.unnorm_mass)
     print('Without anomalies injected')
-    auc = get_auc(samples, datasets.signalset.data, sv_dir, nm + 'SB12')
+    auc = get_auc(samples, datasets.signalset.data, sv_dir, nm + 'SB12', mscaler=low_mass_training.unnorm_mass)
     with open(sv_dir + '/auc_{}.npy'.format(nm), 'wb') as f:
         np.save(f, auc_sb2)
         np.save(f, auc_sb1)
