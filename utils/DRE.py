@@ -197,8 +197,8 @@ def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, 
                 bins = get_bins(bg_mass, nbins=10)
                 norm_bg = np.sum(np.histogram(bg_mass, bins=bins)[0])
                 norm_signal = np.sum(np.histogram(signal_mass, bins=bins)[0])
-            add_error_hist(ax[i], bg_mass, bins, 'blue', error_bars=True, label='Transformed data', norm=norm_bg)
-            signal_label = 'Window data'
+            add_error_hist(ax[i], bg_mass, bins, 'blue', error_bars=True, label='Transformed jets', norm=norm_bg)
+            signal_label = 'Signal window jets'
             add_error_hist(ax[i], signal_mass, bins, 'red', error_bars=True, label=signal_label, norm=norm_signal)
             ax[i].set_yscale('log')
             ax[i].set_xlabel('Mass (GeV)')
