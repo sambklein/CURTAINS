@@ -92,10 +92,10 @@ class delta_mass_curtains_transformer(curtains_transformer):
         super(delta_mass_curtains_transformer, self).__init__(INN, device, exp_name, dist_measure, nfeatures, dir=dir)
 
     def transform_to_mass(self, features, lm, hm):
-        return self.transformer(features, context=torch.cat((lm, hm - lm), 1))[0]
+        return self.transformer(features, context=torch.cat((lm, hm), 1))[0]
 
     def inverse_transform_to_mass(self, features, lm, hm):
-        return self.transformer.inverse(features, context=torch.cat((lm, hm - lm), 1))[0]
+        return self.transformer.inverse(features, context=torch.cat((lm, hm), 1))[0]
 
     # TODO: this ie) negative delta trainings
     # def compute_loss(self, data, batch_size):

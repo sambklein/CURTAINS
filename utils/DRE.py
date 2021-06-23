@@ -183,7 +183,6 @@ def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, 
     fig.savefig(sv_dir + 'roc.png')
 
     if mass_incl:
-        # TODO: convert back to the orginial mass
         # Plot the mass distribution for different cuts on the classifier
         thresholds = [0, 0.5, 0.8, 0.95, 0.99]
         fig, ax = plt.subplots(1, len(thresholds), figsize=(5 * len(thresholds) + 2, 5))
@@ -201,6 +200,7 @@ def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, 
             add_error_hist(ax[i], bg_mass, bins, 'blue', error_bars=True, label='Background', norm=norm_bg)
             add_error_hist(ax[i], signal_mass, bins, 'red', error_bars=True, label='Signal', norm=norm_signal)
             ax[i].set_yscale('log')
+            ax[i].set_xlabel('Mass (GeV)')
             ax[i].set_title(f'BG rejection {at:.2f}')
         handles, labels = ax[0].get_legend_handles_labels()
         fig.legend(handles, labels, loc='upper right')

@@ -378,7 +378,7 @@ def post_process_curtains(model, datasets, sup_title='NSF', anomaly_data=None):
                              nm + 'Super', mscaler=low_mass_training.unnorm_mass)
     print('With anomalies injected')
     for beta in [0.001, 0.01, 0.5, 1, 5, 10]:
-        auc_anomalies = get_auc(samples, datasets.signalset.data, sv_dir, nm + f'Anomalies{beta}%',
+        auc_anomalies = get_auc(samples, datasets.signalset.data, sv_dir, nm + f'Doped with {beta}% anomalies',
                                 anomaly_data=anomaly_data.data.to(device), beta=beta / 100,
                                 sup_title=f'Anomalies {beta:.2f}%', mscaler=low_mass_training.unnorm_mass)
     print('Without anomalies injected')
