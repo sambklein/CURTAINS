@@ -89,7 +89,7 @@ def fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, n_
 
 
 def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, mass_incl=True, balance=True,
-            beta=None, sup_title='', mscaler=None):
+            beta=None, sup_title='', mscaler=None, load=False, return_rates=False):
     if balance:
         n = min((len(interpolated), len(truth)))
         interpolated = sample_data(interpolated, n)
@@ -105,7 +105,7 @@ def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, 
             n = int(len(truth) * (1 - beta))
             n1 = len(truth) - n
             truth = sample_data(truth, n)
-            anomaly_data_train = sample_data(anomaly_data, n1)
+            anomaly_data_train, anomaly_data = sample_data(anomaly_data, n1, split=True)
 
     if anomaly_bool:
         truth = torch.cat((anomaly_data_train, truth), 0)
@@ -137,7 +137,10 @@ def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, 
     optimizer = torch.optim.Adam(classifier.parameters(), lr=0.001)
 
     # Train
-    fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, nepochs, device, sv_dir)
+    if load:
+        classifier.load(sv_dir + 'classifier')
+    else:
+        fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, nepochs, device, sv_dir)
 
     with torch.no_grad():
         y_scores = classifier.predict(test_data.data.to(device)).cpu().numpy()
@@ -149,12 +152,13 @@ def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, 
     mx = labels_test == 0
     fig, ax = plt.subplots(1, 1)
 
-    def add_normed_hist(data, ax, label):
+    def add_normed_hist(data, ax, label, bins):
         total = len(data)
-        ax.hist(data, weights=np.ones_like(data) / total, label=label, histtype='step')
+        ax.hist(data, bins=bins, weights=np.ones_like(data) / total, label=label, histtype='step')
 
-    add_normed_hist(y_scores[mx], ax, 'BG')
-    add_normed_hist(y_scores[~mx], ax, 'Signal')
+    bins = get_bins(y_scores[mx], nbins=20)
+    add_normed_hist(y_scores[mx], ax, 'BG', bins)
+    add_normed_hist(y_scores[~mx], ax, 'Signal', bins)
     if anomaly_bool:
         with torch.no_grad():
             if mass_incl:
@@ -162,10 +166,12 @@ def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, 
             else:
                 ad = anomaly_data.data
             anomaly_scores = classifier.predict(ad.to(device)).cpu().numpy()
-        add_normed_hist(anomaly_scores, ax, 'Anomalies')
+        add_normed_hist(anomaly_scores, ax, 'Anomalies', bins)
         fpr1, tpr1, _ = roc_curve(np.concatenate((np.zeros(len(anomaly_scores)), np.ones(len(y_scores[~mx])))),
                                   np.concatenate((anomaly_scores[:, 0], y_scores[~mx])))
         roc_auc_anomalies = auc(fpr1, tpr1)
+    ax.set_xlabel('Classifier output')
+    fig.suptitle(sup_title)
     fig.legend()
     fig.savefig(f'{sv_dir}_classifier_distribution_{name}.png')
 
@@ -177,9 +183,9 @@ def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, 
     ax.set_xlabel('False positive rate')
     ax.set_ylabel('True positive rate')
     if anomaly_bool:
-        ax.set_title(f'Signal vs background{roc_auc:.2f} \n Injected anomalies vs signal {roc_auc_anomalies:.2f}')
+        ax.set_title(f'SR vs Transforms {roc_auc:.2f} \n SR anomalies vs SR QCD {roc_auc_anomalies:.2f}')
     else:
-        ax.set_title(f'{roc_auc}')
+        ax.set_title(f'{sup_title} {roc_auc:.2f}')
     fig.savefig(sv_dir + 'roc.png')
 
     if mass_incl:
@@ -211,4 +217,10 @@ def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, 
 
     print(f'ROC AUC {roc_auc}')
 
-    return roc_auc
+    if return_rates:
+        if anomaly_bool:
+            return roc_auc, [fpr, tpr], [fpr1, tpr1]
+        else:
+            return roc_auc, [fpr, tpr]
+    else:
+        return roc_auc

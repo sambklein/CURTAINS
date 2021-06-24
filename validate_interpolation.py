@@ -38,6 +38,7 @@ parser.add_argument("--bins", nargs="*", type=float, default=[55, 65, 75, 85, 95
 ## Names for saving
 parser.add_argument('-n', type=str, default='Transformer', help='The name with which to tag saved outputs.')
 parser.add_argument('-d', type=str, default='NSF_CURT', help='Directory to save contents into.')
+parser.add_argument('--load', type=int, default=1, help='Whether or not to load a model.')
 
 ## Hyper parameters
 parser.add_argument('--distance', type=str, default='mse', help='Type of dist measure to use.')
@@ -162,11 +163,15 @@ else:
 torch.set_default_tensor_type('torch.FloatTensor')
 
 # Fit the model
-fit(curtain_runner, optimizer, datasets.trainset, n_epochs, bsize, writer, schedulers=scheduler,
-    schedulers_epoch_end=reduce_lr_inn, gclip=args.gclip, shuffle_epoch_end=args.shuffle)
+if args.load:
+    path = get_top_dir() + f'/data/saved_models/model_{exp_name}'
+    curtain_runner.load(path)
+else:
+    fit(curtain_runner, optimizer, datasets.trainset, n_epochs, bsize, writer, schedulers=scheduler,
+        schedulers_epoch_end=reduce_lr_inn, gclip=args.gclip, shuffle_epoch_end=args.shuffle)
 
 # Generate test data and preprocess etc
-post_process_curtains(curtain_runner, datasets, sup_title='NSF', anomaly_data=anomaly_data)
+post_process_curtains(curtain_runner, datasets, sup_title='NSF', anomaly_data=anomaly_data, load=args.load)
 
 # Save options used for running
 register_experiment(sv_dir, exp_name, args)
