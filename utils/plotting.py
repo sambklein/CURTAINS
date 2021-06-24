@@ -1,15 +1,13 @@
 # Some plotting functions
 import colorsys
-
-import numpy
 import numpy as np
 import torch
-from matplotlib import pyplot as plt  # , pyplot  # , pyplot
+from matplotlib import pyplot as plt  # , pyplot
+
 
 # import matplotlib.patches as mpatches
 # from sklearn.manifold import TSNE
 # import seaborn as sns
-from utils.torch_utils import torch2numpy
 
 
 def get_bins(data, nbins=20):
@@ -119,19 +117,6 @@ def get_weights(data):
     return np.ones_like(data) / len(data)
 
 
-def add_off_diagonal(axes, i, j, data, color):
-    bini = get_bins(data[:, i])
-    binj = get_bins(data[:, j])
-    f1 = torch2numpy(data[:, i])
-    f2 = torch2numpy(data[:, j])
-    axes[i, j].hist2d(f1, f2, bins=[bini, binj], density=True, cmap=color)
-    coef = np.corrcoef(f1, f2)
-    axes[i, j].set_xlim([-1, 1.1])
-    axes[i, j].set_ylim([-1, 1.2])
-    axes[i, j].annotate(f'PC {coef[0, 1]:.2f}', xy=(0.95, 0.95), xycoords='axes fraction', ha='right', va='top', size=6)
-    # bbox=dict(boxstyle='round', fc='w'), size=6)
-
-
 def getFeaturePlot(model, original, sampled, lm_sample, nm, savedir, region, feature_names, nbins=20):
     nfeatures = len(feature_names) - 1
     fig, axes = plt.subplots(nfeatures, nfeatures, figsize=(2 * nfeatures + 2, 2 * nfeatures - 1))
@@ -143,6 +128,10 @@ def getFeaturePlot(model, original, sampled, lm_sample, nm, savedir, region, fea
 
             if i == j:
                 bin = get_bins(original[:, i], nbins=nbins)
+                # _, bins, _ = axes[i, j].hist(model.get_numpy(original[:, i]), bins=bin, density=True, histtype='step',
+                #                              color='red', label='Original')
+                # axes[i, j].hist(model.get_numpy(sampled[:, i]), density=True, bins=bins, histtype='step', color='blue',
+                #                 label='Transformed')
                 add_hist(axes[i, j], model.get_numpy(original[:, i]), bin, 'red', 'Original')
                 add_hist(axes[i, j], model.get_numpy(sampled[:, i]), bin, 'blue', 'Transformed')
                 add_error_hist(axes[i, j], model.get_numpy(original[:, i]), bins=bin, color='red')
@@ -152,10 +141,16 @@ def getFeaturePlot(model, original, sampled, lm_sample, nm, savedir, region, fea
                                 color='black', linestyle='dashed', label='Input Sample', weights=get_weights(data))
 
             if i < j:
-                add_off_diagonal(axes, i, j, original, 'Reds')
+                bini = get_bins(original[:, i])
+                binj = get_bins(original[:, j])
+                axes[i, j].hist2d(model.get_numpy(original[:, i]), model.get_numpy(original[:, j]), bins=[bini, binj],
+                                  density=True, cmap='Reds')
 
             if i > j:
-                add_off_diagonal(axes, i, j, sampled, 'Blues')
+                bini = get_bins(sampled[:, i])
+                binj = get_bins(sampled[:, j])
+                axes[i, j].hist2d(model.get_numpy(sampled[:, j]), model.get_numpy(sampled[:, i]), bins=[binj, bini],
+                                  density=True, cmap="Blues")
 
     # fig.legend(signal_handle, signal_labels, bbox_to_anchor=(1.001, 0.99), frameon=False)
     handles, labels = axes[0, 0].get_legend_handles_labels()
@@ -229,21 +224,29 @@ def plot_single_feature_mass_diagnostic(model, samples, generating_data, feature
     fig.suptitle(title)
     fig.savefig(sv_dir + f'/features_mass_diagnostic_{nm}')
 
+def get_anomaly_mass_plot(masses, sv_dir, name, title):
+    
+    fig, ax = plt.subplots()
+    ax.hist(masses)
+    ax.set_xlabel("Mass")
+    plt.title(title)
+    fig.savefig(f'{sv_dir}_mass_distribution_{name}.png')
 
-def plot_rates_dict(sv_dir, rates_dict, title):
-    fig, ax = plt.subplots(1, 1, figsize=(7, 5))
-    ax.plot([0, 1], [0, 1], 'k--')
-    for nm, rates in rates_dict.items():
-        fpr, tpr = rates
-        if 'Supervised' in nm:
-            label = nm
-        else:
-            label = f'Doping {nm}%'
-        ax.plot(fpr, tpr, linewidth=2, label=label)
-    ax.set_xticks(np.arange(0, 1.1, 0.1))
-    ax.set_xlabel('False positive rate')
-    ax.set_ylabel('True positive rate')
-    ax.set_title(title)
-    fig.tight_layout(rect=[0, 0, 0.75, 1])
-    fig.legend(bbox_to_anchor=(0.76, 0.94), loc='upper left')
-    fig.savefig(sv_dir + f'/{title}_roc.png')
+
+def get_windows_plot(bgspectra, anomalyspectra, woi, windows, sp_dir):
+    
+    anomalyspectra = np.random.choice(anomalyspectra, 50000)
+    fig, ax = plt.subplots()
+
+    
+    bgcount, bins, _ = ax.hist(bgspectra, bins=np.arange(woi[0], woi[1], 5), label='QCD', histtype='step')
+    count, _ , _ =ax.hist(anomalyspectra, bins=bins, label='Signal', histtype='step')
+    ax.axvspan(windows[1], windows[2], ymin=0., ymax=1.5*np.max(bgcount), alpha=0.1, color='green', label='Side bands')
+    ax.axvspan(windows[2], windows[3], ymin=0., ymax=1.5*np.max(bgcount), alpha=0.1, color='red', label='Signal Window')
+    ax.axvspan(windows[3], windows[4], ymin=0., ymax=1.5*np.max(bgcount), alpha=0.1, color='green')
+    ax.vlines([windows[1], windows[2], windows[3], windows[4]], ymin=0, ymax=1.5*np.max(bgcount), ls='dashed', color='black')
+    plt.legend(frameon=False)
+    ax.set_xlabel("Mass (Gev)")
+    ax.set_ylabel("Count")
+    ax.set_ylim(0, 1.5*np.max(bgcount))
+    fig.savefig(f'{sp_dir}/windows.png')

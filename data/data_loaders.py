@@ -115,7 +115,8 @@ def get_bin(process, bin, trainset=None, normalize=True):
     context_feature = df['mass']
     df = df.loc[(context_feature < bin[1]) & (context_feature > bin[0])]
     if trainset is None:
-        return df
+        return df['mass']
+        # return df
     else:
         data = Curtains(df, norm=[trainset.max_vals, trainset.min_vals])
         if normalize:
