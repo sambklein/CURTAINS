@@ -257,11 +257,13 @@ class WrappingCurtains():
         self.trainset.normalize()
         self.signalset.normalize()
         self.validationset.normalize()
+        self.validationset_lm.normalize()
 
     def unnormalize(self):
         self.trainset.unnormalize()
         self.signalset.unnormalize()
         self.validationset.unnormalize()
+        self.validationset_lm.unnormalize()
 
 
 # TODO use the base class definition here as well

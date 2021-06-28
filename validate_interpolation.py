@@ -17,6 +17,7 @@ from models.OT_models import curtains_transformer, tucan, delta_mass_tucan, delt
 from models.nn.flows import spline_flow, coupling_inn
 
 from utils import hyperparams
+from utils.plotting import get_windows_plot
 from utils.post_process import post_process_curtains
 from utils.io import get_top_dir, register_experiment
 
@@ -98,6 +99,17 @@ mix_qs = distance != 'sinkhorn'
 # datasets = get_data(args.dataset, quantiles=args.quantiles, mix_qs=mix_qs)
 datasets = get_data(args.dataset, bins=args.bins, mix_qs=mix_qs)
 anomaly_data = get_bin('WZ_allhad_pT', args.bins[2:4], datasets.validationset)
+
+#Loading only the masses. #TODO: Ugly reloading of things is ugly. Remove when I grow a brain.
+#Handle this in post process?
+#Eventually this would be an argument as well, so that it can be adjusted for Higgs discovery.
+#200 is fine for now.
+dir = get_top_dir() + '/images/' + args.d
+woi = [50, 150] 
+anomaly_spectra = get_bin('WZ_allhad_pT', args.bins[2:4])
+bg_spectra = get_bin('QCDjj_pT', woi)
+get_windows_plot(bg_spectra, anomaly_spectra, woi, args.bins, dir)
+
 ndata = datasets.ndata
 inp_dim = datasets.nfeatures
 print('There are {} training examples, {} validation examples, {} signal examples and {} anomaly samples.'.format(

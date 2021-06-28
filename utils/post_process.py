@@ -6,8 +6,8 @@ import torch
 from utils.DRE import get_auc
 
 from .io import get_top_dir
-from .plotting import getFeaturePlot, get_bins, getCrossFeaturePlot, hist_features, hist_features_single, \
-    plot_single_feature_mass_diagnostic
+from .plotting import getFeaturePlot, get_bins, hist_features, hist_features_single, \
+    plot_single_feature_mass_diagnostic, plot_rates_dict
 
 import os
 
@@ -268,7 +268,7 @@ def post_process_anode(model, datasets, sup_title='NSF', quantiles=True):
     return 0
 
 
-def post_process_curtains(model, datasets, sup_title='NSF', anomaly_data=None):
+def post_process_curtains(model, datasets, sup_title='NSF', anomaly_data=None, load=False):
     low_mass_training = datasets.trainset.data1
     high_mass_training = datasets.trainset.data2
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -339,34 +339,48 @@ def post_process_curtains(model, datasets, sup_title='NSF', anomaly_data=None):
 
     # Map low mass samples to high mass
     high_mass_datasets = {'Signal Set': datasets.signalset, 'SB2': high_mass_training,
-                          'Validation SB2': datasets.validationset}
+                          'OB2': datasets.validationset}
     low_mass_sample = low_mass_training
     low_mass_sample.data = low_mass_sample.data.to(model.device)
     get_maps('SB1', low_mass_sample, high_mass_datasets)
 
     # Then map the high mass sample to the low mass samples
     low_mass_datasets = {'Signal Set': datasets.signalset, 'SB1': low_mass_training,
-                         'Validation SB1': datasets.validationset_lm}
+                         'OB1': datasets.validationset_lm}
     high_mass_sample = high_mass_training
     high_mass_sample.data = high_mass_sample.data.to(model.device)
     get_maps('SB2', high_mass_sample, low_mass_datasets, direction='inverse')
 
     # Validation set one, SB2 to one mass bin higher
-    get_maps('SB2', high_mass_training, {'Validation SB2': datasets.validationset}, direction='forward')
+    get_maps('SB2', high_mass_training, {'OB2': datasets.validationset}, direction='forward')
+    # AUC for OB2 vs T(SB2)
+    ob2_samples = get_samples(high_mass_training, datasets.validationset, 'forward', r_mass=True)
+    # sb2_samples = transform_to_mass(high_mass_sample, edge1, edge2)
+    print('SB2 from OB2')
+    auc_ob2 = get_auc(ob2_samples, datasets.validationset.data, sv_dir, nm + 'OB2_vs_TSB2',
+                      mscaler=low_mass_training.unnorm_mass, load=load, sup_title=f'T(SB2) vs OB2')
 
     # Validation set two, SB1 to one mass bin lower
-    get_maps('SB1', low_mass_training, {'Validation SB1': datasets.validationset_lm}, direction='inverse')
+    get_maps('SB1', low_mass_training, {'OB1': datasets.validationset_lm}, direction='inverse')
+    # AUC for OB1 vs T(SB1)
+    ob1_samples = get_samples(low_mass_training, datasets.validationset_lm, 'inverse', r_mass=True)
+    # sb2_samples = transform_to_mass(high_mass_sample, edge1, edge2)
+    print('SB1 from OB1')
+    auc_ob1 = get_auc(ob1_samples, datasets.validationset_lm.data, sv_dir, nm + 'OB1_vs_TSB1',
+                      mscaler=low_mass_training.unnorm_mass, load=load, sup_title=f'T(SB1) vs OB1')
 
     # And finally, map the combined side bands into the signal region
     side_band_data = torch.cat((high_mass_sample.data, low_mass_sample.data))
     sb2_samples = get_samples(high_mass_sample, datasets.signalset, 'inverse', r_mass=True)
     # sb2_samples = transform_to_mass(high_mass_sample, edge1, edge2)
     print('SB2 from signal set')
-    auc_sb2 = get_auc(sb2_samples, datasets.signalset.data, sv_dir, nm + 'SB2', mscaler=low_mass_training.unnorm_mass)
+    auc_sb2 = get_auc(sb2_samples, datasets.signalset.data, sv_dir, nm + 'SB2', mscaler=low_mass_training.unnorm_mass,
+                      load=load, sup_title=f'T(SB2) vs SR')
     sb1_samples = get_samples(low_mass_sample, datasets.signalset, 'forward', r_mass=True)
     # sb1_samples = transform_to_mass(low_mass_sample, edge1, edge2)
     print('SB1 from signal set')
-    auc_sb1 = get_auc(sb1_samples, datasets.signalset.data, sv_dir, nm + 'SB1', mscaler=low_mass_training.unnorm_mass)
+    auc_sb1 = get_auc(sb1_samples, datasets.signalset.data, sv_dir, nm + 'SB1', mscaler=low_mass_training.unnorm_mass,
+                      load=load, sup_title=f'T(SB1) vs SR')
     samples = torch.cat((sb2_samples, sb1_samples))
     # For the feature plot we only want to look at as many samples as there are in SB1
     getFeaturePlot(model, datasets.signalset, samples, high_mass_sample, nm, sv_dir, 'SB1 and SB2 to Signal ',
@@ -374,16 +388,30 @@ def post_process_curtains(model, datasets, sup_title='NSF', anomaly_data=None):
 
     # Get the AUC of the ROC for a classifier trained to separate interpolated samples from data
     print('Benchmark classifier separating samples from anomalies')
-    auc_supervised = get_auc(anomaly_data.data.to(device), datasets.signalset.data, sv_dir,
-                             nm + 'Super', mscaler=low_mass_training.unnorm_mass)
+    auc_super_info = get_auc(anomaly_data.data.to(device), datasets.signalset.data, sv_dir,
+                             nm + 'Super', mscaler=low_mass_training.unnorm_mass, load=load,
+                             sup_title=f'QCD SR vs Anomalies SR', return_rates=True)
+    auc_supervised = auc_super_info[0]
+
     print('With anomalies injected')
-    for beta in [0.001, 0.01, 0.5, 1, 5, 10]:
-        auc_anomalies = get_auc(samples, datasets.signalset.data, sv_dir, nm + f'{beta}%Anomalies',
-                                anomaly_data=anomaly_data.data.to(device), beta=beta / 100,
-                                sup_title=f'QCD in SR doped with {beta:.2f}% anomalies',
-                                mscaler=low_mass_training.unnorm_mass)
+    rates_sr_vs_transformed = {'Supervised': auc_super_info[1]}
+    rates_sr_qcd_vs_anomalies = {'Supervised': auc_super_info[1]}
+    for beta in [0.5, 1, 5, 10]:
+        auc_info = get_auc(samples, datasets.signalset.data, sv_dir, nm + f'{beta}%Anomalies',
+                           anomaly_data=anomaly_data.data.to(device), beta=beta / 100,
+                           sup_title=f'QCD in SR doped with {beta:.3f}% anomalies',
+                           mscaler=low_mass_training.unnorm_mass,
+                           load=load, return_rates=True)
+        auc_anomalies = auc_info[0]
+        rates_sr_vs_transformed[f'{beta}'] = auc_info[1]
+        rates_sr_qcd_vs_anomalies[f'{beta}'] = auc_info[2]
+
+    plot_rates_dict(sv_dir, rates_sr_qcd_vs_anomalies, 'SR QCD vs SR Anomalies')
+    plot_rates_dict(sv_dir, rates_sr_vs_transformed, 'T(SB12) vs SR')
+
     print('Without anomalies injected')
-    auc = get_auc(samples, datasets.signalset.data, sv_dir, nm + 'SB12', mscaler=low_mass_training.unnorm_mass)
+    auc = get_auc(samples, datasets.signalset.data, sv_dir, nm + 'SB12', mscaler=low_mass_training.unnorm_mass,
+                  load=load, sup_title=f'T(SB1) U T(SB2) vs SR')
     with open(sv_dir + '/auc_{}.npy'.format(nm), 'wb') as f:
         np.save(f, auc_sb2)
         np.save(f, auc_sb1)
