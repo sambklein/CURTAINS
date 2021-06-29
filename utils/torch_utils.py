@@ -10,5 +10,5 @@ def sample_data(data, number, split=False):
         return output[:number]
 
 
-def torch2numpy(tensor):
+def tensor2numpy(tensor):
     return tensor.detach().cpu().numpy()

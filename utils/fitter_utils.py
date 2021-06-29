@@ -1,6 +1,7 @@
 import zfit
 from zfit import z
 import math
+import torch
 
 
 class atlas_bg_PDF(zfit.pdf.ZPDF):
@@ -41,7 +42,7 @@ class linearPDF(zfit.pdf.ZPDF):
             limits = (self.scaler(limit) for limit in limits)
         sample = super().sample(*args, limits=limits, **kwargs)
         if self.scaler is not None:
-            sample = self.unscaler(sample)
+            sample = self.unscaler(torch.tensor(sample.numpy(), dtype=torch.float32))
         return sample
 
 

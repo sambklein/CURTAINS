@@ -24,8 +24,10 @@ class BasePhysics(Dataset):
             self.max_vals = []
             self.min_vals = []
             for train_feature in self.data.t():
-                self.max_vals += [train_feature.max()]
-                self.min_vals += [train_feature.min()]
+                # self.max_vals += [train_feature.max()]
+                # self.min_vals += [train_feature.min()]
+                self.max_vals += [train_feature.quantile(0.9999)]
+                self.min_vals += [train_feature.quantile(0.0001)]
         else:
             self.max_vals = scale[0]
             self.min_vals = scale[1]

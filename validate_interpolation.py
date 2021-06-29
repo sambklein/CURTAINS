@@ -1,5 +1,7 @@
 # TODO: all that changes between this and ANODE is the data loader and the model that you load, should be called with one script
 # A standard inn model
+import os
+
 import numpy as np
 
 import torch
@@ -39,6 +41,7 @@ parser.add_argument("--bins", nargs="*", type=float, default=[55, 65, 75, 85, 95
 parser.add_argument('-n', type=str, default='Transformer', help='The name with which to tag saved outputs.')
 parser.add_argument('-d', type=str, default='NSF_CURT', help='Directory to save contents into.')
 parser.add_argument('--load', type=int, default=1, help='Whether or not to load a model.')
+parser.add_argument('--load_classifiers', type=int, default=0, help='Whether or not to load a model.')
 
 ## Hyper parameters
 parser.add_argument('--distance', type=str, default='mse', help='Type of dist measure to use.')
@@ -89,6 +92,9 @@ distance = args.distance
 measure = get_measure(distance)
 
 sv_dir = get_top_dir()
+image_dir = sv_dir + f'/images/{args.d}/'
+if not os.path.exists(image_dir):
+    os.makedirs(image_dir, exist_ok=True)
 log_dir = sv_dir + '/logs/' + exp_name
 writer = SummaryWriter(log_dir=log_dir)
 
@@ -96,7 +102,7 @@ writer = SummaryWriter(log_dir=log_dir)
 # If the distance measure is the sinkhorn distance then don't mix samples between quantiles
 mix_qs = distance != 'sinkhorn'
 # datasets = get_data(args.dataset, quantiles=args.quantiles, mix_qs=mix_qs)
-datasets = get_data(args.dataset, bins=args.bins, mix_qs=mix_qs)
+datasets = get_data(args.dataset, image_dir + exp_name, bins=args.bins, mix_qs=mix_qs)
 anomaly_data = get_bin('WZ_allhad_pT', args.bins[2:4], datasets.validationset)
 ndata = datasets.ndata
 inp_dim = datasets.nfeatures
@@ -171,7 +177,7 @@ else:
         schedulers_epoch_end=reduce_lr_inn, gclip=args.gclip, shuffle_epoch_end=args.shuffle)
 
 # Generate test data and preprocess etc
-post_process_curtains(curtain_runner, datasets, sup_title='NSF', anomaly_data=anomaly_data, load=args.load)
+post_process_curtains(curtain_runner, datasets, sup_title='NSF', anomaly_data=anomaly_data, load=args.load_classifiers)
 
 # Save options used for running
 register_experiment(sv_dir, exp_name, args)

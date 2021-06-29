@@ -208,7 +208,7 @@ def post_process_anode(model, datasets, sup_title='NSF', quantiles=True):
         ncols = int(np.ceil(nfeatures / 4))
         fig, axs_ = plt.subplots(ncols, 4, figsize=(5 * 5 + 2, 5 * ncols))
         axs = fig.axes
-        hist_features(data_valid, valid_samples, model, nfeatures, axs, nms)
+        hist_features(data_valid, valid_samples, nfeatures, axs, nms)
         fig.suptitle(sv_name)
         fig.savefig(sv_dir + '/post_processing_{}_{}.png'.format(nm, sv_name))
 
@@ -268,7 +268,8 @@ def post_process_anode(model, datasets, sup_title='NSF', quantiles=True):
     return 0
 
 
-def post_process_curtains(model, datasets, sup_title='NSF', anomaly_data=None, load=False):
+def post_process_curtains(model, datasets, sup_title='NSF', anomaly_data=None, load=False, sample_mass=False):
+    # TODO: sample the mass!!
     low_mass_training = datasets.trainset.data1
     high_mass_training = datasets.trainset.data2
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -291,8 +292,7 @@ def post_process_curtains(model, datasets, sup_title='NSF', anomaly_data=None, l
         if lm > hm:
             raise Exception('First input must be the low end of the mass window.')
         data_mass = data.data[:, -1].view(-1, 1)
-        sample_mass = mass_sampler.sample(len(data_mass), limits=(lm.item(), hm.item())).numpy()
-        sample_mass = torch.tensor(sample_mass, dtype=torch.float32).to(model.device)
+        sample_mass = mass_sampler.sample(len(data_mass), limits=(lm.item(), hm.item())).to(model.device)
         if data_mass.min() >= hm:
             direction = 'inverse'
         elif data_mass.max() <= lm:
@@ -354,8 +354,10 @@ def post_process_curtains(model, datasets, sup_title='NSF', anomaly_data=None, l
     # Validation set one, SB2 to one mass bin higher
     get_maps('SB2', high_mass_training, {'OB2': datasets.validationset}, direction='forward')
     # AUC for OB2 vs T(SB2)
-    ob2_samples = get_samples(high_mass_training, datasets.validationset, 'forward', r_mass=True)
-    # sb2_samples = transform_to_mass(high_mass_sample, edge1, edge2)
+    if not sample_mass:
+        ob2_samples = get_samples(high_mass_training, datasets.validationset, 'forward', r_mass=True)
+    else:
+        ob2_samples = transform_to_mass(high_mass_sample, edge1, edge2)
     print('SB2 from OB2')
     auc_ob2 = get_auc(ob2_samples, datasets.validationset.data, sv_dir, nm + 'OB2_vs_TSB2',
                       mscaler=low_mass_training.unnorm_mass, load=load, sup_title=f'T(SB2) vs OB2')
@@ -364,7 +366,7 @@ def post_process_curtains(model, datasets, sup_title='NSF', anomaly_data=None, l
     get_maps('SB1', low_mass_training, {'OB1': datasets.validationset_lm}, direction='inverse')
     # AUC for OB1 vs T(SB1)
     ob1_samples = get_samples(low_mass_training, datasets.validationset_lm, 'inverse', r_mass=True)
-    # sb2_samples = transform_to_mass(high_mass_sample, edge1, edge2)
+    # ob1_samples = transform_to_mass(high_mass_sample, edge1, edge2)
     print('SB1 from OB1')
     auc_ob1 = get_auc(ob1_samples, datasets.validationset_lm.data, sv_dir, nm + 'OB1_vs_TSB1',
                       mscaler=low_mass_training.unnorm_mass, load=load, sup_title=f'T(SB1) vs OB1')
@@ -411,7 +413,8 @@ def post_process_curtains(model, datasets, sup_title='NSF', anomaly_data=None, l
 
     print('Without anomalies injected')
     auc = get_auc(samples, datasets.signalset.data, sv_dir, nm + 'SB12', mscaler=low_mass_training.unnorm_mass,
-                  load=load, sup_title=f'T(SB1) U T(SB2) vs SR')
+                  load=False, sup_title=f'T(SB1) U T(SB2) vs SR')
+
     with open(sv_dir + '/auc_{}.npy'.format(nm), 'wb') as f:
         np.save(f, auc_sb2)
         np.save(f, auc_sb1)
@@ -466,5 +469,5 @@ def post_process_flows_for_flows(model, datasets, sup_title='NSF'):
     sample = model.sample(low_mass_training.data.shape[0])
     nplot = 1
     fig, ax = plt.subplots(nplot, datasets.nfeatures, figsize=(5 * datasets.nfeatures + 2, 5 * nplot + 2))
-    hist_features(low_mass_training, sample, model, datasets.nfeatures, ax)
+    hist_features(low_mass_training, sample, datasets.nfeatures, ax)
     fig.savefig(sv_dir + '/post_processing_{}_{}.png'.format(nm, 'base_dist_sample'))

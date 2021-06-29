@@ -1,11 +1,13 @@
 import torch
 
+from utils.plotting import hist_features
 from .physics_datasets import JetsDataset, WrappingCurtains, Curtains, CurtainsTrainSet
 
 import os
 import pandas as pd
 import numpy as np
 import h5py
+import matplotlib.pyplot as plt
 
 # Taken from https://github.com/bayesiains/nsf/blob/master/data/base.py
 from utils.io import get_top_dir, on_cluster
@@ -123,7 +125,7 @@ def get_bin(process, bin, trainset=None, normalize=True):
         return data
 
 
-def get_data(dataset, bins=None, quantiles=None, normalize=True, mix_qs=False, flow=False):
+def get_data(dataset, sv_nm, bins=None, quantiles=None, normalize=True, mix_qs=False, flow=False):
     # Using bins and quantiles to separate semantics between separating base on self defined mass bins and quantiles
     if dataset == 'curtains':
         df = load_curtains_pd()
@@ -139,6 +141,22 @@ def get_data(dataset, bins=None, quantiles=None, normalize=True, mix_qs=False, f
 
         lm = Curtains(df.loc[(context_feature < bins[2]) & (context_feature > bins[1])])
         hm = Curtains(df.loc[(context_feature < bins[4]) & (context_feature > bins[3])])
+
+        # Take a look at the input features prior to scaling
+        nfeatures = len(lm.feature_nms) - 1
+        fig, axs = plt.subplots(1, nfeatures, figsize=(5 * nfeatures + 2, 5))
+        hist_features(lm, hm, nfeatures, axs, axs_nms=lm.feature_nms, labels=['SB1', 'SB2'], legend=False)
+        print(sv_nm + '_inital_features.png')
+        for i in range(nfeatures):
+            axs[i].vlines(lm[:, i].max().item(), 0, 0.5, label='SB1', colors='r')
+            axs[i].vlines(hm[:, i].max().item(), 0, 0.5, label='SB2', colors='b')
+            axs[i].vlines(lm[:, i].min().item(), 0, 0.5, colors='r')
+            axs[i].vlines(hm[:, i].min().item(), 0, 0.5, colors='b')
+        # (lm[:, 1] > hm[:, 1].max()).sum(), 3 variables for our outlier!! TODO: implement this counting
+        handles, labels = axs[i].get_legend_handles_labels()
+        fig.legend(handles, labels, loc='upper right')
+        fig.savefig(sv_nm + '_inital_features.png')
+
         training_data = CurtainsTrainSet(lm, hm, mix_qs=mix_qs, stack=flow)
 
         # Set the normalization factors for the other datasets

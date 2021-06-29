@@ -29,8 +29,10 @@ class SupervisedDataClass(Dataset):
         return self.data.shape[0]
 
 
-def net(nfeatures, nclasses):
-    return dense_net(nfeatures, nclasses, layers=[64, 32, 16])
+def get_net(batch_norm=False, width=32, depth=2):
+    def net_maker(nfeatures, nclasses):
+        return dense_net(nfeatures, nclasses, layers=[width] * depth, batch_norm=batch_norm)
+    return net_maker
 
 
 def fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, n_epochs, device, sv_dir, plot=True,
@@ -88,32 +90,48 @@ def fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, n_
     print('Finished Training')
 
 
+def dope_data(truth, anomaly_data, beta):
+    n = int(len(truth) * (1 - beta))
+    n1 = len(truth) - n
+    truth = sample_data(truth, n)
+    anomaly_data, anomaly_data_train = sample_data(anomaly_data, n1, split=True)
+    try:
+        truth = torch.cat((anomaly_data_train, truth), 0)
+    except TypeError:
+        truth = np.concatenate((anomaly_data_train.detach().cpu(), truth), 0)
+        np.random.shuffle(truth)
+    return anomaly_data, truth
+
+
 def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, mass_incl=True, balance=True,
-            beta=None, sup_title='', mscaler=None, load=False, return_rates=False):
+            beta=None, sup_title='', mscaler=None, load=False, return_rates=False, dope_splits=True):
     if balance:
         n = min((len(interpolated), len(truth)))
         interpolated = sample_data(interpolated, n)
         truth = sample_data(truth, n)
+
     sv_dir = directory + f'/{name}'
     anomaly_bool = anomaly_data is not None
     beta_bool = beta is not None
 
-    if beta_bool and anomaly_bool:
+    if beta_bool and anomaly_bool and (not dope_splits):
         if not anomaly_bool:
             print('No anomalies passed to DRE.')
         else:
-            n = int(len(truth) * (1 - beta))
-            n1 = len(truth) - n
-            truth = sample_data(truth, n)
-            anomaly_data_train, anomaly_data = sample_data(anomaly_data, n1, split=True)
-
-    if anomaly_bool:
-        truth = torch.cat((anomaly_data_train, truth), 0)
+            anomaly_data, truth = dope_data(truth, anomaly_data, beta)
+    elif anomaly_bool and (not beta_bool):
+        truth = torch.cat((anomaly_data, truth), 0)
 
     X, y = torch.cat((interpolated, truth), 0).cpu().numpy(), torch.cat(
         (torch.ones(len(interpolated)), torch.zeros(len(truth))), 0).view(-1, 1).cpu().numpy()
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=split, random_state=1, stratify=y)
     X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.1, random_state=1, stratify=y_train)
+
+    if beta_bool and anomaly_bool and dope_splits:
+        get_mask = lambda x: (x == 0).flatten()
+        anomaly_data, X_train[get_mask(y_train)] = dope_data(X_train[get_mask(y_train)], anomaly_data, beta)
+        anomaly_data, X_val[get_mask(y_val)] = dope_data(X_val[get_mask(y_val)], anomaly_data, beta)
+        anomaly_data, X_test[get_mask(y_test)] = dope_data(X_test[get_mask(y_test)], anomaly_data, beta)
 
     if mass_incl:
         test_mass = X_test[:, -1]
@@ -125,8 +143,11 @@ def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, 
     valid_data = SupervisedDataClass(X_val, y_val)
     test_data = SupervisedDataClass(X_test, y_test)
 
-    batch_size = 100
+    batch_size = 64
     nepochs = 100
+    lr = 1e-4
+    wd = 0.001
+    net = get_net(batch_norm=True)
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -134,7 +155,10 @@ def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, 
                             activation=torch.sigmoid).to(device)
 
     # Make an optimizer object
-    optimizer = torch.optim.Adam(classifier.parameters(), lr=0.001)
+    if wd is not None:
+        optimizer = torch.optim.Adam(classifier.parameters(), lr=lr)
+    else:
+        optimizer = torch.optim.AdamW(classifier.parameters(), lr=lr, wd=wd)
 
     # Train
     if load:
@@ -201,14 +225,15 @@ def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, 
             signal_mass = test_mass[mx][y_scores[mx] < threshold]
             if bins is None:
                 bins = get_bins(bg_mass, nbins=10)
-                norm_bg = np.sum(np.histogram(bg_mass, bins=bins)[0])
-                norm_signal = np.sum(np.histogram(signal_mass, bins=bins)[0])
+                norm_bg = np.histogram(bg_mass, bins=bins)[0]
+                norm_signal = np.histogram(signal_mass, bins=bins)[0]
             add_error_hist(ax[i], bg_mass, bins, 'blue', error_bars=True, label='Transformed jets', norm=norm_bg)
             signal_label = 'Signal window jets'
             add_error_hist(ax[i], signal_mass, bins, 'red', error_bars=True, label=signal_label, norm=norm_signal)
-            ax[i].set_yscale('log')
+            if i > 0:
+                ax[i].set_yscale('log')
             ax[i].set_xlabel('Mass (GeV)')
-            ax[i].set_title(f'BG rejection {at:.2f}')
+            ax[i].set_title(f'BG rejection {at:.2f} \n Yield {(signal_mass.shape[0] / bg_mass.shape[0]):.2f}')
         handles, labels = ax[0].get_legend_handles_labels()
         fig.legend(handles, labels, loc='upper right')
         fig.suptitle(sup_title)

@@ -9,7 +9,8 @@ from matplotlib import pyplot as plt  # , pyplot  # , pyplot
 # import matplotlib.patches as mpatches
 # from sklearn.manifold import TSNE
 # import seaborn as sns
-from utils.torch_utils import torch2numpy
+from utils.torch_utils import tensor2numpy
+from scipy import stats
 
 
 def get_bins(data, nbins=20):
@@ -122,19 +123,24 @@ def get_weights(data):
 def add_off_diagonal(axes, i, j, data, color):
     bini = get_bins(data[:, i])
     binj = get_bins(data[:, j])
-    f1 = torch2numpy(data[:, i])
-    f2 = torch2numpy(data[:, j])
-    axes[i, j].hist2d(f1, f2, bins=[bini, binj], density=True, cmap=color)
-    coef = np.corrcoef(f1, f2)
+    f1 = tensor2numpy(data[:, i])
+    f2 = tensor2numpy(data[:, j])
+    # axes[i, j].hist2d(f1, f2, bins=[bini, binj], density=True, cmap=color)
+    if i > j:
+        axes[i, j].hist2d(f1, f2, bins=[bini, binj], density=True, cmap=color)
+    else:
+        axes[i, j].hist2d(f2, f1, bins=[bini, binj], density=True, cmap=color)
     axes[i, j].set_xlim([-1, 1.1])
     axes[i, j].set_ylim([-1, 1.2])
-    axes[i, j].annotate(f'PC {coef[0, 1]:.2f}', xy=(0.95, 0.95), xycoords='axes fraction', ha='right', va='top', size=6)
+    # coef = np.corrcoef(f1, f2)[0, 1]
+    coef, pval = stats.spearmanr(f1, f2)
+    axes[i, j].annotate(f'SPR {coef:.2f}', xy=(0.95, 0.95), xycoords='axes fraction', ha='right', va='top', size=6)
     # bbox=dict(boxstyle='round', fc='w'), size=6)
 
 
 def getFeaturePlot(model, original, sampled, lm_sample, nm, savedir, region, feature_names, nbins=20):
     nfeatures = len(feature_names) - 1
-    fig, axes = plt.subplots(nfeatures, nfeatures, figsize=(2 * nfeatures + 2, 2 * nfeatures - 1))
+    fig, axes = plt.subplots(nfeatures, nfeatures, figsize=(2 * nfeatures + 2, 2 * nfeatures + 1))
     sigcolour = ['red', 'blue']
     for i in range(nfeatures):
         axes[i, 0].set_ylabel(feature_names[i])
@@ -191,18 +197,21 @@ def get_counts(data, to_slice, bound=4, nbins=50):
     return np.histogram2d(data[:, 0], data[:, 1], bins=bin_edges)[0]
 
 
-def hist_features(originals, sample, model, data_dim, axs, axs_nms=None):
+def hist_features(originals, sample, data_dim, axs, axs_nms=None, labels=None, legend=True):
+    if labels is None:
+        labels = ['original', 'samples']
     for i in range(data_dim):
         bins = get_bins(originals[:, i])
-        axs[i].hist(model.get_numpy(originals[:, i]), label='original', alpha=0.5, density=True, bins=bins,
+        axs[i].hist(tensor2numpy(originals[:, i]), label=labels[0], alpha=0.5, density=True, bins=bins,
                     histtype='step')
         # Plot samples drawn from the model
-        axs[i].hist(model.get_numpy(sample[:, i]), label='samples', alpha=0.5, density=True, bins=bins, histtype='step')
+        axs[i].hist(tensor2numpy(sample[:, i]), label=labels[1], alpha=0.5, density=True, bins=bins, histtype='step')
         if axs_nms:
             axs[i].set_title(axs_nms[i])
         else:
             axs[i].set_title('Feature {}'.format(i))
-        axs[i].legend()
+        if legend:
+            axs[i].legend()
 
 
 def hist_features_single(originals, model, feature_nms, axs, bins, label='data'):
