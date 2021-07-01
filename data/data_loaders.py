@@ -1,6 +1,7 @@
 import torch
 
 from utils.plotting import hist_features
+from utils.torch_utils import sample_data
 from .physics_datasets import JetsDataset, WrappingCurtains, Curtains, CurtainsTrainSet
 
 import os
@@ -125,22 +126,59 @@ def get_bin(process, bin, trainset=None, normalize=True):
         return data
 
 
-def get_data(dataset, sv_nm, bins=None, quantiles=None, normalize=True, mix_qs=False, flow=False):
+def dope_dataframe(undoped, anomaly_data, doping):
+    n = int(len(undoped) * doping)
+    if len(anomaly_data) < n:
+        raise Exception('Not enough anomalies in this region for this level of doping.')
+    anomaly_data = anomaly_data.sample(frac=1)
+    mixing_anomalies = anomaly_data.iloc[:n]
+    anomaly_data = anomaly_data.iloc[n:]
+    df = pd.concat((mixing_anomalies, undoped), 0)
+    df = df.sample(frac=1)
+    return anomaly_data, df
+
+
+def mask_dataframe(df, context_feature, bins, indx, doping=None, anomaly_data=None):
+
+    def mx_data(data):
+        context_df = data[context_feature]
+        mx = (context_df > bins[indx[0]]) & (context_df < bins[indx[1]])
+        return data.loc[mx]
+
+    undoped_df = mx_data(df)
+    anomaly_data = mx_data(anomaly_data)
+
+    if doping is not None:
+        remaining_anomalies, df = dope_dataframe(undoped_df, anomaly_data, doping)
+    else:
+        remaining_anomalies = anomaly_data
+        df = undoped_df
+
+    return remaining_anomalies, df
+
+
+def get_data(dataset, sv_nm, bins=None, normalize=True, mix_qs=False, flow=False,
+             anomaly_process='WZ_allhad_pT', doping=None):
     # Using bins and quantiles to separate semantics between separating base on self defined mass bins and quantiles
     if dataset == 'curtains':
         df = load_curtains_pd()
     else:
         raise NotImplementedError('The loader of this dataset has not been implemented yet.')
 
-    dset = Curtains(df)
-    features = dset.data
-
     if bins:
         # Split the data into different datasets based on the binning
-        context_feature = df['mass']
+        context_feature = 'mass'
 
-        lm = Curtains(df.loc[(context_feature < bins[2]) & (context_feature > bins[1])])
-        hm = Curtains(df.loc[(context_feature < bins[4]) & (context_feature > bins[3])])
+        anomaly_data = load_curtains_pd(sm=anomaly_process)
+
+        lm_anomalies, lm = mask_dataframe(df, context_feature, bins, [1, 2], doping, anomaly_data)
+        hm_anomalies, hm = mask_dataframe(df, context_feature, bins, [3, 4], doping, anomaly_data)
+        ob1_anomalies, ob1 = mask_dataframe(df, context_feature, bins, [0, 1], doping, anomaly_data)
+        ob2_anomalies, ob2 = mask_dataframe(df, context_feature, bins, [4, 5], doping, anomaly_data)
+        signal_anomalies, signal = mask_dataframe(df, context_feature, bins, [2, 3], doping, anomaly_data)
+
+        lm = Curtains(lm)
+        hm = Curtains(hm)
 
         # Take a look at the input features prior to scaling
         nfeatures = len(lm.feature_nms) - 1
@@ -161,33 +199,21 @@ def get_data(dataset, sv_nm, bins=None, quantiles=None, normalize=True, mix_qs=F
 
         # Set the normalization factors for the other datasets
         scale = training_data.set_and_get_norm_facts()
-        validation_data = Curtains(df.loc[(context_feature > bins[4]) & (context_feature < bins[5])], norm=scale)
-        validation_data_lm = Curtains(df.loc[(context_feature > bins[0]) & (context_feature < bins[1])], norm=scale)
-        signal_data = Curtains(df.loc[(context_feature < bins[3]) & (context_feature > bins[2])], norm=scale)
+        validation_data_lm = Curtains(ob1, norm=scale)
+        validation_data = Curtains(ob2, norm=scale)
+        signal_data = Curtains(signal, norm=scale)
+        signal_anomalies = Curtains(signal_anomalies, norm=scale)
 
         drape = WrappingCurtains(training_data, signal_data, validation_data, validation_data_lm, bins)
 
-    elif quantiles:
-
-        # Split the data into different datasets based on the binning
-        def get_quantile(ind, norm=None):
-            return Curtains(df.loc[dset.get_quantile_mask(quantiles[ind])], norm=norm)
-
-        lm = get_quantile(0)
-        hm = get_quantile(2)
-        training_data = CurtainsTrainSet(lm, hm, mix_qs=mix_qs, stack=flow)
-        # Set the normalization factors for the other datasets
-        scale = training_data.set_and_get_norm_facts()
-        validation_data = get_quantile(3, norm=scale)
-        signal_data = get_quantile(1, norm=scale)
-        drape = WrappingCurtains(training_data, signal_data, validation_data, bins)
     else:
-        drape = Curtains(df)
+        return Curtains(df)
 
     if normalize:
         drape.normalize()
+        signal_anomalies.normalize()
 
-    return drape
+    return drape, signal_anomalies
 
 
 def main():

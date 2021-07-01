@@ -36,6 +36,7 @@ parser.add_argument('--resonant_feature', type=str, default='mass', help='The re
 ## Binning parameters
 parser.add_argument("--quantiles", nargs="*", type=float, default=[1, 2, 3, 4])
 parser.add_argument("--bins", nargs="*", type=float, default=[55, 65, 75, 85, 95, 105])
+parser.add_argument("--doping", type=float, default=0.1)
 
 ## Names for saving
 parser.add_argument('-n', type=str, default='Transformer', help='The name with which to tag saved outputs.')
@@ -102,13 +103,13 @@ writer = SummaryWriter(log_dir=log_dir)
 # If the distance measure is the sinkhorn distance then don't mix samples between quantiles
 mix_qs = distance != 'sinkhorn'
 # datasets = get_data(args.dataset, quantiles=args.quantiles, mix_qs=mix_qs)
-datasets = get_data(args.dataset, image_dir + exp_name, bins=args.bins, mix_qs=mix_qs)
-anomaly_data = get_bin('WZ_allhad_pT', args.bins[2:4], datasets.validationset)
+datasets, signal_anomalies = get_data(args.dataset, image_dir + exp_name, bins=args.bins, mix_qs=mix_qs,
+                                      doping=args.doping)
 ndata = datasets.ndata
 inp_dim = datasets.nfeatures
 print('There are {} training examples, {} validation examples, {} signal examples and {} anomaly samples.'.format(
     datasets.trainset.data.shape[0], datasets.validationset.data.shape[0], datasets.signalset.data.shape[0],
-    anomaly_data.data.shape[0]))
+    signal_anomalies.data.shape[0]))
 
 # Set all tensors to be created on gpu, this must be done after dataset creation, and before the INN creation
 if torch.cuda.is_available():
@@ -177,7 +178,8 @@ else:
         schedulers_epoch_end=reduce_lr_inn, gclip=args.gclip, shuffle_epoch_end=args.shuffle)
 
 # Generate test data and preprocess etc
-post_process_curtains(curtain_runner, datasets, sup_title='NSF', anomaly_data=anomaly_data, load=args.load_classifiers)
+post_process_curtains(curtain_runner, datasets, sup_title='NSF', signal_anomalies=signal_anomalies,
+                      load=args.load_classifiers)
 
 # Save options used for running
 register_experiment(sv_dir, exp_name, args)

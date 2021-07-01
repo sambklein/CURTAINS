@@ -29,9 +29,9 @@ class SupervisedDataClass(Dataset):
         return self.data.shape[0]
 
 
-def get_net(batch_norm=False, width=32, depth=2):
+def get_net(batch_norm=False, width=32, depth=2, dropout=0):
     def net_maker(nfeatures, nclasses):
-        return dense_net(nfeatures, nclasses, layers=[width] * depth, batch_norm=batch_norm)
+        return dense_net(nfeatures, nclasses, layers=[width] * depth, batch_norm=batch_norm, drp=dropout)
     return net_maker
 
 
@@ -147,7 +147,11 @@ def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, 
     nepochs = 100
     lr = 1e-4
     wd = 0.001
-    net = get_net(batch_norm=True)
+    drp = 0.5
+    width = 32
+    if drp > 0:
+        width = int(width / drp)
+    net = get_net(batch_norm=False, width=width, depth=2, dropout=drp)
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 

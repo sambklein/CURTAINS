@@ -268,7 +268,7 @@ def post_process_anode(model, datasets, sup_title='NSF', quantiles=True):
     return 0
 
 
-def post_process_curtains(model, datasets, sup_title='NSF', anomaly_data=None, load=False, sample_mass=False):
+def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=None, load=False, sample_mass=False):
     # TODO: sample the mass!!
     low_mass_training = datasets.trainset.data1
     high_mass_training = datasets.trainset.data2
@@ -390,7 +390,7 @@ def post_process_curtains(model, datasets, sup_title='NSF', anomaly_data=None, l
 
     # Get the AUC of the ROC for a classifier trained to separate interpolated samples from data
     print('Benchmark classifier separating samples from anomalies')
-    auc_super_info = get_auc(anomaly_data.data.to(device), datasets.signalset.data, sv_dir,
+    auc_super_info = get_auc(signal_anomalies.data.to(device), datasets.signalset.data, sv_dir,
                              nm + 'Super', mscaler=low_mass_training.unnorm_mass, load=load,
                              sup_title=f'QCD SR vs Anomalies SR', return_rates=True)
     auc_supervised = auc_super_info[0]
@@ -400,7 +400,7 @@ def post_process_curtains(model, datasets, sup_title='NSF', anomaly_data=None, l
     rates_sr_qcd_vs_anomalies = {'Supervised': auc_super_info[1]}
     for beta in [0.5, 1, 5, 10]:
         auc_info = get_auc(samples, datasets.signalset.data, sv_dir, nm + f'{beta}%Anomalies',
-                           anomaly_data=anomaly_data.data.to(device), beta=beta / 100,
+                           anomaly_data=signal_anomalies.data.to(device), beta=beta / 100,
                            sup_title=f'QCD in SR doped with {beta:.3f}% anomalies',
                            mscaler=low_mass_training.unnorm_mass,
                            load=load, return_rates=True)

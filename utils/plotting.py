@@ -125,17 +125,14 @@ def add_off_diagonal(axes, i, j, data, color):
     binj = get_bins(data[:, j])
     f1 = tensor2numpy(data[:, i])
     f2 = tensor2numpy(data[:, j])
-    # axes[i, j].hist2d(f1, f2, bins=[bini, binj], density=True, cmap=color)
-    if i > j:
-        axes[i, j].hist2d(f1, f2, bins=[bini, binj], density=True, cmap=color)
-    else:
-        axes[i, j].hist2d(f2, f1, bins=[bini, binj], density=True, cmap=color)
+    axes[i, j].hist2d(f1, f2, bins=[bini, binj], density=True, cmap=color)
     axes[i, j].set_xlim([-1, 1.1])
     axes[i, j].set_ylim([-1, 1.2])
+    # Pearson correlation
     # coef = np.corrcoef(f1, f2)[0, 1]
+    # Spearman correlation between features
     coef, pval = stats.spearmanr(f1, f2)
     axes[i, j].annotate(f'SPR {coef:.2f}', xy=(0.95, 0.95), xycoords='axes fraction', ha='right', va='top', size=6)
-    # bbox=dict(boxstyle='round', fc='w'), size=6)
 
 
 def getFeaturePlot(model, original, sampled, lm_sample, nm, savedir, region, feature_names, nbins=20):
