@@ -243,6 +243,7 @@ class WrappingCurtains():
         self.validationset_lm = validationset_lm
         self.scale_data()
         self.bins = bins
+        self.mass_bins = torch.tensor(bins)
 
         self.ndata = self.trainset.data.shape[0]
         # The last feature of the dataset is the context
@@ -260,12 +261,14 @@ class WrappingCurtains():
         self.signalset.normalize()
         self.validationset.normalize()
         self.validationset_lm.normalize()
+        self.mass_bins = self.validationset_lm.norm_mass(torch.tensor(self.bins))
 
     def unnormalize(self):
         self.trainset.unnormalize()
         self.signalset.unnormalize()
         self.validationset.unnormalize()
         self.validationset_lm.unnormalize()
+        self.mass_bins = torch.tensor(self.bins)
 
 
 # TODO use the base class definition here as well

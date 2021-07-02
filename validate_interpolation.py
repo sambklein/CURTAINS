@@ -43,6 +43,7 @@ parser.add_argument('-n', type=str, default='Transformer', help='The name with w
 parser.add_argument('-d', type=str, default='NSF_CURT', help='Directory to save contents into.')
 parser.add_argument('--load', type=int, default=1, help='Whether or not to load a model.')
 parser.add_argument('--load_classifiers', type=int, default=0, help='Whether or not to load a model.')
+parser.add_argument('--use_mass_sampler', type=int, default=0, help='Whether or not to sample the mass.')
 
 ## Hyper parameters
 parser.add_argument('--distance', type=str, default='mse', help='Type of dist measure to use.')
@@ -179,7 +180,7 @@ else:
 
 # Generate test data and preprocess etc
 post_process_curtains(curtain_runner, datasets, sup_title='NSF', signal_anomalies=signal_anomalies,
-                      load=args.load_classifiers)
+                      load=args.load_classifiers, use_mass_sampler=args.use_mass_sampler)
 
 # Save options used for running
 register_experiment(sv_dir, exp_name, args)

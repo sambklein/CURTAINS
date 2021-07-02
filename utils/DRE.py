@@ -151,10 +151,9 @@ def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, 
     width = 32
     if drp > 0:
         width = int(width / drp)
-    net = get_net(batch_norm=False, width=width, depth=2, dropout=drp)
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
+    net = get_net(batch_norm=False, width=width, depth=2, dropout=drp)
     classifier = Classifier(net, train_data.nfeatures, 1, name, directory=directory,
                             activation=torch.sigmoid).to(device)
 
