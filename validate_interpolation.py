@@ -1,5 +1,7 @@
 # TODO: all that changes between this and ANODE is the data loader and the model that you load, should be called with one script
 # A standard inn model
+import os
+
 import numpy as np
 
 import torch
@@ -17,7 +19,6 @@ from models.OT_models import curtains_transformer, tucan, delta_mass_tucan, delt
 from models.nn.flows import spline_flow, coupling_inn
 
 from utils import hyperparams
-from utils.plotting import get_windows_plot
 from utils.post_process import post_process_curtains
 from utils.io import get_top_dir, register_experiment
 
@@ -35,11 +36,13 @@ parser.add_argument('--resonant_feature', type=str, default='mass', help='The re
 ## Binning parameters
 parser.add_argument("--quantiles", nargs="*", type=float, default=[1, 2, 3, 4])
 parser.add_argument("--bins", nargs="*", type=float, default=[55, 65, 75, 85, 95, 105])
+parser.add_argument("--doping", type=float, default=0.1)
 
 ## Names for saving
 parser.add_argument('-n', type=str, default='Transformer', help='The name with which to tag saved outputs.')
 parser.add_argument('-d', type=str, default='NSF_CURT', help='Directory to save contents into.')
 parser.add_argument('--load', type=int, default=1, help='Whether or not to load a model.')
+parser.add_argument('--load_classifiers', type=int, default=0, help='Whether or not to load a model.')
 
 ## Hyper parameters
 parser.add_argument('--distance', type=str, default='mse', help='Type of dist measure to use.')
@@ -90,6 +93,9 @@ distance = args.distance
 measure = get_measure(distance)
 
 sv_dir = get_top_dir()
+image_dir = sv_dir + f'/images/{args.d}/'
+if not os.path.exists(image_dir):
+    os.makedirs(image_dir, exist_ok=True)
 log_dir = sv_dir + '/logs/' + exp_name
 writer = SummaryWriter(log_dir=log_dir)
 
@@ -97,24 +103,18 @@ writer = SummaryWriter(log_dir=log_dir)
 # If the distance measure is the sinkhorn distance then don't mix samples between quantiles
 mix_qs = distance != 'sinkhorn'
 # datasets = get_data(args.dataset, quantiles=args.quantiles, mix_qs=mix_qs)
-datasets = get_data(args.dataset, bins=args.bins, mix_qs=mix_qs)
-anomaly_data = get_bin('WZ_allhad_pT', args.bins[2:4], datasets.validationset)
-
-#Loading only the masses. #TODO: Ugly reloading of things is ugly. Remove when I grow a brain.
-#Handle this in post process?
-#Eventually this would be an argument as well, so that it can be adjusted for Higgs discovery.
-#200 is fine for now.
-dir = get_top_dir() + '/images/' + args.d
-woi = [50, 150] 
-anomaly_spectra = get_bin('WZ_allhad_pT', args.bins[2:4])
-bg_spectra = get_bin('QCDjj_pT', woi)
-get_windows_plot(bg_spectra, anomaly_spectra, woi, args.bins, dir)
-
+datasets, signal_anomalies = get_data(args.dataset, image_dir + exp_name, bins=args.bins, mix_qs=mix_qs,
+                                      doping=args.doping)
 ndata = datasets.ndata
 inp_dim = datasets.nfeatures
 print('There are {} training examples, {} validation examples, {} signal examples and {} anomaly samples.'.format(
     datasets.trainset.data.shape[0], datasets.validationset.data.shape[0], datasets.signalset.data.shape[0],
-    anomaly_data.data.shape[0]))
+    signal_anomalies.data.shape[0]))
+
+woi = [50, 150] 
+anomaly_spectra = get_bin('WZ_allhad_pT', args.bins[2:4])
+bg_spectra = get_bin('QCDjj_pT', woi)
+windows = [bg_spectra, anomaly_spectra, woi, args.bin]
 
 # Set all tensors to be created on gpu, this must be done after dataset creation, and before the INN creation
 if torch.cuda.is_available():
@@ -162,7 +162,18 @@ else:
 curtain_runner = transformer(INN, device, exp_name, measure, datasets.nfeatures, dir=args.d)
 
 # Define optimizers and learning rate schedulers
-optimizer = optim.Adam(INN.parameters(), lr=args.lr)
+if distance.casefold() != 'sinkhorn': 
+    if args.optim.casefold() == 'adam':
+        optimizer = optim.Adam(INN.parameters(), lr=args.lr, momentum=0.0)
+    elif args.optim.casefold() == 'rmsprop':
+        optimizer = optim.RMSprop(INN.parameters(), lr=args.lr, momentum=0.0)
+    elif args.optim.casefold() == 'adagrad':
+        optimizer = optim.Adagrad(INN.parameters(), lr=args.lr, momentum=0.0)
+    else:
+        raise ValueError(f'{args.optim} Optimiser not implemented.')
+else:
+    optimizer = optim.Adam(INN.parameters(), lr=args.lr)
+
 scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, ndata / bsize * n_epochs, 0)
 
 # Reduce lr on plateau at end of epochs
@@ -183,7 +194,9 @@ else:
         schedulers_epoch_end=reduce_lr_inn, gclip=args.gclip, shuffle_epoch_end=args.shuffle)
 
 # Generate test data and preprocess etc
-post_process_curtains(curtain_runner, datasets, sup_title='NSF', anomaly_data=anomaly_data, load=args.load)
+post_process_curtains(curtain_runner, datasets, sup_title='NSF', signal_anomalies=signal_anomalies,
+                      load=args.load_classifiers)
+
 
 # Save options used for running
 register_experiment(sv_dir, exp_name, args)

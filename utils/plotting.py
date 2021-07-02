@@ -1,7 +1,7 @@
 # Some plotting functions
 import colorsys
 
-import os
+import numpy
 import numpy as np
 import torch
 from matplotlib import pyplot as plt  # , pyplot  # , pyplot
@@ -9,7 +9,8 @@ from matplotlib import pyplot as plt  # , pyplot  # , pyplot
 # import matplotlib.patches as mpatches
 # from sklearn.manifold import TSNE
 # import seaborn as sns
-from utils.torch_utils import torch2numpy
+from utils.torch_utils import tensor2numpy
+from scipy import stats
 
 
 def get_bins(data, nbins=20):
@@ -122,19 +123,21 @@ def get_weights(data):
 def add_off_diagonal(axes, i, j, data, color):
     bini = get_bins(data[:, i])
     binj = get_bins(data[:, j])
-    f1 = torch2numpy(data[:, i])
-    f2 = torch2numpy(data[:, j])
+    f1 = tensor2numpy(data[:, i])
+    f2 = tensor2numpy(data[:, j])
     axes[i, j].hist2d(f1, f2, bins=[bini, binj], density=True, cmap=color)
-    coef = np.corrcoef(f1, f2)
     axes[i, j].set_xlim([-1, 1.1])
     axes[i, j].set_ylim([-1, 1.2])
-    axes[i, j].annotate(f'PC {coef[0, 1]:.2f}', xy=(0.95, 0.95), xycoords='axes fraction', ha='right', va='top', size=6)
-    # bbox=dict(boxstyle='round', fc='w'), size=6)
+    # Pearson correlation
+    # coef = np.corrcoef(f1, f2)[0, 1]
+    # Spearman correlation between features
+    coef, pval = stats.spearmanr(f1, f2)
+    axes[i, j].annotate(f'SPR {coef:.2f}', xy=(0.95, 0.95), xycoords='axes fraction', ha='right', va='top', size=6)
 
 
 def getFeaturePlot(model, original, sampled, lm_sample, nm, savedir, region, feature_names, nbins=20):
     nfeatures = len(feature_names) - 1
-    fig, axes = plt.subplots(nfeatures, nfeatures, figsize=(2 * nfeatures + 2, 2 * nfeatures - 1))
+    fig, axes = plt.subplots(nfeatures, nfeatures, figsize=(2 * nfeatures + 2, 2 * nfeatures + 1))
     sigcolour = ['red', 'blue']
     for i in range(nfeatures):
         axes[i, 0].set_ylabel(feature_names[i])
@@ -191,18 +194,21 @@ def get_counts(data, to_slice, bound=4, nbins=50):
     return np.histogram2d(data[:, 0], data[:, 1], bins=bin_edges)[0]
 
 
-def hist_features(originals, sample, model, data_dim, axs, axs_nms=None):
+def hist_features(originals, sample, data_dim, axs, axs_nms=None, labels=None, legend=True):
+    if labels is None:
+        labels = ['original', 'samples']
     for i in range(data_dim):
         bins = get_bins(originals[:, i])
-        axs[i].hist(model.get_numpy(originals[:, i]), label='original', alpha=0.5, density=True, bins=bins,
+        axs[i].hist(tensor2numpy(originals[:, i]), label=labels[0], alpha=0.5, density=True, bins=bins,
                     histtype='step')
         # Plot samples drawn from the model
-        axs[i].hist(model.get_numpy(sample[:, i]), label='samples', alpha=0.5, density=True, bins=bins, histtype='step')
+        axs[i].hist(tensor2numpy(sample[:, i]), label=labels[1], alpha=0.5, density=True, bins=bins, histtype='step')
         if axs_nms:
             axs[i].set_title(axs_nms[i])
         else:
             axs[i].set_title('Feature {}'.format(i))
-        axs[i].legend()
+        if legend:
+            axs[i].legend()
 
 
 def hist_features_single(originals, model, feature_nms, axs, bins, label='data'):
@@ -249,15 +255,6 @@ def plot_rates_dict(sv_dir, rates_dict, title):
     fig.savefig(sv_dir + f'/{title}_roc.png')
 
 
-def get_anomaly_mass_plot(masses, sv_dir, name, title):
-    
-    fig, ax = plt.subplots()
-    ax.hist(masses)
-    ax.set_xlabel("Mass")
-    plt.title(title)
-    fig.savefig(f'{sv_dir}_mass_distribution_{name}.png')
-
-
 def get_windows_plot(bgspectra, anomalyspectra, woi, windows, sv_dir):
 
     '''
@@ -268,8 +265,8 @@ def get_windows_plot(bgspectra, anomalyspectra, woi, windows, sv_dir):
               sv_dir = where you want to save the plot.
     '''
     
-    #TODO: Eventually need to replace this when we dope the whole spectra?
-    anomalyspectra = np.random.choice(anomalyspectra, 50000)
+    
+    
     fig, ax = plt.subplots()
     
     bgcount, bins, _ = ax.hist(bgspectra, bins=np.arange(woi[0], woi[1], 5), label='QCD', histtype='step')
