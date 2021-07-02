@@ -1,7 +1,6 @@
 import torch
 
 from utils.plotting import hist_features, get_windows_plot
-from utils.torch_utils import sample_data
 from .physics_datasets import JetsDataset, WrappingCurtains, Curtains, CurtainsTrainSet
 
 import os
@@ -191,7 +190,7 @@ def get_data(dataset, sv_nm, bins=None, normalize=True, mix_qs=False, flow=False
         anomaly_mixed_mass = mixed['mass']
         bg_mass = df['mass']
 
-        # get_windows_plot(bg_mass, anomaly_mixed_mass, woi, bins, sv_nm)
+        get_windows_plot(bg_mass, anomaly_mixed_mass, woi, bins, sv_nm)
          
 
         # Take a look at the input features prior to scaling
