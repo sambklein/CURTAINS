@@ -288,6 +288,7 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
     mass_sampler = signalMassSampler(masses, edge1.item(), edge2.item(), plt_sv_dir=sv_dir,
                                      scaler=low_mass_training.unnorm_mass, unscaler=low_mass_training.norm_mass)
 
+    # TODO: move these functions somewhere nicer
     def transform_to_mass(data, lm, hm):
         if lm > hm:
             raise Exception('First input must be the low end of the mass window.')
@@ -305,7 +306,6 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
                 direction](data.data[:, :-1], data_mass, sample_mass)
         return torch.cat((feature_sample, sample_mass), 1)
 
-    # TODO: move these functions somewhere nicer
     def get_samples(input_dist, target_dist, direction, r_mass=False):
         target_dist.data = target_dist.data.to(model.device)
         s1 = input_dist.data.shape[0]

@@ -36,7 +36,7 @@ parser.add_argument('--resonant_feature', type=str, default='mass', help='The re
 ## Binning parameters
 parser.add_argument("--quantiles", nargs="*", type=float, default=[1, 2, 3, 4])
 parser.add_argument("--bins", nargs="*", type=float, default=[55, 65, 75, 85, 95, 105])
-parser.add_argument("--doping", type=float, default=0.1)
+parser.add_argument("--doping", type=float, default=0.)
 
 ## Names for saving
 parser.add_argument('-n', type=str, default='Transformer', help='The name with which to tag saved outputs.')
@@ -73,6 +73,8 @@ parser.add_argument('--nbins', type=int, default=10,
                     help='The number of bins to use in each spline transformation.')
 parser.add_argument('--ncond', type=int, default=1,
                     help='The number of features to condition on.')
+parser.add_argument('--optim', type=str, default='Adam',
+                    help='Optimiser to use.')
 
 ## reproducibility
 parser.add_argument('--seed', type=int, default=1638128,
@@ -110,11 +112,6 @@ inp_dim = datasets.nfeatures
 print('There are {} training examples, {} validation examples, {} signal examples and {} anomaly samples.'.format(
     datasets.trainset.data.shape[0], datasets.validationset.data.shape[0], datasets.signalset.data.shape[0],
     signal_anomalies.data.shape[0]))
-
-woi = [50, 150] 
-anomaly_spectra = get_bin('WZ_allhad_pT', args.bins[2:4])
-bg_spectra = get_bin('QCDjj_pT', woi)
-windows = [bg_spectra, anomaly_spectra, woi, args.bin]
 
 # Set all tensors to be created on gpu, this must be done after dataset creation, and before the INN creation
 if torch.cuda.is_available():
@@ -162,15 +159,16 @@ else:
 curtain_runner = transformer(INN, device, exp_name, measure, datasets.nfeatures, dir=args.d)
 
 # Define optimizers and learning rate schedulers
-if distance.casefold() != 'sinkhorn': 
-    if args.optim.casefold() == 'adam':
-        optimizer = optim.Adam(INN.parameters(), lr=args.lr, momentum=0.0)
-    elif args.optim.casefold() == 'rmsprop':
-        optimizer = optim.RMSprop(INN.parameters(), lr=args.lr, momentum=0.0)
+if distance.casefold() != 'sinkhorn': #Pairwise - slow, low, no momentum
+    if args.optim.casefold() == 'rmsprop':
+        optimizer = optim.RMSprop(INN.parameters(), lr=args.lr, momentum=0)
     elif args.optim.casefold() == 'adagrad':
-        optimizer = optim.Adagrad(INN.parameters(), lr=args.lr, momentum=0.0)
+        optimizer = optim.Adagrad(INN.parameters(), lr=args.lr, momentum=0)
+    elif args.optim.casefold() == 'adam':
+        optimizer = optim.Adam(INN.parameters(), lr=args.lr)
     else:
-        raise ValueError(f'{args.optim} Optimiser not implemented.')
+        raise ValueError(f'{args.optim} not yet implemented!')
+
 else:
     optimizer = optim.Adam(INN.parameters(), lr=args.lr)
 
@@ -196,7 +194,6 @@ else:
 # Generate test data and preprocess etc
 post_process_curtains(curtain_runner, datasets, sup_title='NSF', signal_anomalies=signal_anomalies,
                       load=args.load_classifiers)
-
 
 # Save options used for running
 register_experiment(sv_dir, exp_name, args)

@@ -171,10 +171,10 @@ def get_data(dataset, sv_nm, bins=None, normalize=True, mix_qs=False, flow=False
 
         anomaly_data = load_curtains_pd(sm=anomaly_process)
 
-        lm_anomalies, lm_mixed, lm = mask_dataframe(df, context_feature, bins, [1, 2], doping, anomaly_data)
-        hm_anomalies, hm_mixed, hm = mask_dataframe(df, context_feature, bins, [3, 4], doping, anomaly_data)
-        ob1_anomalies, ob1_mixed, ob1 = mask_dataframe(df, context_feature, bins, [0, 1], doping, anomaly_data)
-        ob2_anomalies, ob2_mixed, ob2 = mask_dataframe(df, context_feature, bins, [4, 5], doping, anomaly_data)
+        _, lm_mixed, lm = mask_dataframe(df, context_feature, bins, [1, 2], doping, anomaly_data)
+        _, hm_mixed, hm = mask_dataframe(df, context_feature, bins, [3, 4], doping, anomaly_data)
+        _, ob1_mixed, ob1 = mask_dataframe(df, context_feature, bins, [0, 1], doping, anomaly_data)
+        _, ob2_mixed, ob2 = mask_dataframe(df, context_feature, bins, [4, 5], doping, anomaly_data)
         signal_anomalies, signal_mixed, signal = mask_dataframe(df, context_feature, bins, [2, 3], doping, anomaly_data)
 
         lm = Curtains(lm)
@@ -185,7 +185,7 @@ def get_data(dataset, sv_nm, bins=None, normalize=True, mix_qs=False, flow=False
         df['mass'] will be the bg - mention region of interest ?
         lm_mixed, hm_mixed, ob1_mixed, ob2_mixed, signal_mixed are the ones that enter the whole bg.
         '''
-        woi = [50, 150]
+        woi = [40, 150]
         mixed = pd.concat([lm_mixed, hm_mixed, ob1_mixed, ob2_mixed, signal_mixed])
         anomaly_mixed_mass = mixed['mass']
         bg_mass = df['mass']

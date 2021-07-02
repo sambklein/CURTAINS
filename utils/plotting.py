@@ -8,7 +8,7 @@ from matplotlib import pyplot as plt  # , pyplot  # , pyplot
 
 # import matplotlib.patches as mpatches
 # from sklearn.manifold import TSNE
-# import seaborn as sns
+import seaborn as sns
 from utils.torch_utils import tensor2numpy
 from scipy import stats
 
@@ -135,14 +135,45 @@ def add_off_diagonal(axes, i, j, data, color):
     axes[i, j].annotate(f'SPR {coef:.2f}', xy=(0.95, 0.95), xycoords='axes fraction', ha='right', va='top', size=6)
 
 
-def getFeaturePlot(model, original, sampled, lm_sample, nm, savedir, region, feature_names, nbins=20):
+def add_contour(axes, i, j, data, sampled):
+    sns.kdeplot(tensor2numpy(data[:, j]), y=tensor2numpy(data[:, i]), ax=axes[i, j], alpha=0.4, levels=3,
+                color='red', fill=True)
+    sns.kdeplot(tensor2numpy(sampled[:, j]), y=tensor2numpy(sampled[:, i]), ax=axes[i, j], alpha=0.4, levels=3,
+                color='blue', fill=True)
+    axes[i, j].set_xlim([-1.2, 1.2])
+    axes[i, j].set_ylim([-1.2, 1.2])
+    # axes[i, j].tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False)
+    # if j - i > 1:
+    #     axes[i, j].tick_params(axis='both', which='both', bottom=False, top=False, left=False, right=False,
+    #                            labelbottom=False, labelleft=False)
+
+
+def getFeaturePlot(model, original, sampled, lm_sample, nm, savedir, region, feature_names, nbins=20, contour=True):
     nfeatures = len(feature_names) - 1
-    fig, axes = plt.subplots(nfeatures, nfeatures, figsize=(2 * nfeatures + 2, 2 * nfeatures + 1))
-    sigcolour = ['red', 'blue']
+    fig, axes = plt.subplots(nfeatures, nfeatures, figsize=(2 * nfeatures + 2, 2 * nfeatures + 1),
+                             gridspec_kw={'wspace': 0.03, 'hspace': 0.03})
     for i in range(nfeatures):
-        axes[i, 0].set_ylabel(feature_names[i])
+        if (i != 0) or (not contour):
+            axes[i, 0].set_ylabel(feature_names[i])
+        else:
+            axes[0, 0].set_ylabel('Normalised Entries', horizontalalignment='right', y=1.0)
         for j in range(nfeatures):
-            axes[0, j].set_title(feature_names[j])
+            if not contour:
+                axes[0, j].set_title(feature_names[j])
+            else:
+                # axes[i, j].set_ylabel(feature_names[j])
+                axes[-1, j].set_xlabel(feature_names[j])
+                if i != nfeatures - 1:
+                    # axes[i, j].tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False)
+                    axes[i, j].tick_params(axis='x', which='both', direction='in', labelbottom=False)
+
+                axes[i, j].set_yticks([-1, 0, 1])
+                if i == j == 0:
+                    axes[i, j].tick_params(axis='y', colors='w')
+                elif j > 0:
+                    # axes[i, j].tick_params(axis='y', which='both', bottom=False, top=False, left=False, right=False,
+                    #                        labelbottom=False, labelleft=False)
+                    axes[i, j].tick_params(axis='y', which='both', direction='in', labelleft=False)
 
             if i == j:
                 bin = get_bins(original[:, i], nbins=nbins)
@@ -153,19 +184,25 @@ def getFeaturePlot(model, original, sampled, lm_sample, nm, savedir, region, fea
                 data = model.get_numpy(lm_sample[:, i])
                 axes[i, j].hist(data, density=False, bins=bin, histtype='step',
                                 color='black', linestyle='dashed', label='Input Sample', weights=get_weights(data))
+                axes[i, j].set_xlim([-1.2, 1.2])
 
-            if i < j:
-                add_off_diagonal(axes, i, j, original, 'Reds')
+            if contour:
+                if i > j:
+                    add_contour(axes, i, j, original, sampled)
+                elif i < j:
+                    axes[i, j].set_visible(False)
+            else:
+                if i < j:
+                    add_off_diagonal(axes, i, j, original, 'Reds')
 
-            if i > j:
-                add_off_diagonal(axes, i, j, sampled, 'Blues')
+                if i > j:
+                    add_off_diagonal(axes, i, j, sampled, 'Blues')
 
-    # fig.legend(signal_handle, signal_labels, bbox_to_anchor=(1.001, 0.99), frameon=False)
-    handles, labels = axes[0, 0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc='upper right')
     fig.suptitle(region)
-    fig.tight_layout()
-    plt.savefig(savedir + '/featurespread_{}_{}_{}.png'.format(region, nm, 'transformed_data'))
+    handles, labels = axes[0, 0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc='upper left', bbox_to_anchor=(0.32, 0.89), frameon=False)
+    plt.savefig(savedir + '/featurespread_{}_{}_{}.png'.format(region, nm, 'transformed_data'), bbox_inches="tight")
+    plt.clf()
 
 
 def getCrossFeaturePlot(model, original, sampled, nm, savedir, mass, feature_names):
@@ -263,13 +300,10 @@ def get_windows_plot(bgspectra, anomalyspectra, woi, windows, sv_dir):
               woi: Window of Interest: Tuple of masses - These are the mass bounds of this plot.
               windows: SB1, SB2, SW bins. Pass the args.bins here.
               sv_dir = where you want to save the plot.
-    '''
-    
-    
-    
+    '''    
     fig, ax = plt.subplots()
     
-    bgcount, bins, _ = ax.hist(bgspectra, bins=np.arange(woi[0], woi[1], 5), label='QCD', histtype='step')
+    bgcount, bins, _ = ax.hist(bgspectra, bins=np.arange(woi[0], woi[1], 2), label='QCD', histtype='step')
     count, _ , _ =ax.hist(anomalyspectra, bins=bins, label='Signal', histtype='step')
     ax.axvspan(windows[1], windows[2], ymin=0., ymax=1.5*np.max(bgcount), alpha=0.1, color='green', label='Side bands')
     ax.axvspan(windows[2], windows[3], ymin=0., ymax=1.5*np.max(bgcount), alpha=0.1, color='red', label='Signal Window')
@@ -279,8 +313,5 @@ def get_windows_plot(bgspectra, anomalyspectra, woi, windows, sv_dir):
     ax.set_xlabel("Mass (Gev)")
     ax.set_ylabel("Count")
     ax.set_ylim(0, 1.5*np.max(bgcount))
-    
-    if not os.path.exists(sv_dir):
-        os.makedirs(sv_dir)
-    
-    fig.savefig(f'{sv_dir}/windows.png')
+       
+    fig.savefig(f'{sv_dir}_windows.png')
