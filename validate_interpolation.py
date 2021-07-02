@@ -36,7 +36,7 @@ parser.add_argument('--resonant_feature', type=str, default='mass', help='The re
 ## Binning parameters
 parser.add_argument("--quantiles", nargs="*", type=float, default=[1, 2, 3, 4])
 parser.add_argument("--bins", nargs="*", type=float, default=[55, 65, 75, 85, 95, 105])
-parser.add_argument("--doping", type=float, default=0.1)
+parser.add_argument("--doping", type=float, default=0.)
 
 ## Names for saving
 parser.add_argument('-n', type=str, default='Transformer', help='The name with which to tag saved outputs.')

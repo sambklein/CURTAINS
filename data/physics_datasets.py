@@ -98,7 +98,7 @@ class Curtains(BasePhysics):
         data[:, 2] = np.log(df['d23'] + 1)
         data[:, 3] = np.log(df['d12'] + 1)
         data[:, 4] = df['mass']
-        return data, ['tau2s/taus', 'tau3s/tau2s', 'd23', 'd12', 'mass']
+        return data, [r'$\tau_{21}$', r'$\tau_{32}$', r'$d_{23}$', r'$d_{12}$', 'mass']
 
     def get_quantile(self, quantile):
         # Returns a numpy array of the training features, plus the context feature on the end
