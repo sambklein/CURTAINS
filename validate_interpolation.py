@@ -52,6 +52,10 @@ parser.add_argument('--spline', type=int, default=0, help='One to use spline tra
 parser.add_argument('--two_way', type=int, default=1,
                     help='One to train mapping from high mass to low mass, and low mass to high mass.')
 parser.add_argument('--shuffle', type=int, default=1, help='Shuffle on epoch end.')
+parser.add_argument('--coupling_width', type=int, default=64,
+                    help='Width of network used to learn transformer parameters.')
+parser.add_argument('--coupling_depth', type=int, default=3,
+                    help='Depth of network used to learn transformer parameters.')
 
 parser.add_argument('--batch_size', type=int, default=10, help='Size of batch for training.')
 parser.add_argument('--epochs', type=int, default=0,
@@ -74,6 +78,12 @@ parser.add_argument('--nbins', type=int, default=10,
                     help='The number of bins to use in each spline transformation.')
 parser.add_argument('--ncond', type=int, default=1,
                     help='The number of features to condition on.')
+
+## Plotting
+parser.add_argument('--n_sample', type=int, default=1000,
+                    help='The number of features to use when calculating contours in the feature plots.')
+parser.add_argument('--light', type=int, default=1,
+                    help='We do not always want to plot everything and calculate all of the ROC plots.')
 
 ## reproducibility
 parser.add_argument('--seed', type=int, default=1638128,
@@ -132,8 +142,10 @@ if args.coupling:
 
 
     # this has to be an nn.module that takes as first arg the input dim and second the output dim
+    # TODO: what effect does the capacity of this have on performance?
     def maker(input_dim, output_dim):
-        return dense_net(input_dim, output_dim, layers=[64, 64, 64], context_features=args.ncond)
+        return dense_net(input_dim, output_dim, layers=[args.coupling_width] * args.coupling_depth,
+                         context_features=args.ncond)
 
 
     INN = coupling_inn(inp_dim, maker, nstack=args.nstack, tail_bound=tail_bound, tails=tails, lu=0,
@@ -180,7 +192,8 @@ else:
 
 # Generate test data and preprocess etc
 post_process_curtains(curtain_runner, datasets, sup_title='NSF', signal_anomalies=signal_anomalies,
-                      load=args.load_classifiers, use_mass_sampler=args.use_mass_sampler)
+                      load=args.load_classifiers, use_mass_sampler=args.use_mass_sampler,
+                      n_sample_for_plot=args.n_sample, light_job=args.light)
 
 # Save options used for running
 register_experiment(sv_dir, exp_name, args)

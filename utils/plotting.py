@@ -148,7 +148,8 @@ def add_contour(axes, i, j, data, sampled):
     #                            labelbottom=False, labelleft=False)
 
 
-def getFeaturePlot(model, original, sampled, lm_sample, nm, savedir, region, feature_names, nbins=20, contour=True):
+def getFeaturePlot(model, original, sampled, lm_sample, nm, savedir, region, feature_names, nbins=20, contour=True,
+                   n_sample_for_plot=-1):
     nfeatures = len(feature_names) - 1
     fig, axes = plt.subplots(nfeatures, nfeatures, figsize=(2 * nfeatures + 2, 2 * nfeatures + 1),
                              gridspec_kw={'wspace': 0.03, 'hspace': 0.03})
@@ -176,7 +177,8 @@ def getFeaturePlot(model, original, sampled, lm_sample, nm, savedir, region, fea
                     axes[i, j].tick_params(axis='y', which='both', direction='in', labelleft=False)
 
             if i == j:
-                bin = get_bins(original[:, i], nbins=nbins)
+                og = original[:, i]
+                bin = get_bins(og[(og > -1.2) & (og < 1.2)], nbins=nbins)
                 add_hist(axes[i, j], model.get_numpy(original[:, i]), bin, 'red', 'Original')
                 add_hist(axes[i, j], model.get_numpy(sampled[:, i]), bin, 'blue', 'Transformed')
                 add_error_hist(axes[i, j], model.get_numpy(original[:, i]), bins=bin, color='red')
@@ -188,7 +190,7 @@ def getFeaturePlot(model, original, sampled, lm_sample, nm, savedir, region, fea
 
             if contour:
                 if i > j:
-                    add_contour(axes, i, j, original, sampled)
+                    add_contour(axes, i, j, original[:n_sample_for_plot], sampled[:n_sample_for_plot])
                 elif i < j:
                     axes[i, j].set_visible(False)
             else:
