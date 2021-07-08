@@ -77,6 +77,12 @@ parser.add_argument('--ncond', type=int, default=1,
 parser.add_argument('--optim', type=str, default='Adam',
                     help='Optimiser to use.')
 
+## Plotting
+parser.add_argument('--n_sample', type=int, default=1000,
+                    help='The number of features to use when calculating contours in the feature plots.')
+parser.add_argument('--light', type=int, default=1,
+                    help='We do not always want to plot everything and calculate all of the ROC plots.')
+
 ## reproducibility
 parser.add_argument('--seed', type=int, default=1638128,
                     help='Random seed for PyTorch and NumPy.')
@@ -195,7 +201,9 @@ else:
 
 # Generate test data and preprocess etc
 post_process_curtains(curtain_runner, datasets, sup_title='NSF', signal_anomalies=signal_anomalies,
-                      load=args.load_classifiers)
+                      load=args.load_classifiers, use_mass_sampler=args.use_mass_sampler,
+                      n_sample_for_plot=args.n_sample, light_job=args.light)
 
 # Save options used for running
 register_experiment(sv_dir, exp_name, args)
+
