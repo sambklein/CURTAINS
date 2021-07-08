@@ -42,8 +42,9 @@ parser.add_argument("--mixqs", type=int, default=1, help="Mix Sb1, Sb2 with 1, 0
 ## Names for saving
 parser.add_argument('-n', type=str, default='Transformer', help='The name with which to tag saved outputs.')
 parser.add_argument('-d', type=str, default='NSF_CURT', help='Directory to save contents into.')
-parser.add_argument('--load', type=int, default=1, help='Whether or not to load a model.')
 parser.add_argument('--load_classifiers', type=int, default=0, help='Whether or not to load a model.')
+parser.add_argument('--use_mass_sampler', type=int, default=0, help='Whether or not to sample the mass.')
+
 
 ## Hyper parameters
 parser.add_argument('--distance', type=str, default='mse', help='Type of dist measure to use.')
