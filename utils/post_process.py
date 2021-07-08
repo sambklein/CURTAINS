@@ -284,7 +284,7 @@ def transform_to_mass(data, lm, hm, mass_sampler, model):
     with torch.no_grad():
         feature_sample = {'forward': model.transform_to_mass, 'inverse': model.inverse_transform_to_mass}[
             direction](data.data[:, :-1], data_mass, sample_mass)
-    return torch.cat((feature_sample, sample_mass), 1)
+    return torch.cat((feature_sample, sample_mass), 1).cpu()
 
 def get_samples(input_dist, target_dist, model, r_mass=False):
     target_dist.data = target_dist.data.to(model.device)
@@ -301,16 +301,13 @@ def get_samples(input_dist, target_dist, model, r_mass=False):
 
     with torch.no_grad():
         mx = torch.randperm(s2, device=torch.device('cpu'))
+        id = input_dist.data[input_dist.data[:, -1].sort()[1]][:nsamp]
+        td = target_dist.data[target_dist.data[:, -1].sort()[1]][:nsamp]
+        mass = td[:, -1].view(-1, 1)
         if direction == 'forward':
-            samples = model.transform_to_data(input_dist[:nsamp],
-                                              target_dist[mx][:nsamp],
-                                              batch_size=1000)
-            mass = target_dist[mx][:nsamp, -1].view(-1, 1)
+            samples = model.transform_to_data(id, td, batch_size=1000)
         elif direction == 'inverse':
-            samples = model.inverse_transform_to_data(
-                target_dist[mx][:nsamp], input_dist[:nsamp],
-                batch_size=1000)
-            mass = target_dist[mx][:nsamp, -1].view(-1, 1)
+            samples = model.inverse_transform_to_data(td, id, batch_size=1000)
     if r_mass:
         return torch.cat((samples, mass), -1)
     else:
@@ -340,10 +337,11 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
 
     def get_transformed(data, lm=None, hm=None, target_dist=None, r_mass=True):
         if use_mass_sampler:
+            # TODO: the bin information should be stored in the class not found from data.
             if hm is None:
-                hm = target_dist.max()
+                hm = target_dist.data[:, -1].max()
             if lm is None:
-                lm = target_dist.min()
+                lm = target_dist.data[:, -1].min()
             data = transform_to_mass(data, lm, hm, mass_sampler, model)
             if not r_mass:
                 data = data[:, :-1]

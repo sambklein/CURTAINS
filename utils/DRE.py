@@ -145,7 +145,7 @@ def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, 
     test_data = SupervisedDataClass(X_test, y_test)
 
     batch_size = 64
-    nepochs = 100
+    nepochs = 200
     lr = 1e-4
     wd = 0.001
     drp = 0.5
@@ -185,7 +185,7 @@ def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, 
         total = len(data)
         ax.hist(data, bins=bins, weights=np.ones_like(data) / total, label=label, histtype='step')
 
-    bins = get_bins(y_scores[mx], nbins=20)
+    bins = get_bins(y_scores[mx], nbins=50)
     add_normed_hist(y_scores[mx], ax, 'BG', bins)
     add_normed_hist(y_scores[~mx], ax, 'Signal', bins)
     if anomaly_bool:
