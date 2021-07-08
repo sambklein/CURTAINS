@@ -148,7 +148,8 @@ def add_contour(axes, i, j, data, sampled):
     #                            labelbottom=False, labelleft=False)
 
 
-def getFeaturePlot(model, original, sampled, lm_sample, nm, savedir, region, feature_names, nbins=20, contour=True):
+def getFeaturePlot(model, original, sampled, lm_sample, nm, savedir, region, feature_names, nbins=20, contour=True,
+                   n_sample_for_plot=-1):
     nfeatures = len(feature_names) - 1
     fig, axes = plt.subplots(nfeatures, nfeatures, figsize=(2 * nfeatures + 2, 2 * nfeatures + 1),
                              gridspec_kw={'wspace': 0.03, 'hspace': 0.03})
@@ -176,7 +177,8 @@ def getFeaturePlot(model, original, sampled, lm_sample, nm, savedir, region, fea
                     axes[i, j].tick_params(axis='y', which='both', direction='in', labelleft=False)
 
             if i == j:
-                bin = get_bins(original[:, i], nbins=nbins)
+                og = original[:, i]
+                bin = get_bins(og[(og > -1.2) & (og < 1.2)], nbins=nbins)
                 add_hist(axes[i, j], model.get_numpy(original[:, i]), bin, 'red', 'Original')
                 add_hist(axes[i, j], model.get_numpy(sampled[:, i]), bin, 'blue', 'Transformed')
                 add_error_hist(axes[i, j], model.get_numpy(original[:, i]), bins=bin, color='red')
@@ -188,7 +190,7 @@ def getFeaturePlot(model, original, sampled, lm_sample, nm, savedir, region, fea
 
             if contour:
                 if i > j:
-                    add_contour(axes, i, j, original, sampled)
+                    add_contour(axes, i, j, original[:n_sample_for_plot], sampled[:n_sample_for_plot])
                 elif i < j:
                     axes[i, j].set_visible(False)
             else:
@@ -302,9 +304,15 @@ def get_windows_plot(bgspectra, anomalyspectra, woi, windows, sv_dir):
               sv_dir = where you want to save the plot.
     '''    
     fig, ax = plt.subplots()
+    anomalyspectra = anomalyspectra.values
+    bgspectra = bgspectra.values
+
+    sigAnomaly = anomalyspectra[np.where(np.logical_and(anomalyspectra>windows[2], anomalyspectra<windows[3]))]
     
     bgcount, bins, _ = ax.hist(bgspectra, bins=np.arange(woi[0], woi[1], 2), label='QCD', histtype='step')
-    count, _ , _ =ax.hist(anomalyspectra, bins=bins, label='Signal', histtype='step')
+    # count, _ , _ =ax.hist(anomalyspectra, bins=bins, label='Signal', histtype='step')
+    # ax.hist(sigAnomaly, bins=bins, label='Signal', histtype='step', color='red')
+    ax.hist(anomalyspectra, bins=bins, histtype='step', color='red')
     ax.axvspan(windows[1], windows[2], ymin=0., ymax=1.5*np.max(bgcount), alpha=0.1, color='green', label='Side bands')
     ax.axvspan(windows[2], windows[3], ymin=0., ymax=1.5*np.max(bgcount), alpha=0.1, color='red', label='Signal Window')
     ax.axvspan(windows[3], windows[4], ymin=0., ymax=1.5*np.max(bgcount), alpha=0.1, color='green')
@@ -315,3 +323,21 @@ def get_windows_plot(bgspectra, anomalyspectra, woi, windows, sv_dir):
     ax.set_ylim(0, 1.5*np.max(bgcount))
        
     fig.savefig(f'{sv_dir}_windows.png')
+
+
+def getInputTransformedHist(model, input, transformed, nm, savedir, region, feature_names, nbins=20):
+
+    nfeatures = len(feature_names) - 1
+
+    fig, axes = plt.subplots(1, nfeatures, figsize=(8 * nfeatures + 3, 8), sharex=True, sharey=True)
+    for i in range(nfeatures):
+        binX = get_bins(input[:, i], nbins=nbins)
+        binY = get_bins(transformed[:, i], nbins=nbins)
+        axes[i].set_xlabel(feature_names[i])
+        axes[i].hist2d(model.get_numpy(input[:, i]), model.get_numpy(transformed[:,i]), bins=[binX, binY], alpha=0.6)
+        
+
+    fig.suptitle(region)
+    plt.tight_layout()
+    plt.savefig(savedir + '/InputvTransformedHist_{}.png'.format(region))        
+    plt.clf()

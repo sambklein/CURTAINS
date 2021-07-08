@@ -32,6 +32,7 @@ class SupervisedDataClass(Dataset):
 def get_net(batch_norm=False, width=32, depth=2, dropout=0):
     def net_maker(nfeatures, nclasses):
         return dense_net(nfeatures, nclasses, layers=[width] * depth, batch_norm=batch_norm, drp=dropout)
+
     return net_maker
 
 
@@ -149,12 +150,12 @@ def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, 
     wd = 0.001
     drp = 0.5
     width = 32
+    depth = 3
     if drp > 0:
         width = int(width / drp)
-    net = get_net(batch_norm=False, width=width, depth=2, dropout=drp)
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
+    net = get_net(batch_norm=False, width=width, depth=depth, dropout=drp)
     classifier = Classifier(net, train_data.nfeatures, 1, name, directory=directory,
                             activation=torch.sigmoid).to(device)
 
@@ -237,7 +238,12 @@ def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, 
             if i > 0:
                 ax[i].set_yscale('log')
             ax[i].set_xlabel('Mass (GeV)')
-            ax[i].set_title(f'BG rejection {at:.2f} \n Yield {(signal_mass.shape[0] / bg_mass.shape[0]):.2f}')
+            N_sg = signal_mass.shape[0]
+            N_bg = bg_mass.shape[0]
+            gain = N_sg / N_bg
+            pm = '$\pm$'
+            ax[i].set_title(f'BG rejection {at:.2f} \n '
+                            f'Gain {gain:.2f} {pm} {gain * (N_sg ** (-0.5) + N_bg ** (-0.5)) ** (0.5) :.3f}')
         handles, labels = ax[0].get_legend_handles_labels()
         fig.legend(handles, labels, loc='upper right')
         fig.suptitle(sup_title)

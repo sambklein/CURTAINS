@@ -87,3 +87,5 @@ venv.bak/
 grid.py
 submit.txt
 submit.sh
+repeat.txt
+notebook.sh

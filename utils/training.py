@@ -254,12 +254,12 @@ def fit(model, optimizers, dataset, n_epochs, batch_size, writer, schedulers=Non
         fig, axs = plt.subplots(1, len(loss_nms), figsize=(20, 5))
         for j, ax in enumerate(fig.axes):
             nm = loss_nms[j]
-            ax.plot(val_save[nm], label='test')
-            ax.plot(train_save[nm], '--', label='validation')
+            ax.plot(val_save[nm], label='Validation')
+            ax.plot(train_save[nm], '--', label='Training')
             ax.set_title(nm)
             ax.legend()
             ax.set_ylabel("loss")
             ax.set_xlabel("epoch")
         fig.savefig(sv_dir + '/training_{}.png'.format(model.exp_name))
-
+        np.save(f'{sv_dir}/loss_{nm}.npy', np.array([train_save[nm], val_save[nm]], dtype=object))
     print('\nFinished Training')

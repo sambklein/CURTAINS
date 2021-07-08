@@ -37,6 +37,7 @@ parser.add_argument('--resonant_feature', type=str, default='mass', help='The re
 parser.add_argument("--quantiles", nargs="*", type=float, default=[1, 2, 3, 4])
 parser.add_argument("--bins", nargs="*", type=float, default=[55, 65, 75, 85, 95, 105])
 parser.add_argument("--doping", type=float, default=0.)
+parser.add_argument("--mixqs", type=int, default=1, help="Mix Sb1, Sb2 with 1, 0 if not. Defaults to 1.")
 
 ## Names for saving
 parser.add_argument('-n', type=str, default='Transformer', help='The name with which to tag saved outputs.')
@@ -103,7 +104,8 @@ writer = SummaryWriter(log_dir=log_dir)
 
 # Make datasets
 # If the distance measure is the sinkhorn distance then don't mix samples between quantiles
-mix_qs = distance != 'sinkhorn'
+# mix_qs = distance != 'sinkhorn'
+mix_qs = bool(args.mixqs)
 # datasets = get_data(args.dataset, quantiles=args.quantiles, mix_qs=mix_qs)
 datasets, signal_anomalies = get_data(args.dataset, image_dir + exp_name, bins=args.bins, mix_qs=mix_qs,
                                       doping=args.doping)
