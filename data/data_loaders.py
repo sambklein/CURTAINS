@@ -73,15 +73,26 @@ def fill_array(to_fill, obj, dtype):
     to_fill[:len(arr)] = arr
 
 
-def load_curtains_pd(sm='QCDjj_pT', dtype='float32'):
+def load_curtains_pd(sm='QCDjj_pT', dtype='float32', extraStats=False):
     if on_cluster():
 
         directory = '/srv/beegfs/scratch/groups/rodem/anomalous_jets/data/'
-        nchunks = 6 if sm[:3] == 'QCD' else 5
-        lo_obs = np.empty((nchunks, 190000, 11))
-        nlo_obs = np.empty((nchunks, 190000, 11))
+        nchunks = 40 if sm[:3] == 'QCD' else 5
+        filename = f"20210629_{sm}_450_1200_nevents_10M/merged_selected" if sm[:3] == 'QCD' else \
+                   f"20210430_{sm}_450_1200_nevents_1M/merged_selected"
+
+        if extraStats:
+            nchunks = 40 if sm[:3] == 'QCD' else 5
+            filename = f"20210629_{sm}_450_1200_nevents_10M/merged_selected" if sm[:3] == 'QCD' else \
+                   f"20210430_{sm}_450_1200_nevents_1M/merged_selected"
+        else:
+            nchunks = 6 if sm[:3] == 'QCD' else 5
+            filename = f"20210430_{sm}_450_1200_nevents_1M/merged_selected"
+
+        lo_obs = np.empty((nchunks, 224570, 11))
+        nlo_obs = np.empty((nchunks, 224570, 11))
         for i in range(nchunks):
-            with h5py.File(directory + f"20210430_{sm}_450_1200_nevents_1M/merged_selected_{i}.h5", 'r') as readfile:
+            with h5py.File(directory+filename+f"_{i}.h5", 'r') as readfile:
                 fill_array(lo_obs[i], readfile["objects/jets/jet1_obs"][:], dtype)
                 fill_array(nlo_obs[i], readfile["objects/jets/jet2_obs"][:], dtype)
 
@@ -158,10 +169,10 @@ def mask_dataframe(df, context_feature, bins, indx, doping=None, anomaly_data=No
 
 
 def get_data(dataset, sv_nm, bins=None, normalize=True, mix_qs=False, flow=False,
-             anomaly_process='WZ_allhad_pT', doping=None):
+             anomaly_process='WZ_allhad_pT', doping=None, extraStats=False):
     # Using bins and quantiles to separate semantics between separating base on self defined mass bins and quantiles
     if dataset == 'curtains':
-        df = load_curtains_pd()
+        df = load_curtains_pd(extraStats=extraStats)
     else:
         raise NotImplementedError('The loader of this dataset has not been implemented yet.')
 

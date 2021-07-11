@@ -33,6 +33,9 @@ parser.add_argument('--dataset', type=str, default='curtains', help='The dataset
 # TODO: not currently implemented, NOT a priority
 parser.add_argument('--resonant_feature', type=str, default='mass', help='The resonant feature to use for binning.')
 
+##Stats
+parser.add_argument("-es","--extraStats", type=int, default=0, help="Use 20M QCD dataset if extraStats is set to 1. Defaults to 0 - 2M QCD")
+
 ## Binning parameters
 parser.add_argument("--quantiles", nargs="*", type=float, default=[1, 2, 3, 4])
 parser.add_argument("--bins", nargs="*", type=float, default=[55, 65, 75, 85, 95, 105])
@@ -42,14 +45,17 @@ parser.add_argument("--mixqs", type=int, default=1, help="Mix Sb1, Sb2 with 1, 0
 ## Names for saving
 parser.add_argument('-n', type=str, default='Transformer', help='The name with which to tag saved outputs.')
 parser.add_argument('-d', type=str, default='NSF_CURT', help='Directory to save contents into.')
-parser.add_argument('--load', type=int, default=1, help='Whether or not to load a model.')
-parser.add_argument('--load_classifiers', type=int, default=0, help='Whether or not to load a model.')
+parser.add_argument('--load', type=int, default=0, help=' Deafult 0. Whether or not to load a pretrained trasnformer. 0 - Do the training,\
+                    and load the last transformer. 1 - load the transformer as of the last epoch. 2 - Load the best pretrained transformer.')
+parser.add_argument('--load_classifiers', type=int, default=0, help='Whether or not to load a pretrained classifier.')
 parser.add_argument('--use_mass_sampler', type=int, default=0, help='Whether or not to sample the mass.')
 
 
 
 ## Hyper parameters
-parser.add_argument('--distance', type=str, default='mse', help='Type of dist measure to use.')
+parser.add_argument('--pdistance', type=str, default='mse', help='Type of primary dist measure to use.')
+parser.add_argument('--sdistance', type=str, default='None', help='Type of secondary dist measure to use.')
+parser.add_argument('--weight', type=float, default=0.1, help='Weight for the secondary distance. Defaults to 0.1.HydGen')
 parser.add_argument('--coupling', type=int, default=1, help='One to use coupling layers, zero for autoregressive.')
 parser.add_argument('--spline', type=int, default=0, help='One to use spline transformations.')
 parser.add_argument('--two_way', type=int, default=1,
@@ -99,10 +105,12 @@ np.random.seed(args.seed)
 bsize = args.batch_size
 n_epochs = args.epochs
 exp_name = args.n
-distance = args.distance
+pdistance = args.pdistance
+sdistance = args.sdistance
 
 # measure(x, y) returns distance from x to y (N, D) for N samples in D dimensions, or (B, N, D) with a batch index
-measure = get_measure(distance)
+pmeasure = get_measure(pdistance)
+smeasure = get_measure(sdistance)
 
 sv_dir = get_top_dir()
 image_dir = sv_dir + f'/images/{args.d}/'
@@ -115,9 +123,10 @@ writer = SummaryWriter(log_dir=log_dir)
 # If the distance measure is the sinkhorn distance then don't mix samples between quantiles
 # mix_qs = distance != 'sinkhorn'
 mix_qs = bool(args.mixqs)
+extra = bool(args.extraStats)
 # datasets = get_data(args.dataset, quantiles=args.quantiles, mix_qs=mix_qs)
 datasets, signal_anomalies = get_data(args.dataset, image_dir + exp_name, bins=args.bins, mix_qs=mix_qs,
-                                      doping=args.doping)
+                                      doping=args.doping, extraStats=extra)
 ndata = datasets.ndata
 inp_dim = datasets.nfeatures
 print('There are {} training examples, {} validation examples, {} signal examples and {} anomaly samples.'.format(
@@ -167,10 +176,10 @@ else:
     else:
         transformer = delta_curtains_transformer
 
-curtain_runner = transformer(INN, device, exp_name, measure, datasets.nfeatures, dir=args.d)
+curtain_runner = transformer(INN, device, exp_name, pmeasure, smeasure, args.weight, datasets.nfeatures, dir=args.d)
 
 # Define optimizers and learning rate schedulers
-if distance.casefold() != 'sinkhorn': #Pairwise - slow, low, no momentum
+if pdistance.casefold() != 'sinkhorn': #Pairwise - slow, low, no momentum
     if args.optim.casefold() == 'rmsprop':
         optimizer = optim.RMSprop(INN.parameters(), lr=args.lr, momentum=0)
     elif args.optim.casefold() == 'adagrad':
@@ -195,12 +204,17 @@ else:
 torch.set_default_tensor_type('torch.FloatTensor')
 
 # Fit the model
-if args.load:
-    path = get_top_dir() + f'/data/saved_models/model_{exp_name}'
-    curtain_runner.load(path)
-else:
+if args.load ==0:
     fit(curtain_runner, optimizer, datasets.trainset, n_epochs, bsize, writer, schedulers=scheduler,
         schedulers_epoch_end=reduce_lr_inn, gclip=args.gclip, shuffle_epoch_end=args.shuffle)
+
+elif args.load == 1:
+    path = get_top_dir() + f'/data/saved_models/model_{exp_name}'
+    curtain_runner.load(path)
+
+elif args.load == 2:
+    path = get_top_dir() + f'/data/saved_models/model_{exp_name}_best'
+    curtain_runner.load(path)
 
 # Generate test data and preprocess etc
 post_process_curtains(curtain_runner, datasets, sup_title='NSF', signal_anomalies=signal_anomalies,

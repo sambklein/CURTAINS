@@ -119,7 +119,7 @@ def get_sinkhorn(sinkhorn_dist):
 
 
 def get_measure(name):
-    if name.casefold() == 'None':
+    if name.casefold() == 'none':
         def dist(x, y):
             return torch.tensor(0)
 

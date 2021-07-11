@@ -1,16 +1,15 @@
+import os
+
 import matplotlib.pyplot as plt
-
 import numpy as np
-
 import torch
+
 from utils.DRE import get_auc
 
 from .io import get_top_dir
-from .plotting import getFeaturePlot, get_bins, hist_features, hist_features_single, \
-    plot_single_feature_mass_diagnostic, plot_rates_dict
-
-import os
-
+from .plotting import (get_bins, getFeaturePlot, getInputTransformedHist,
+                       hist_features, hist_features_single, plot_rates_dict,
+                       plot_single_feature_mass_diagnostic)
 from .sampling_utils import signalMassSampler
 
 
@@ -360,6 +359,7 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
             # For the feature plot we only want to look at as many samples as there are in SB1
             getFeaturePlot(model, target_sample, samples, input_dataset, nm, sv_dir, f'{base_name} to {set}',
                            datasets.signalset.feature_nms, n_sample_for_plot=n_sample_for_plot)
+            getInputTransformedHist(model, input_dataset, samples, nm, sv_dir, f'{base_name} to {set}', datasets.signalset.feature_nms)
 
     # Map low mass samples to high mass
     high_mass_datasets = {'Signal Set': datasets.signalset, 'SB2': high_mass_training,

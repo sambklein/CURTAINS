@@ -41,58 +41,6 @@ def plot2Dhist(data, ax, bins=50, bounds=None):
               extent=[xbins.min(), xbins.max(), ybins.min(), ybins.max()],
               )
 
-
-# # From Johnny
-# def projectiontionLS_2D(dim1, dim2, latent_space, *args, **kwargs):
-#     '''Plot a two dimension latent space projection with marginals showing each dimension.
-#     Can overlay multiple different datasets by passing more than one latent_space argument.
-#     Inputs:
-#         dim1: First LS dimension to plot on x axis
-#         dim2: Second LS dimension to plot on y axis
-#         latent_space (latent_space2, latent_space3...): the data to plot
-#     Optional:
-#         xrange: specify xrange in form [xmin,xmax]
-#         yrange: specify xrange in form [ymin,ymax]
-#         labels: labels in form ['ls1','ls2','ls3'] to put in legend
-#         Additional options will be passed to the JointGrid __init__ function
-#     Returns:
-#         seaborn JointGrid object
-#     '''
-#     if 'xrange' in kwargs:
-#         xrange = kwargs.get('xrange')
-#     else:
-#         xrange = (np.floor(np.quantile(latent_space[:, dim1], 0.02)), np.ceil(np.quantile(latent_space[:, dim1], 0.98)))
-#     if 'yrange' in kwargs:
-#         yrange = kwargs.get('yrange')
-#     else:
-#         yrange = (np.floor(np.quantile(latent_space[:, dim2], 0.02)), np.ceil(np.quantile(latent_space[:, dim2], 0.98)))
-#     labels = [None] * (1 + len(args))
-#     if 'labels' in kwargs:
-#         labels = kwargs.get('labels')
-#     kwargs.pop('xrange', None)
-#     kwargs.pop('yrange', None)
-#     kwargs.pop('labels', None)
-#     g = sns.JointGrid(latent_space[:, dim1], latent_space[:, dim2], xlim=xrange, ylim=yrange, **kwargs)
-#     # for label in [0,1]:
-#     sns.kdeplot(latent_space[:, dim1], ax=g.ax_marg_x, legend=False, shade=True, alpha=0.3, label=labels[0])
-#     sns.kdeplot(latent_space[:, dim2], ax=g.ax_marg_y, vertical=True, legend=False, shade=True, alpha=0.3,
-#                 label=labels[0])
-#     sns.kdeplot(latent_space[:, dim1], latent_space[:, dim2], ax=g.ax_joint, shade=True, shade_lowest=False, bw=0.2,
-#                 alpha=1, label=labels[0])
-#     i = 1
-#     for ls in args:
-#         sns.kdeplot(ls[:, dim1], ax=g.ax_marg_x, legend=False, shade=True, alpha=0.3, label=labels[i])
-#         sns.kdeplot(ls[:, dim2], ax=g.ax_marg_y, vertical=True, legend=False, shade=True, alpha=0.3, label=labels[i])
-#         sns.kdeplot(ls[:, dim1], ls[:, dim2], ax=g.ax_joint, shade=True, shade_lowest=False, bw=0.2, alpha=0.4,
-#                     label=labels[i])
-#         i += 1
-#     g.ax_joint.spines['right'].set_visible(True)
-#     g.ax_joint.spines['top'].set_visible(True)
-#     g.set_axis_labels('LS Dim. {}'.format(dim1), 'LS Dim. {}'.format(dim2))
-#     if labels[0] is not None:
-#         g.ax_joint.legend()
-#     return g
-
 def add_error_hist(ax, data, bins, color, error_bars=False, normalised=True, label='', norm=None):
     y, binEdges = np.histogram(data, bins=bins)
     bincenters = 0.5 * (binEdges[1:] + binEdges[:-1])
@@ -325,16 +273,23 @@ def get_windows_plot(bgspectra, anomalyspectra, woi, windows, sv_dir):
     fig.savefig(f'{sv_dir}_windows.png')
 
 
-def getInputTransformedHist(model, input, transformed, nm, savedir, region, feature_names, nbins=20):
+def getInputTransformedHist(model, input, transformed, nm, savedir, region, feature_names):
+
+    s1 = input.data.shape[0]
+    s2 = transformed.data.shape[0]
+    print(f"Region: {region}, Input {input.data.shape[0]}, Transformed {transformed.data.shape[0]}\n")
+    nsamp = min(s1, s2)
+    input = input[:nsamp]
+    transformed = transformed[:nsamp]
 
     nfeatures = len(feature_names) - 1
 
     fig, axes = plt.subplots(1, nfeatures, figsize=(8 * nfeatures + 3, 8), sharex=True, sharey=True)
-    for i in range(nfeatures):
-        binX = get_bins(input[:, i], nbins=nbins)
-        binY = get_bins(transformed[:, i], nbins=nbins)
+    for i in range(nfeatures):      
         axes[i].set_xlabel(feature_names[i])
-        axes[i].hist2d(model.get_numpy(input[:, i]), model.get_numpy(transformed[:,i]), bins=[binX, binY], alpha=0.6)
+        axes[i].hist2d(model.get_numpy(input[:, i]), model.get_numpy(transformed[:,i]), bins=[np.linspace(-1, 1, 60), np.linspace(-1, 1, 60)], alpha=0.6)
+        axes[i].set_xlim(-1.0, 1.0)
+        axes[i].set_ylim(-1.0, 1.0)
         
 
     fig.suptitle(region)

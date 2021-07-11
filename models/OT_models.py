@@ -3,14 +3,16 @@ from .base_model import base_model
 
 
 class curtains_transformer(base_model):
-    def __init__(self, INN, device, exp_name, dist_measure, nfeatures, dir='INN_test'):
+    def __init__(self, INN, device, exp_name, pdist_measure, sdist_measure, weight, nfeatures, dir='INN_test'):
         # nfeatures that we want to learn, plus the context feature
         self.take = nfeatures + 1
         super(curtains_transformer, self).__init__(INN, device, exp_name, dir=dir)
-        self.dist_measure = dist_measure
+        self.pdist_measure = pdist_measure
+        self.sdist_measure = sdist_measure
+        self.weight = weight
 
     def set_loss_names(self):
-        self.loss_names = ['OT distance']
+        self.loss_names = ['primary distance']
 
     # Transform to ... given mass
     def transform_to_mass(self, features, lm, hm):
@@ -71,14 +73,16 @@ class curtains_transformer(base_model):
         # Drop the mass feature from the high mass sample
         high_mass_features = dh[:, :-1]
         # Calculate the distance between the transformation and the high mass
-        dists = self.dist_measure(transformed, high_mass_features)
+        pdists = self.pdist_measure(transformed, high_mass_features)
+        sdists = self.sdist_measure(transformed, high_mass_features)
+        dists = pdists+self.weight*sdists
         self.set_loss_dict([dists])
         return self.loss_dict[self.loss_names[0]]
 
 
 class delta_curtains_transformer(curtains_transformer):
-    def __init__(self, INN, device, exp_name, dist_measure, nfeatures, dir='INN_test'):
-        super(delta_curtains_transformer, self).__init__(INN, device, exp_name, dist_measure, nfeatures, dir=dir)
+    def __init__(self, INN, device, exp_name, pdist_measure, sdist_measure, weight, nfeatures, dir='INN_test'):
+        super(delta_curtains_transformer, self).__init__(INN, device, exp_name, pdist_measure, sdist_measure, weight, nfeatures, dir=dir)
 
     def transform_to_mass(self, features, lm, hm):
         return self.transformer(features, context=hm - lm)[0]
@@ -88,8 +92,8 @@ class delta_curtains_transformer(curtains_transformer):
 
 
 class delta_mass_curtains_transformer(curtains_transformer):
-    def __init__(self, INN, device, exp_name, dist_measure, nfeatures, dir='INN_test'):
-        super(delta_mass_curtains_transformer, self).__init__(INN, device, exp_name, dist_measure, nfeatures, dir=dir)
+    def __init__(self, INN, device, exp_name, pdist_measure, sdist_measure, weight, nfeatures, dir='INN_test'):
+        super(delta_mass_curtains_transformer, self).__init__(INN, device, exp_name, pdist_measure, sdist_measure, weight, nfeatures, dir=dir)
 
     def transform_to_mass(self, features, lm, hm):
         return self.transformer(features, context=torch.cat((lm, hm), 1))[0]
@@ -119,13 +123,16 @@ class delta_mass_curtains_transformer(curtains_transformer):
 class tucan(curtains_transformer):
     """Two way curtain transformer = tucan"""
 
-    def __init__(self, INN, device, exp_name, dist_measure, nfeatures, dir='INN_test'):
-        super(tucan, self).__init__(INN, device, exp_name, dist_measure, nfeatures, dir=dir)
+    def __init__(self, INN, device, exp_name, pdist_measure, sdist_measure, weight, nfeatures, dir='INN_test'):
+        super(tucan, self).__init__(INN, device, exp_name, pdist_measure, sdist_measure, weight, nfeatures, dir=dir)
         self.iter = 0
+        self.pdist_measure = pdist_measure
+        self.sdist_measure = sdist_measure
+        self.weight = weight
         self.set_loss_names()
 
     def set_loss_names(self):
-        self.loss_names = ['Forward distance', 'Inverse distance']
+        self.loss_names = ['Forward primary distance', 'Inverse primary distance', 'Forward secondary distance', 'Inverse secondary distance']
 
     def compute_loss(self, data, batch_size):
         # The data is passed with concatenated pairs of low mass and high mass features
@@ -141,25 +148,29 @@ class tucan(curtains_transformer):
         high_mass_features = dh[:, :-1]
         low_mass_features = dl[:, :-1]
         # Calculate the distance between the transformation and truth
-        forward_dists = self.dist_measure(transformed_hm, high_mass_features)
-        inverse_dists = self.dist_measure(transformed_lm, low_mass_features)
-        self.set_loss_dict([forward_dists, inverse_dists])
+        forward_pdists = self.pdist_measure(transformed_hm, high_mass_features)
+        forward_sdists = self.sdist_measure(transformed_hm, high_mass_features)
+
+        inverse_pdists = self.pdist_measure(transformed_lm, low_mass_features)
+        inverse_sdists = self.sdist_measure(transformed_lm, low_mass_features)
+
+        self.set_loss_dict([forward_pdists, inverse_pdists, forward_sdists, inverse_sdists])
         # return sum([self.loss_dict[nm] for nm in self.loss_names])
         if self.iter:
             self.iter = 0
-            return forward_dists
+            return forward_pdists+self.weight*forward_sdists
         else:
             self.iter = 1
-            return inverse_dists
+            return inverse_pdists+self.weight*inverse_sdists
 
 
 class delta_tucan(delta_curtains_transformer, tucan):
-    def __init__(self, INN, device, exp_name, dist_measure, nfeatures, dir='INN_test'):
-        super(delta_tucan, self).__init__(INN, device, exp_name, dist_measure, nfeatures,
+    def __init__(self, INN, device, exp_name, pdist_measure, sdist_measure, weight, nfeatures, dir='INN_test'):
+        super(delta_tucan, self).__init__(INN, device, exp_name, pdist_measure, sdist_measure, weight, nfeatures,
                                           dir=dir)
 
 
 class delta_mass_tucan(delta_mass_curtains_transformer, tucan):
-    def __init__(self, INN, device, exp_name, dist_measure, nfeatures, dir='INN_test'):
-        super(delta_mass_tucan, self).__init__(INN, device, exp_name, dist_measure, nfeatures,
+    def __init__(self, INN, device, exp_name, pdist_measure, sdist_measure, weight, nfeatures, dir='INN_test'):
+        super(delta_mass_tucan, self).__init__(INN, device, exp_name, pdist_measure, sdist_measure, weight, nfeatures,
                                                dir=dir)
