@@ -9,6 +9,7 @@ import pandas as pd
 import numpy as np
 import h5py
 import matplotlib.pyplot as plt
+import glob
 
 # Taken from https://github.com/bayesiains/nsf/blob/master/data/base.py
 from utils.io import get_top_dir, on_cluster
@@ -77,12 +78,25 @@ def fill_array(to_fill, obj, dtype):
 def load_curtains_pd(sm='QCDjj_pT', dtype='float32'):
     if on_cluster():
 
+        # directory = '/srv/beegfs/scratch/groups/rodem/anomalous_jets/data/'
+        # nchunks = 6 if sm[:3] == 'QCD' else 5
+        # lo_obs = np.empty((nchunks, 190000, 11))
+        # nlo_obs = np.empty((nchunks, 190000, 11))
+        # for i in range(nchunks):
+        #     with h5py.File(directory + f"20210430_{sm}_450_1200_nevents_1M/merged_selected_{i}.h5", 'r') as readfile:
+        #         fill_array(lo_obs[i], readfile["objects/jets/jet1_obs"][:], dtype)
+        #         fill_array(nlo_obs[i], readfile["objects/jets/jet2_obs"][:], dtype)
+
         directory = '/srv/beegfs/scratch/groups/rodem/anomalous_jets/data/'
-        nchunks = 6 if sm[:3] == 'QCD' else 5
-        lo_obs = np.empty((nchunks, 190000, 11))
-        nlo_obs = np.empty((nchunks, 190000, 11))
+        if sm[:3]=='QCD':
+            files = glob.glob(directory + f'20210629_QCDjj_pT_450_1200_nevents_10M/*.h5')
+        else:
+            files = glob.glob(directory + f'20210430_{sm}_450_1200_nevents_1M/*.h5')
+        nchunks = len(files)
+        lo_obs = np.empty((nchunks, 270000, 11))
+        nlo_obs = np.empty((nchunks, 270000, 11))
         for i in range(nchunks):
-            with h5py.File(directory + f"20210430_{sm}_450_1200_nevents_1M/merged_selected_{i}.h5", 'r') as readfile:
+            with h5py.File(files[i], 'r') as readfile:
                 fill_array(lo_obs[i], readfile["objects/jets/jet1_obs"][:], dtype)
                 fill_array(nlo_obs[i], readfile["objects/jets/jet2_obs"][:], dtype)
 

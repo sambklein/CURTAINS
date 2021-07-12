@@ -17,7 +17,7 @@ class TimerError(Exception):
 
 
 class Timer:
-    def __init__(self, dir, nm, text="One cycle takes on average {:.1f} seconds"):
+    def __init__(self, dir, nm, text="One cycle takes on average {:.1f} seconds", print_text=False):
         self.text = text
         self._start_time = None
         self.cnt = 0
@@ -26,6 +26,7 @@ class Timer:
         if not os.path.exists(sv_dir):
             os.makedirs(sv_dir)
         self.file_name = sv_dir + '/' + nm
+        self.print_text = print_text
 
     def start(self):
         """Start a new timer"""
@@ -53,8 +54,8 @@ class Timer:
 
     def report(self):
         self.mean_time = np.mean(self.times)
-        # if self.text:
-        #     print(self.text.format(self.mean_time))
+        if self.print_text:
+            print(self.text.format(self.mean_time))
 
 
 def get_vars(optim):
@@ -82,7 +83,7 @@ def step_optimizers(grads, vars, optimizer, grad_norm_clip_value=None):
 
 def fit(model, optimizers, dataset, n_epochs, batch_size, writer, schedulers=None, regularizers=None,
         schedulers_epoch_end=None, gclip=None, monitor_interval=None, nsplit=5, plot_history=True,
-        shuffle_epoch_end=False):
+        shuffle_epoch_end=False, load_best=False):
     """
     :param model: the model to be trained
     :param optimizers: a list of optimizers corresponding to the sub models of the passed model
@@ -230,8 +231,8 @@ def fit(model, optimizers, dataset, n_epochs, batch_size, writer, schedulers=Non
         # Save the best model
         if loss_track <= best_val:
             best_val = loss_track
-            path = top_dir + '/data/saved_models/model_{}_best'.format(model.exp_name)
-            model.save(path)
+            best_model_path = top_dir + '/data/saved_models/model_{}_best'.format(model.exp_name)
+            model.save(best_model_path)
 
         # Step schedulers that use the validation data for stepping
         if schedulers_epoch_end:
@@ -254,12 +255,16 @@ def fit(model, optimizers, dataset, n_epochs, batch_size, writer, schedulers=Non
         fig, axs = plt.subplots(1, len(loss_nms), figsize=(20, 5))
         for j, ax in enumerate(fig.axes):
             nm = loss_nms[j]
-            ax.plot(val_save[nm], label='test')
-            ax.plot(train_save[nm], '--', label='validation')
+            ax.plot(val_save[nm], label='validation')
+            ax.plot(train_save[nm], '--', label='train')
             ax.set_title(nm)
             ax.legend()
             ax.set_ylabel("loss")
             ax.set_xlabel("epoch")
         fig.savefig(sv_dir + '/training_{}.png'.format(model.exp_name))
+
+    if load_best:
+        model.load(best_model_path)
+
 
     print('\nFinished Training')

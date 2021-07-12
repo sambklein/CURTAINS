@@ -13,6 +13,7 @@ import torch
 
 from utils.plotting import add_error_hist, get_bins
 from utils.torch_utils import sample_data
+from utils.training import Timer
 
 
 class SupervisedDataClass(Dataset):
@@ -37,16 +38,23 @@ def get_net(batch_norm=False, width=32, depth=2, dropout=0):
 
 
 def fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, n_epochs, device, sv_dir, plot=True,
-                   save=True):
+                   save=True, scheduler=None):
+    # Initialize timer class, this is useful on the cluster as it will say if you have enough time to run the job
+    timer = Timer('irrelevant', 'irrelevant', print_text=False)
+
     # Make an object to load training data
-    data_obj = torch.utils.data.DataLoader(train_data, batch_size=batch_size, shuffle=True, num_workers=0)
-    data_valid = torch.utils.data.DataLoader(valid_data, batch_size=1000, shuffle=True, num_workers=0)
+    n_workers = 0
+    data_obj = torch.utils.data.DataLoader(train_data, batch_size=batch_size, shuffle=True, num_workers=n_workers)
+    data_valid = torch.utils.data.DataLoader(valid_data, batch_size=1000, shuffle=True, num_workers=n_workers)
     n_train = int(np.ceil(len(train_data) / batch_size))
     n_valid = int(np.ceil(len(valid_data) / 1000))
 
     train_loss = np.zeros(n_epochs)
     valid_loss = np.zeros(n_epochs)
-    for epoch in range(n_epochs):  # loop over the dataset multiple times
+    scheduler_bool = scheduler is not None
+    for epoch in range(n_epochs): # loop over the dataset multiple times
+        # Start the timer
+        timer.start()
 
         running_loss = np.zeros(n_train)
         for i, data in enumerate(data_obj, 0):
@@ -60,6 +68,8 @@ def fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, n_
             loss.backward()
             # Update the parameters
             optimizer.step()
+            if scheduler_bool:
+                scheduler.step()
 
             # Get statistics
             running_loss[i] = loss.item()
@@ -75,6 +85,9 @@ def fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, n_
                 loss = classifier.compute_loss(data)
                 running_loss[i] = loss.item()
         valid_loss[epoch] = np.mean(running_loss)
+
+        # Stop the timer
+        timer.stop()
 
     if plot:
         plt.figure()
@@ -144,8 +157,8 @@ def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, 
     valid_data = SupervisedDataClass(X_val, y_val)
     test_data = SupervisedDataClass(X_test, y_test)
 
-    batch_size = 64
-    nepochs = 200
+    batch_size = 1000
+    nepochs = 100
     lr = 1e-4
     wd = 0.001
     drp = 0.5
@@ -153,8 +166,10 @@ def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, 
     depth = 3
     if drp > 0:
         width = int(width / drp)
+    # TODO: use a scheduler for the learning rate
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    print(f'Classifier device {device}.')
     net = get_net(batch_norm=False, width=width, depth=depth, dropout=drp)
     classifier = Classifier(net, train_data.nfeatures, 1, name, directory=directory,
                             activation=torch.sigmoid).to(device)

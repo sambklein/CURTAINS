@@ -41,7 +41,8 @@ parser.add_argument("--doping", type=float, default=0.)
 ## Names for saving
 parser.add_argument('-n', type=str, default='Transformer', help='The name with which to tag saved outputs.')
 parser.add_argument('-d', type=str, default='NSF_CURT', help='Directory to save contents into.')
-parser.add_argument('--load', type=int, default=1, help='Whether or not to load a model.')
+parser.add_argument('--load', type=int, default=0, help='Whether or not to load a model.')
+parser.add_argument('--model_name', type=str, default=None, help='Saved name of model to load.')
 parser.add_argument('--load_classifiers', type=int, default=0, help='Whether or not to load a model.')
 parser.add_argument('--use_mass_sampler', type=int, default=0, help='Whether or not to sample the mass.')
 
@@ -58,7 +59,7 @@ parser.add_argument('--coupling_depth', type=int, default=3,
                     help='Depth of network used to learn transformer parameters.')
 
 parser.add_argument('--batch_size', type=int, default=10, help='Size of batch for training.')
-parser.add_argument('--epochs', type=int, default=0,
+parser.add_argument('--epochs', type=int, default=1,
                     help='The number of epochs to train for.')
 parser.add_argument('--nstack', type=int, default='3',
                     help='The number of spline transformations to stack in the inn.')
@@ -78,11 +79,12 @@ parser.add_argument('--nbins', type=int, default=10,
                     help='The number of bins to use in each spline transformation.')
 parser.add_argument('--ncond', type=int, default=1,
                     help='The number of features to condition on.')
+parser.add_argument('--load_best', type=int, default=0, help='Load the model that has the best validation score.')
 
 ## Plotting
 parser.add_argument('--n_sample', type=int, default=1000,
                     help='The number of features to use when calculating contours in the feature plots.')
-parser.add_argument('--light', type=int, default=1,
+parser.add_argument('--light', type=int, default=0,
                     help='We do not always want to plot everything and calculate all of the ROC plots.')
 
 ## reproducibility
@@ -184,11 +186,15 @@ torch.set_default_tensor_type('torch.FloatTensor')
 
 # Fit the model
 if args.load:
-    path = get_top_dir() + f'/data/saved_models/model_{exp_name}'
+    if args.model_name is not None:
+        nm = args.model_name
+    else:
+        nm = exp_name
+    path = get_top_dir() + f'/data/saved_models/model_{nm}'
     curtain_runner.load(path)
 else:
     fit(curtain_runner, optimizer, datasets.trainset, n_epochs, bsize, writer, schedulers=scheduler,
-        schedulers_epoch_end=reduce_lr_inn, gclip=args.gclip, shuffle_epoch_end=args.shuffle)
+        schedulers_epoch_end=reduce_lr_inn, gclip=args.gclip, shuffle_epoch_end=args.shuffle, load_best=args.load_best)
 
 # Generate test data and preprocess etc
 post_process_curtains(curtain_runner, datasets, sup_title='NSF', signal_anomalies=signal_anomalies,
@@ -196,4 +202,4 @@ post_process_curtains(curtain_runner, datasets, sup_title='NSF', signal_anomalie
                       n_sample_for_plot=args.n_sample, light_job=args.light)
 
 # Save options used for running
-register_experiment(sv_dir, exp_name, args)
+register_experiment(sv_dir, f'{args.d}/{exp_name}', args)
