@@ -300,9 +300,9 @@ def get_samples(input_dist, target_dist, model, r_mass=False):
         raise NotImplementedError('The mass range to which you map cannot overlap with the input mass range.')
 
     with torch.no_grad():
-        mx = torch.randperm(s2, device=torch.device('cpu'))
         id = input_dist.data[input_dist.data[:, -1].sort()[1]][:nsamp]
         td = target_dist.data[target_dist.data[:, -1].sort()[1]][:nsamp]
+
         mass = td[:, -1].view(-1, 1)
         if direction == 'forward':
             samples = model.transform_to_data(id, td, batch_size=1000)
@@ -353,7 +353,6 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
         for i, set in enumerate(target_datasets):
             target_sample = target_datasets[set]
             print(f"Now evaluating sample {set} from {base_name}")
-            # samples = get_samples(input_dataset, target_sample)
             samples = get_transformed(input_dataset, target_dist=target_sample, r_mass=False)
             # For the feature plot we only want to look at as many samples as there are in SB1
             getFeaturePlot(model, target_sample, samples, input_dataset, nm, sv_dir, f'{base_name} to {set}',

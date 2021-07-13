@@ -114,7 +114,7 @@ class Curtains(BasePhysics):
         not_tensor = not torch.is_tensor(mass)
         if not_tensor:
             mass = torch.tensor(mass)
-        mass = torch.tensor(mass)
+        # mass = torch.tensor(mass)
         min_val = self.min_vals[-1]
         max_val = self.max_vals[-1]
         zo = mass / 2 + 0.5

@@ -30,9 +30,10 @@ class SupervisedDataClass(Dataset):
         return self.data.shape[0]
 
 
-def get_net(batch_norm=False, width=32, depth=2, dropout=0):
+def get_net(batch_norm=False, layer_norm=False, width=32, depth=2, dropout=0):
     def net_maker(nfeatures, nclasses):
-        return dense_net(nfeatures, nclasses, layers=[width] * depth, batch_norm=batch_norm, drp=dropout)
+        return dense_net(nfeatures, nclasses, layers=[width] * depth, batch_norm=batch_norm, layer_norm=layer_norm,
+                         drp=dropout)
 
     return net_maker
 
@@ -52,7 +53,7 @@ def fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, n_
     train_loss = np.zeros(n_epochs)
     valid_loss = np.zeros(n_epochs)
     scheduler_bool = scheduler is not None
-    for epoch in range(n_epochs): # loop over the dataset multiple times
+    for epoch in range(n_epochs):  # loop over the dataset multiple times
         # Start the timer
         timer.start()
 
@@ -166,11 +167,13 @@ def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, 
     depth = 3
     if drp > 0:
         width = int(width / drp)
+    batch_norm = False
+    layer_norm = False
     # TODO: use a scheduler for the learning rate
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(f'Classifier device {device}.')
-    net = get_net(batch_norm=False, width=width, depth=depth, dropout=drp)
+    net = get_net(batch_norm=batch_norm, layer_norm=layer_norm, width=width, depth=depth, dropout=drp)
     classifier = Classifier(net, train_data.nfeatures, 1, name, directory=directory,
                             activation=torch.sigmoid).to(device)
 

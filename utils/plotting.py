@@ -252,6 +252,8 @@ def hist_features(originals, sample, data_dim, axs, axs_nms=None, labels=None, l
 
 def hist_features_single(originals, model, feature_nms, axs, bins, label='data'):
     data_dim = len(feature_nms) - 1
+    # if not isinstance(bins, list):
+    #     bins = [bins] * data_dim
     for i in range(data_dim):
         axs[i].hist(model.get_numpy(originals[:, i]), label=label, alpha=0.5, density=True, bins=bins[i],
                     histtype='step')
