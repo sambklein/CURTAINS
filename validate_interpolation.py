@@ -47,7 +47,7 @@ parser.add_argument('--load_classifiers', type=int, default=0, help='Whether or 
 parser.add_argument('--use_mass_sampler', type=int, default=0, help='Whether or not to sample the mass.')
 
 ## Hyper parameters
-parser.add_argument('--distance', type=str, default='mse', help='Type of dist measure to use.')
+parser.add_argument('--distance', type=str, default='sinkhorn_slow', help='Type of dist measure to use.')
 parser.add_argument('--coupling', type=int, default=1, help='One to use coupling layers, zero for autoregressive.')
 parser.add_argument('--spline', type=int, default=0, help='One to use spline transformations.')
 parser.add_argument('--two_way', type=int, default=1,
@@ -80,6 +80,7 @@ parser.add_argument('--nbins', type=int, default=10,
 parser.add_argument('--ncond', type=int, default=1,
                     help='The number of features to condition on.')
 parser.add_argument('--load_best', type=int, default=0, help='Load the model that has the best validation score.')
+parser.add_argument('--det_beta', type=float, default=0.1, help='Factor to multiply determinant by in the loss.')
 
 ## Plotting
 parser.add_argument('--n_sample', type=int, default=1000,
@@ -114,8 +115,7 @@ writer = SummaryWriter(log_dir=log_dir)
 
 # Make datasets
 # If the distance measure is the sinkhorn distance then don't mix samples between quantiles
-mix_qs = distance != 'sinkhorn'
-# datasets = get_data(args.dataset, quantiles=args.quantiles, mix_qs=mix_qs)
+mix_qs = distance[:8] != 'sinkhorn'
 datasets, signal_anomalies = get_data(args.dataset, image_dir + exp_name, bins=args.bins, mix_qs=mix_qs,
                                       doping=args.doping)
 ndata = datasets.ndata
@@ -140,11 +140,11 @@ tails = 'linear'  # This will ensure that any samples from outside of [-tail_bou
 
 if args.coupling:
     # TODO clean this up
-    mx = [1] * int(np.ceil(datasets.nfeatures / 2)) + [0] * int(datasets.nfeatures - np.ceil(datasets.nfeatures / 2))
+    n_mask = int(np.ceil(datasets.nfeatures / 2))
+    mx = [1] * n_mask + [0] * int(datasets.nfeatures - n_mask)
 
 
     # this has to be an nn.module that takes as first arg the input dim and second the output dim
-    # TODO: what effect does the capacity of this have on performance?
     def maker(input_dim, output_dim):
         return dense_net(input_dim, output_dim, layers=[args.coupling_width] * args.coupling_depth,
                          context_features=args.ncond)
@@ -169,7 +169,7 @@ else:
     else:
         transformer = delta_curtains_transformer
 
-curtain_runner = transformer(INN, device, exp_name, measure, datasets.nfeatures, dir=args.d)
+curtain_runner = transformer(INN, device, exp_name, measure, datasets.nfeatures, dir=args.d, det_beta=args.det_beta)
 
 # Define optimizers and learning rate schedulers
 optimizer = optim.Adam(INN.parameters(), lr=args.lr)

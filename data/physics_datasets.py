@@ -1,3 +1,5 @@
+import warnings
+
 from torch.utils.data import Dataset
 import torch
 import numpy as np
@@ -14,8 +16,15 @@ class BasePhysics(Dataset):
         self.scale_norm = 1
         self.normed = False
         self.set_scale(scale)
-        # This isn't dynamic, so if you want to modify the size of the dataset, should have another method
-        # TODO: what is the clean way to deal with this?
+        self.deal_with_nans()
+
+    def deal_with_nans(self):
+        nan_mask = self.data.isnan().any(1)
+        num_nans = nan_mask.sum()
+        if num_nans > 0:
+            self.data = self.data[~nan_mask]
+            warnings.warn(f'There are {num_nans} samples with NaN values. These have been dropped.');
+        # This isn't dynamic, so if you want to modify the size of the dataset this must be updated as well
         self.shape = self.data.shape
 
     def set_scale(self, scale):
@@ -55,6 +64,7 @@ class BasePhysics(Dataset):
             zo = (train_feature - min_val) / (max_val - min_val)
             self.data.t()[i] = (zo - 0.5) * 2
         self.normed = True
+        self.deal_with_nans()
 
     def unnormalize(self, data_in=None):
 
@@ -135,7 +145,6 @@ class Curtains(BasePhysics):
         if not_tensor:
             mass = dtype(mass)
         return mass
-
 
 
 class CurtainsTrainSet(Dataset):

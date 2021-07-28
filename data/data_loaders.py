@@ -88,7 +88,7 @@ def load_curtains_pd(sm='QCDjj_pT', dtype='float32'):
         #         fill_array(nlo_obs[i], readfile["objects/jets/jet2_obs"][:], dtype)
 
         directory = '/srv/beegfs/scratch/groups/rodem/anomalous_jets/data/'
-        if sm[:3]=='QCD':
+        if sm[:3] == 'QCD':
             files = glob.glob(directory + f'20210629_QCDjj_pT_450_1200_nevents_10M/*.h5')
         else:
             files = glob.glob(directory + f'20210430_{sm}_450_1200_nevents_1M/*.h5')
@@ -120,6 +120,40 @@ def load_curtains_pd(sm='QCDjj_pT', dtype='float32'):
         filename = f'{sm}.csv'
         slim_file = slim_dir + '/' + filename
         return pd.read_csv(slim_file)
+
+# def load_curtains_pd(sm='QCDjj_pT', dtype='float32'):
+#     if on_cluster():
+#
+#         directory = '/srv/beegfs/scratch/groups/rodem/anomalous_jets/data/'
+#         nchunks = 6 if sm[:3] == 'QCD' else 5
+#         lo_obs = np.empty((nchunks, 190000, 11))
+#         nlo_obs = np.empty((nchunks, 190000, 11))
+#         for i in range(nchunks):
+#             with h5py.File(directory + f"20210430_{sm}_450_1200_nevents_1M/merged_selected_{i}.h5", 'r') as readfile:
+#                 fill_array(lo_obs[i], readfile["objects/jets/jet1_obs"][:], dtype)
+#                 fill_array(nlo_obs[i], readfile["objects/jets/jet2_obs"][:], dtype)
+#
+#         low_level_names = ['pt', 'eta', 'phi', 'mass', 'tau1', 'tau2', 'tau3', 'd12', 'd23', 'ECF2', 'ECF3']
+#         lo_obs = np.vstack(lo_obs)
+#         mx = lo_obs[:, 0] != 0
+#         df = pd.DataFrame(np.hstack((lo_obs[mx], np.vstack(nlo_obs)[mx])),
+#                           columns=low_level_names + ['nlo_' + nm for nm in low_level_names])
+#
+#         slim_file = get_top_dir() + f'/data/slims/{sm}.csv'
+#         if not os.path.isfile(slim_file):
+#             if not os.path.isfile(slim_file):
+#                 df_sv = df.take(list(range(10000)))
+#                 os.makedirs(get_top_dir() + '/data/slims/', exist_ok=True)
+#                 df_sv.to_csv(slim_file, index=False)
+#
+#         return df
+#
+#     else:
+#         slim_dir = get_top_dir() + '/data/slims'
+#         filename = f'{sm}.csv'
+#         slim_file = slim_dir + '/' + filename
+#         return pd.read_csv(slim_file)
+
 
 
 def load_curtains():
@@ -153,7 +187,6 @@ def dope_dataframe(undoped, anomaly_data, doping):
 
 
 def mask_dataframe(df, context_feature, bins, indx, doping=None, anomaly_data=None):
-
     def mx_data(data):
         context_df = data[context_feature]
         mx = (context_df > bins[indx[0]]) & (context_df < bins[indx[1]])

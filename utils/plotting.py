@@ -9,7 +9,7 @@ from matplotlib import pyplot as plt  # , pyplot  # , pyplot
 # import matplotlib.patches as mpatches
 # from sklearn.manifold import TSNE
 import seaborn as sns
-from utils.torch_utils import tensor2numpy
+from utils.torch_utils import tensor2numpy, shuffle_tensor
 from scipy import stats
 
 
@@ -150,6 +150,11 @@ def add_contour(axes, i, j, data, sampled):
 
 def getFeaturePlot(model, original, sampled, lm_sample, nm, savedir, region, feature_names, nbins=20, contour=True,
                    n_sample_for_plot=-1):
+
+    if n_sample_for_plot > 0:
+        original = shuffle_tensor(original)
+        sampled = shuffle_tensor(sampled)
+
     nfeatures = len(feature_names) - 1
     fig, axes = plt.subplots(nfeatures, nfeatures, figsize=(2 * nfeatures + 2, 2 * nfeatures + 1),
                              gridspec_kw={'wspace': 0.03, 'hspace': 0.03})
@@ -162,18 +167,14 @@ def getFeaturePlot(model, original, sampled, lm_sample, nm, savedir, region, fea
             if not contour:
                 axes[0, j].set_title(feature_names[j])
             else:
-                # axes[i, j].set_ylabel(feature_names[j])
                 axes[-1, j].set_xlabel(feature_names[j])
                 if i != nfeatures - 1:
-                    # axes[i, j].tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False)
                     axes[i, j].tick_params(axis='x', which='both', direction='in', labelbottom=False)
 
                 axes[i, j].set_yticks([-1, 0, 1])
                 if i == j == 0:
                     axes[i, j].tick_params(axis='y', colors='w')
                 elif j > 0:
-                    # axes[i, j].tick_params(axis='y', which='both', bottom=False, top=False, left=False, right=False,
-                    #                        labelbottom=False, labelleft=False)
                     axes[i, j].tick_params(axis='y', which='both', direction='in', labelleft=False)
 
             if i == j:

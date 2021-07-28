@@ -119,7 +119,7 @@ def dope_data(truth, anomaly_data, beta):
 
 
 def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, mass_incl=True, balance=True,
-            beta=None, sup_title='', mscaler=None, load=False, return_rates=False, dope_splits=True):
+            beta=None, sup_title='', mscaler=None, load=False, return_rates=False, dope_splits=True, false_signal=True):
     if balance:
         n = min((len(interpolated), len(truth)))
         interpolated = sample_data(interpolated, n)
@@ -154,10 +154,23 @@ def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, 
             test_mass = mscaler(test_mass)
         X_train, X_val, X_test = X_train[:, :-1], X_val[:, :-1], X_test[:, :-1]
 
+    if false_signal:
+        # Append a dummy noise sample to the
+        beta_add_noise = 0.1
+        n_features = X_train.shape[1]
+        def add_noise(data, labels):
+            n_sample = int(data.shape[0] * beta_add_noise)
+            data = np.concatenate((data, np.random.multivariate_normal([0] * n_features, np.eye(n_features), n_sample)))
+            labels = np.concatenate((labels, np.zeros((n_sample, 1))))
+            return data, labels
+        X_train, y_train = add_noise(X_train, y_train)
+        X_val, y_val = add_noise(X_val, y_val)
+
     train_data = SupervisedDataClass(X_train, y_train)
     valid_data = SupervisedDataClass(X_val, y_val)
     test_data = SupervisedDataClass(X_test, y_test)
 
+    # Classifier hyper params, should be set in an dictionary somewhere
     batch_size = 1000
     nepochs = 100
     lr = 1e-4
@@ -169,7 +182,7 @@ def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, 
         width = int(width / drp)
     batch_norm = False
     layer_norm = False
-    # TODO: use a scheduler for the learning rate
+    use_scheduler = True
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(f'Classifier device {device}.')
@@ -182,12 +195,18 @@ def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, 
         optimizer = torch.optim.Adam(classifier.parameters(), lr=lr)
     else:
         optimizer = torch.optim.AdamW(classifier.parameters(), lr=lr, wd=wd)
+    if use_scheduler:
+        max_step = int(nepochs * np.ceil(len(X_train)))
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, max_step, 0)
+    else:
+        scheduler = None
 
     # Train
     if load:
         classifier.load(sv_dir + 'classifier')
     else:
-        fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, nepochs, device, sv_dir)
+        fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, nepochs, device, sv_dir,
+                       scheduler=scheduler)
 
     with torch.no_grad():
         y_scores = classifier.predict(test_data.data.to(device)).cpu().numpy()
@@ -204,8 +223,8 @@ def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, 
         ax.hist(data, bins=bins, weights=np.ones_like(data) / total, label=label, histtype='step')
 
     bins = get_bins(y_scores[mx], nbins=50)
-    add_normed_hist(y_scores[mx], ax, 'BG', bins)
-    add_normed_hist(y_scores[~mx], ax, 'Signal', bins)
+    add_normed_hist(y_scores[mx], ax, 'Signal', bins)
+    add_normed_hist(y_scores[~mx], ax, 'BG', bins)
     if anomaly_bool:
         with torch.no_grad():
             if mass_incl:

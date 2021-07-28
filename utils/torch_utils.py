@@ -10,5 +10,10 @@ def sample_data(data, number, split=False):
         return output[:number]
 
 
+def shuffle_tensor(data):
+    mx = torch.randperm(len(data), device=torch.device('cpu'))
+    return data[mx]
+
+
 def tensor2numpy(tensor):
     return tensor.detach().cpu().numpy()

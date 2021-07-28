@@ -286,6 +286,7 @@ def transform_to_mass(data, lm, hm, mass_sampler, model):
             direction](data.data[:, :-1], data_mass, sample_mass)
     return torch.cat((feature_sample, sample_mass), 1).cpu()
 
+
 def get_samples(input_dist, target_dist, model, r_mass=False):
     target_dist.data = target_dist.data.to(model.device)
     s1 = input_dist.data.shape[0]
@@ -300,14 +301,16 @@ def get_samples(input_dist, target_dist, model, r_mass=False):
         raise NotImplementedError('The mass range to which you map cannot overlap with the input mass range.')
 
     with torch.no_grad():
-        id = input_dist.data[input_dist.data[:, -1].sort()[1]][:nsamp]
-        td = target_dist.data[target_dist.data[:, -1].sort()[1]][:nsamp]
+        # id = input_dist.data[input_dist.data[:, -1].sort()[1]][:nsamp]
+        # td = target_dist.data[target_dist.data[:, -1].sort()[1]][:nsamp]
+        id = input_dist.data[:nsamp]
+        td = target_dist.data[:nsamp]
 
         mass = td[:, -1].view(-1, 1)
         if direction == 'forward':
-            samples = model.transform_to_data(id, td, batch_size=1000)
+            samples = model.transform_to_data(id, td, batch_size=1000)[0]
         elif direction == 'inverse':
-            samples = model.inverse_transform_to_data(td, id, batch_size=1000)
+            samples = model.inverse_transform_to_data(td, id, batch_size=1000)[0]
     if r_mass:
         return torch.cat((samples, mass), -1)
     else:
@@ -391,22 +394,29 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
         auc_ob1 = get_auc(ob1_samples, datasets.validationset_lm.data, sv_dir, nm + 'OB1_vs_TSB1',
                           mscaler=low_mass_training.unnorm_mass, load=load, sup_title=f'T(SB1) vs OB1')
 
-    # Map the combined side bands into the signal region
-    sb2_samples = get_transformed(high_mass_sample, lm=datasets.mass_bins[2], hm=datasets.mass_bins[3],
-                                  target_dist=datasets.signalset)
-    sb1_samples = get_transformed(low_mass_sample, lm=datasets.mass_bins[2], hm=datasets.mass_bins[3],
-                                  target_dist=datasets.signalset)
-    print('SB2 from signal set')
-    auc_sb2 = get_auc(sb2_samples, datasets.signalset.data, sv_dir, nm + 'SB2', mscaler=low_mass_training.unnorm_mass,
-                      load=load, sup_title=f'T(SB2) vs SR')
-    print('SB1 from signal set')
-    auc_sb1 = get_auc(sb1_samples, datasets.signalset.data, sv_dir, nm + 'SB1', mscaler=low_mass_training.unnorm_mass,
-                      load=load, sup_title=f'T(SB1) vs SR')
+    if light_job <= 1:
+        # Map the combined side bands into the signal region
+        sb2_samples = get_transformed(high_mass_sample, lm=datasets.mass_bins[2], hm=datasets.mass_bins[3],
+                                      target_dist=datasets.signalset)
+        sb1_samples = get_transformed(low_mass_sample, lm=datasets.mass_bins[2], hm=datasets.mass_bins[3],
+                                      target_dist=datasets.signalset)
+        print('SB2 from signal set')
+        auc_sb2 = get_auc(sb2_samples, datasets.signalset.data, sv_dir, nm + 'SB2',
+                          mscaler=low_mass_training.unnorm_mass,
+                          load=load, sup_title=f'T(SB2) vs SR')
+        print('SB1 from signal set')
+        auc_sb1 = get_auc(sb1_samples, datasets.signalset.data, sv_dir, nm + 'SB1',
+                          mscaler=low_mass_training.unnorm_mass,
+                          load=load, sup_title=f'T(SB1) vs SR')
 
-    samples = torch.cat((sb2_samples, sb1_samples))
-    # For the feature plot we only want to look at as many samples as there are in SB1
-    getFeaturePlot(model, datasets.signalset, samples, high_mass_sample, nm, sv_dir, 'SB1 and SB2 to Signal ',
-                   datasets.signalset.feature_nms)
+        samples = torch.cat((sb2_samples, sb1_samples))
+        # For the feature plot we only want to look at as many samples as there are in SB1
+        getFeaturePlot(model, datasets.signalset, samples, high_mass_sample, nm, sv_dir, 'SB1 and SB2 to Signal ',
+                       datasets.signalset.feature_nms, n_sample_for_plot=n_sample_for_plot)
+
+        print('Without anomalies injected')
+        auc = get_auc(samples, datasets.signalset.data, sv_dir, nm + 'SB12', mscaler=low_mass_training.unnorm_mass,
+                      load=False, sup_title=f'T(SB1) U T(SB2) vs SR')
 
     if not light_job:
         # Get the AUC of the ROC for a classifier trained to separate interpolated samples from data
@@ -432,17 +442,14 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
         plot_rates_dict(sv_dir, rates_sr_qcd_vs_anomalies, 'SR QCD vs SR Anomalies')
         plot_rates_dict(sv_dir, rates_sr_vs_transformed, 'T(SB12) vs SR')
 
-    print('Without anomalies injected')
-    auc = get_auc(samples, datasets.signalset.data, sv_dir, nm + 'SB12', mscaler=low_mass_training.unnorm_mass,
-                  load=False, sup_title=f'T(SB1) U T(SB2) vs SR')
-
-    with open(sv_dir + '/auc_{}.npy'.format(nm), 'wb') as f:
-        np.save(f, auc_sb2)
-        np.save(f, auc_sb1)
-        if not light_job:
-            np.save(f, auc_supervised)
-            np.save(f, auc_anomalies)
-        np.save(f, auc)
+    if light_job < 2:
+        with open(sv_dir + '/auc_{}.npy'.format(nm), 'wb') as f:
+            np.save(f, auc_sb2)
+            np.save(f, auc_sb1)
+            if not light_job:
+                np.save(f, auc_supervised)
+                np.save(f, auc_anomalies)
+            np.save(f, auc)
 
     nmass = 5
     masses = np.linspace(datasets.signalset.data[:, -1].min().item(),
@@ -458,7 +465,7 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
     for mass in masses:
         with torch.no_grad():
             samples = model.transform_to_data(low_mass_sample.data.to(device),
-                                              mass * torch.ones((low_mass_sample.data.shape[0], 1)).to(device))
+                                              mass * torch.ones((low_mass_sample.data.shape[0], 1)).to(device))[0]
         # getCrossFeaturePlot(model, low_mass_sample.unnormalize(low_mass_sample.data), samples, nm, sv_dir, mass,
         #                     datasets.signalset.feature_nms)
         hist_features_single(samples, model, datasets.signalset.feature_nms, ax, bns,
@@ -477,7 +484,7 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
     for i in range(nshuffle):
         mass_sample = (min_mass - max_mass) * torch.rand(nsamp, 1) + max_mass
         with torch.no_grad():
-            samples[i] = model.transform_to_data(low_mass_sample, mass_sample.to(device))
+            samples[i] = model.transform_to_data(low_mass_sample, mass_sample.to(device))[0]
 
     smp = low_mass_sample.unnormalize(samples.view(-1, nfeatures))
     plot_single_feature_mass_diagnostic(model, samples.view(-1, nfeatures), smp, datasets.signalset.feature_nms, sv_dir,
