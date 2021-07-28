@@ -12,6 +12,7 @@
 /data/saved_models
 /data/slims
 submit.txt
+settings.txt
   
 # Byte-compiled / optimized / DLL files
 __pycache__/

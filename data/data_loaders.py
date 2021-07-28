@@ -3,6 +3,7 @@ import torch
 from utils.plotting import hist_features, get_windows_plot
 from .physics_datasets import JetsDataset, WrappingCurtains, Curtains, CurtainsTrainSet
 
+import glob
 import os
 import pandas as pd
 import numpy as np
@@ -77,9 +78,6 @@ def load_curtains_pd(sm='QCDjj_pT', dtype='float32', extraStats=False):
     if on_cluster():
 
         directory = '/srv/beegfs/scratch/groups/rodem/anomalous_jets/data/'
-        nchunks = 40 if sm[:3] == 'QCD' else 5
-        filename = f"20210629_{sm}_450_1200_nevents_10M/merged_selected" if sm[:3] == 'QCD' else \
-                   f"20210430_{sm}_450_1200_nevents_1M/merged_selected"
 
         if extraStats:
             nchunks = 40 if sm[:3] == 'QCD' else 5

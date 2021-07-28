@@ -156,7 +156,7 @@ if args.coupling:
     def maker(input_dim, output_dim):
         return dense_net(input_dim, output_dim, layers=[64, 64, 64], context_features=args.ncond)
 
-
+ 
     INN = coupling_inn(inp_dim, maker, nstack=args.nstack, tail_bound=tail_bound, tails=tails, lu=0,
                        num_bins=args.nbins, mask=mx, spline=args.spline)
 else:

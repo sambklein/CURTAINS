@@ -12,7 +12,7 @@ class curtains_transformer(base_model):
         self.weight = weight
 
     def set_loss_names(self):
-        self.loss_names = ['primary distance']
+        self.loss_names = ['primary distance', 'secondary distance']
 
     # Transform to ... given mass
     def transform_to_mass(self, features, lm, hm):
@@ -76,8 +76,8 @@ class curtains_transformer(base_model):
         pdists = self.pdist_measure(transformed, high_mass_features)
         sdists = self.sdist_measure(transformed, high_mass_features)
         dists = pdists+self.weight*sdists
-        self.set_loss_dict([dists])
-        return self.loss_dict[self.loss_names[0]]
+        self.set_loss_dict([pdists, sdists])
+        return dists
 
 
 class delta_curtains_transformer(curtains_transformer):

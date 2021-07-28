@@ -255,12 +255,21 @@ def fit(model, optimizers, dataset, n_epochs, batch_size, writer, schedulers=Non
     if plot_history:
         fig, axs = plt.subplots(1, len(loss_nms), figsize=(20, 5))
         for j, ax in enumerate(fig.axes):
-            ymin, ymax = ax.get_ylim()
+            
             nm = loss_nms[j]
             ax.plot(val_save[nm], label='Validation')
             ax.plot(train_save[nm], '--', label='Training')
+            step = n_epochs/5
+            xtick = np.arange(0, n_epochs, step)
+            if best_step in xtick:
+                pass
+            else:
+                xtick = np.append(xtick, best_step)
+                xtick.sort()
+            ax.set_xticklabels(xtick, rotation=45, ha='right')
             ax.set_title(nm)
-            ax.vlines(best_step,  ymin=ymin, ymax=ymax/5.0, ls='--', color='black', label='Best Validation Loss')
+            ind = np.where(xtick==best_step)[0][0]
+            ax.get_xticklabels()[ind].set_color("green")
             ax.legend(frameon=False)
             ax.set_ylabel("loss")
             ax.set_xlabel("epoch")
