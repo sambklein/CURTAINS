@@ -26,6 +26,6 @@ def register_experiment(sv_dir, exp_name, args):
 
 
 def read_experiment(sv_dir, exp_name, args):
-    with open(sv_dir + exp_name + "_exp_info.json", "w") as file_name:
+    with open(sv_dir + exp_name + "_exp_info.json", "r") as file_name:
         json_dict = json.load(file_name)
     return json.loads(json_dict)
