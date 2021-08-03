@@ -279,8 +279,9 @@ def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, 
             N_bg = bg_mass.shape[0]
             gain = N_sg / N_bg
             pm = '$\pm$'
-            ax[i].set_title(f'BG rejection {at:.2f} \n '
-                            f'Gain {gain:.2f} {pm} {gain * (N_sg ** (-0.5) + N_bg ** (-0.5)) ** (0.5) :.3f}')
+            if N_bg and N_sg:
+                ax[i].set_title(f'BG rejection {at:.2f} \n '
+                                f'Gain {gain:.2f} {pm} {gain * (N_sg ** (-0.5) + N_bg ** (-0.5)) ** (0.5) :.3f}')
         handles, labels = ax[0].get_legend_handles_labels()
         fig.legend(handles, labels, loc='upper right')
         fig.suptitle(sup_title)
