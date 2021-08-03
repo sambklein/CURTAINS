@@ -33,37 +33,33 @@ parser.add_argument('--dataset', type=str, default='curtains', help='The dataset
 # TODO: not currently implemented, NOT a priority
 parser.add_argument('--resonant_feature', type=str, default='mass', help='The resonant feature to use for binning.')
 
-##Stats
-parser.add_argument("-es","--extraStats", type=int, default=0, help="Use 20M QCD dataset if extraStats is set to 1. Defaults to 0 - 2M QCD")
-
 ## Binning parameters
 parser.add_argument("--quantiles", nargs="*", type=float, default=[1, 2, 3, 4])
 parser.add_argument("--bins", nargs="*", type=float, default=[55, 65, 75, 85, 95, 105])
 parser.add_argument("--doping", type=float, default=0.)
-parser.add_argument("--mixqs", type=int, default=1, help="Mix Sb1, Sb2 with 1, 0 if not. Defaults to 1.")
 
 ## Names for saving
 parser.add_argument('-n', type=str, default='Transformer', help='The name with which to tag saved outputs.')
 parser.add_argument('-d', type=str, default='NSF_CURT', help='Directory to save contents into.')
-parser.add_argument('--load', type=int, default=0, help=' Deafult 0. Whether or not to load a pretrained trasnformer. 0 - Do the training,\
-                    and load the last transformer. 1 - load the transformer as of the last epoch. 2 - Load the best pretrained transformer.')
-parser.add_argument('--load_classifiers', type=int, default=0, help='Whether or not to load a pretrained classifier.')
+parser.add_argument('--load', type=int, default=0, help='Whether or not to load a model.')
+parser.add_argument('--model_name', type=str, default=None, help='Saved name of model to load.')
+parser.add_argument('--load_classifiers', type=int, default=0, help='Whether or not to load a model.')
 parser.add_argument('--use_mass_sampler', type=int, default=0, help='Whether or not to sample the mass.')
 
-
-
 ## Hyper parameters
-parser.add_argument('--pdistance', type=str, default='mse', help='Type of primary dist measure to use.')
-parser.add_argument('--sdistance', type=str, default='None', help='Type of secondary dist measure to use.')
-parser.add_argument('--weight', type=float, default=0.1, help='Weight for the secondary distance. Defaults to 0.1.HydGen')
+parser.add_argument('--distance', type=str, default='sinkhorn_slow', help='Type of dist measure to use.')
 parser.add_argument('--coupling', type=int, default=1, help='One to use coupling layers, zero for autoregressive.')
 parser.add_argument('--spline', type=int, default=0, help='One to use spline transformations.')
 parser.add_argument('--two_way', type=int, default=1,
                     help='One to train mapping from high mass to low mass, and low mass to high mass.')
 parser.add_argument('--shuffle', type=int, default=1, help='Shuffle on epoch end.')
+parser.add_argument('--coupling_width', type=int, default=64,
+                    help='Width of network used to learn transformer parameters.')
+parser.add_argument('--coupling_depth', type=int, default=3,
+                    help='Depth of network used to learn transformer parameters.')
 
 parser.add_argument('--batch_size', type=int, default=10, help='Size of batch for training.')
-parser.add_argument('--epochs', type=int, default=0,
+parser.add_argument('--epochs', type=int, default=1,
                     help='The number of epochs to train for.')
 parser.add_argument('--nstack', type=int, default='3',
                     help='The number of spline transformations to stack in the inn.')
@@ -83,13 +79,13 @@ parser.add_argument('--nbins', type=int, default=10,
                     help='The number of bins to use in each spline transformation.')
 parser.add_argument('--ncond', type=int, default=1,
                     help='The number of features to condition on.')
-parser.add_argument('--optim', type=str, default='Adam',
-                    help='Optimiser to use.')
+parser.add_argument('--load_best', type=int, default=0, help='Load the model that has the best validation score.')
+parser.add_argument('--det_beta', type=float, default=0.1, help='Factor to multiply determinant by in the loss.')
 
 ## Plotting
 parser.add_argument('--n_sample', type=int, default=1000,
                     help='The number of features to use when calculating contours in the feature plots.')
-parser.add_argument('--light', type=int, default=1,
+parser.add_argument('--light', type=int, default=0,
                     help='We do not always want to plot everything and calculate all of the ROC plots.')
 
 ## reproducibility
@@ -105,12 +101,10 @@ np.random.seed(args.seed)
 bsize = args.batch_size
 n_epochs = args.epochs
 exp_name = args.n
-pdistance = args.pdistance
-sdistance = args.sdistance
+distance = args.distance
 
 # measure(x, y) returns distance from x to y (N, D) for N samples in D dimensions, or (B, N, D) with a batch index
-pmeasure = get_measure(pdistance)
-smeasure = get_measure(sdistance)
+measure = get_measure(distance)
 
 sv_dir = get_top_dir()
 image_dir = sv_dir + f'/images/{args.d}/'
@@ -121,12 +115,9 @@ writer = SummaryWriter(log_dir=log_dir)
 
 # Make datasets
 # If the distance measure is the sinkhorn distance then don't mix samples between quantiles
-# mix_qs = distance != 'sinkhorn'
-mix_qs = bool(args.mixqs)
-extra = bool(args.extraStats)
-# datasets = get_data(args.dataset, quantiles=args.quantiles, mix_qs=mix_qs)
+mix_qs = distance[:8] != 'sinkhorn'
 datasets, signal_anomalies = get_data(args.dataset, image_dir + exp_name, bins=args.bins, mix_qs=mix_qs,
-                                      doping=args.doping, extraStats=extra)
+                                      doping=args.doping)
 ndata = datasets.ndata
 inp_dim = datasets.nfeatures
 print('There are {} training examples, {} validation examples, {} signal examples and {} anomaly samples.'.format(
@@ -149,14 +140,16 @@ tails = 'linear'  # This will ensure that any samples from outside of [-tail_bou
 
 if args.coupling:
     # TODO clean this up
-    mx = [1] * int(np.ceil(datasets.nfeatures / 2)) + [0] * int(datasets.nfeatures - np.ceil(datasets.nfeatures / 2))
+    n_mask = int(np.ceil(datasets.nfeatures / 2))
+    mx = [1] * n_mask + [0] * int(datasets.nfeatures - n_mask)
 
 
     # this has to be an nn.module that takes as first arg the input dim and second the output dim
     def maker(input_dim, output_dim):
-        return dense_net(input_dim, output_dim, layers=[64, 64, 64], context_features=args.ncond)
+        return dense_net(input_dim, output_dim, layers=[args.coupling_width] * args.coupling_depth,
+                         context_features=args.ncond)
 
- 
+
     INN = coupling_inn(inp_dim, maker, nstack=args.nstack, tail_bound=tail_bound, tails=tails, lu=0,
                        num_bins=args.nbins, mask=mx, spline=args.spline)
 else:
@@ -176,22 +169,10 @@ else:
     else:
         transformer = delta_curtains_transformer
 
-curtain_runner = transformer(INN, device, exp_name, pmeasure, smeasure, args.weight, datasets.nfeatures, dir=args.d)
+curtain_runner = transformer(INN, device, exp_name, measure, datasets.nfeatures, dir=args.d, det_beta=args.det_beta)
 
 # Define optimizers and learning rate schedulers
-if pdistance.casefold() != 'sinkhorn': #Pairwise - slow, low, no momentum
-    if args.optim.casefold() == 'rmsprop':
-        optimizer = optim.RMSprop(INN.parameters(), lr=args.lr, momentum=0)
-    elif args.optim.casefold() == 'adagrad':
-        optimizer = optim.Adagrad(INN.parameters(), lr=args.lr, momentum=0)
-    elif args.optim.casefold() == 'adam':
-        optimizer = optim.Adam(INN.parameters(), lr=args.lr)
-    else:
-        raise ValueError(f'{args.optim} not yet implemented!')
-
-else:
-    optimizer = optim.Adam(INN.parameters(), lr=args.lr)
-
+optimizer = optim.Adam(INN.parameters(), lr=args.lr)
 scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, ndata / bsize * n_epochs, 0)
 
 # Reduce lr on plateau at end of epochs
@@ -204,17 +185,16 @@ else:
 torch.set_default_tensor_type('torch.FloatTensor')
 
 # Fit the model
-if args.load ==0:
+if args.load:
+    if args.model_name is not None:
+        nm = args.model_name
+    else:
+        nm = exp_name
+    path = get_top_dir() + f'/data/saved_models/model_{nm}'
+    curtain_runner.load(path)
+else:
     fit(curtain_runner, optimizer, datasets.trainset, n_epochs, bsize, writer, schedulers=scheduler,
-        schedulers_epoch_end=reduce_lr_inn, gclip=args.gclip, shuffle_epoch_end=args.shuffle)
-
-elif args.load == 1:
-    path = get_top_dir() + f'/data/saved_models/model_{exp_name}'
-    curtain_runner.load(path)
-
-elif args.load == 2:
-    path = get_top_dir() + f'/data/saved_models/model_{exp_name}_best'
-    curtain_runner.load(path)
+        schedulers_epoch_end=reduce_lr_inn, gclip=args.gclip, shuffle_epoch_end=args.shuffle, load_best=args.load_best)
 
 # Generate test data and preprocess etc
 post_process_curtains(curtain_runner, datasets, sup_title='NSF', signal_anomalies=signal_anomalies,
@@ -222,5 +202,4 @@ post_process_curtains(curtain_runner, datasets, sup_title='NSF', signal_anomalie
                       n_sample_for_plot=args.n_sample, light_job=args.light)
 
 # Save options used for running
-register_experiment(sv_dir, exp_name, args)
-
+register_experiment(sv_dir, f'{args.d}/{exp_name}', args)
