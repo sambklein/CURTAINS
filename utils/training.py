@@ -138,6 +138,7 @@ def fit(model, optimizers, dataset, n_epochs, batch_size, writer, schedulers=Non
     train_save = pd.DataFrame(columns=loss_nms)
     val_save = pd.DataFrame(columns=loss_nms)
     global_step = 0
+    best_step = 0
     for epoch in tbar:
         timer.start()
 
@@ -230,6 +231,7 @@ def fit(model, optimizers, dataset, n_epochs, batch_size, writer, schedulers=Non
             best_val = loss_track
         # Save the best model
         if loss_track <= best_val:
+            best_step = global_step
             best_val = loss_track
             best_model_path = top_dir + '/data/saved_models/model_{}_best'.format(model.exp_name)
             model.save(best_model_path)
@@ -254,17 +256,26 @@ def fit(model, optimizers, dataset, n_epochs, batch_size, writer, schedulers=Non
     if plot_history:
         fig, axs = plt.subplots(1, len(loss_nms), figsize=(20, 5))
         for j, ax in enumerate(fig.axes):
+            
             nm = loss_nms[j]
-            ax.plot(val_save[nm], label='validation')
-            ax.plot(train_save[nm], '--', label='train')
+            ax.plot(val_save[nm], label='Validation')
+            ax.plot(train_save[nm], '--', label='Training')
+            step = n_epochs/5
+            xtick = np.arange(0, n_epochs, step)
+            if best_step in xtick:
+                pass
+            else:
+                xtick = np.append(xtick, best_step)
+                xtick.sort()
+            ax.set_xticklabels(xtick, rotation=45, ha='right')
             ax.set_title(nm)
-            ax.legend()
+            ind = np.where(xtick==best_step)[0][0]
+            ax.get_xticklabels()[ind].set_color("green")
+            ax.legend(frameon=False)
             ax.set_ylabel("loss")
             ax.set_xlabel("epoch")
+            np.save(f'{sv_dir}/loss_{nm}.npy', np.array([train_save[nm], val_save[nm]], dtype=object))
         fig.savefig(sv_dir + '/training_{}.png'.format(model.exp_name))
-
-    if load_best:
-        model.load(best_model_path)
-
-
-    print('\nFinished Training')
+        
+    # print('\nFinished Training')
+    print(f"\n Transformer finished training, with best valuation at step {best_step}")

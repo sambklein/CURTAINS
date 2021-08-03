@@ -1,9 +1,9 @@
 import torch
 
-from utils.plotting import hist_features
-from utils.torch_utils import sample_data
+from utils.plotting import hist_features, get_windows_plot
 from .physics_datasets import JetsDataset, WrappingCurtains, Curtains, CurtainsTrainSet
 
+import glob
 import os
 import pandas as pd
 import numpy as np
@@ -75,7 +75,7 @@ def fill_array(to_fill, obj, dtype):
     to_fill[:len(arr)] = arr
 
 
-def load_curtains_pd(sm='QCDjj_pT', dtype='float32'):
+def load_curtains_pd(sm='QCDjj_pT', dtype='float32', extraStats=False):
     if on_cluster():
 
         # directory = '/srv/beegfs/scratch/groups/rodem/anomalous_jets/data/'
@@ -88,17 +88,24 @@ def load_curtains_pd(sm='QCDjj_pT', dtype='float32'):
         #         fill_array(nlo_obs[i], readfile["objects/jets/jet2_obs"][:], dtype)
 
         directory = '/srv/beegfs/scratch/groups/rodem/anomalous_jets/data/'
-        if sm[:3] == 'QCD':
-            files = glob.glob(directory + f'20210629_QCDjj_pT_450_1200_nevents_10M/*.h5')
+
+        if extraStats:
+            if sm[:3] == 'QCD':
+                files = glob.glob(directory+f"20210629_{sm}_450_1200_nevents_10M/*.h5") 
+            else:
+                files = glob.glob(directory + f'20210430_{sm}_450_1200_nevents_1M/*.h5')
         else:
             files = glob.glob(directory + f'20210430_{sm}_450_1200_nevents_1M/*.h5')
+
         nchunks = len(files)
-        lo_obs = np.empty((nchunks, 270000, 11))
-        nlo_obs = np.empty((nchunks, 270000, 11))
+        lo_obs = np.empty((nchunks, 224570, 11))
+        nlo_obs = np.empty((nchunks, 224570, 11))
+        
         for i in range(nchunks):
             with h5py.File(files[i], 'r') as readfile:
                 fill_array(lo_obs[i], readfile["objects/jets/jet1_obs"][:], dtype)
                 fill_array(nlo_obs[i], readfile["objects/jets/jet2_obs"][:], dtype)
+
 
         low_level_names = ['pt', 'eta', 'phi', 'mass', 'tau1', 'tau2', 'tau3', 'd12', 'd23', 'ECF2', 'ECF3']
         lo_obs = np.vstack(lo_obs)
@@ -166,7 +173,8 @@ def get_bin(process, bin, trainset=None, normalize=True):
     context_feature = df['mass']
     df = df.loc[(context_feature < bin[1]) & (context_feature > bin[0])]
     if trainset is None:
-        return df
+        return df['mass']
+        # return df
     else:
         data = Curtains(df, norm=[trainset.max_vals, trainset.min_vals])
         if normalize:
@@ -183,10 +191,11 @@ def dope_dataframe(undoped, anomaly_data, doping):
     anomaly_data = anomaly_data.iloc[n:]
     df = pd.concat((mixing_anomalies, undoped), 0)
     df = df.sample(frac=1)
-    return anomaly_data, df
+    return anomaly_data, mixing_anomalies, df
 
 
 def mask_dataframe(df, context_feature, bins, indx, doping=None, anomaly_data=None):
+
     def mx_data(data):
         context_df = data[context_feature]
         mx = (context_df > bins[indx[0]]) & (context_df < bins[indx[1]])
@@ -196,19 +205,19 @@ def mask_dataframe(df, context_feature, bins, indx, doping=None, anomaly_data=No
     anomaly_data = mx_data(anomaly_data)
 
     if doping is not None:
-        remaining_anomalies, df = dope_dataframe(undoped_df, anomaly_data, doping)
+        remaining_anomalies, mixed_anomalies, df = dope_dataframe(undoped_df, anomaly_data, doping)
     else:
         remaining_anomalies = anomaly_data
         df = undoped_df
 
-    return remaining_anomalies, df
+    return remaining_anomalies, mixed_anomalies, df
 
 
 def get_data(dataset, sv_nm, bins=None, normalize=True, mix_qs=False, flow=False,
-             anomaly_process='WZ_allhad_pT', doping=None):
+             anomaly_process='WZ_allhad_pT', doping=None, extraStats=False):
     # Using bins and quantiles to separate semantics between separating base on self defined mass bins and quantiles
     if dataset == 'curtains':
-        df = load_curtains_pd()
+        df = load_curtains_pd(extraStats=extraStats)
     else:
         raise NotImplementedError('The loader of this dataset has not been implemented yet.')
 
@@ -218,14 +227,27 @@ def get_data(dataset, sv_nm, bins=None, normalize=True, mix_qs=False, flow=False
 
         anomaly_data = load_curtains_pd(sm=anomaly_process)
 
-        lm_anomalies, lm = mask_dataframe(df, context_feature, bins, [1, 2], doping, anomaly_data)
-        hm_anomalies, hm = mask_dataframe(df, context_feature, bins, [3, 4], doping, anomaly_data)
-        ob1_anomalies, ob1 = mask_dataframe(df, context_feature, bins, [0, 1], doping, anomaly_data)
-        ob2_anomalies, ob2 = mask_dataframe(df, context_feature, bins, [4, 5], doping, anomaly_data)
-        signal_anomalies, signal = mask_dataframe(df, context_feature, bins, [2, 3], doping, anomaly_data)
+        _, lm_mixed, lm = mask_dataframe(df, context_feature, bins, [1, 2], doping, anomaly_data)
+        _, hm_mixed, hm = mask_dataframe(df, context_feature, bins, [3, 4], doping, anomaly_data)
+        _, ob1_mixed, ob1 = mask_dataframe(df, context_feature, bins, [0, 1], doping, anomaly_data)
+        _, ob2_mixed, ob2 = mask_dataframe(df, context_feature, bins, [4, 5], doping, anomaly_data)
+        signal_anomalies, signal_mixed, signal = mask_dataframe(df, context_feature, bins, [2, 3], doping, anomaly_data)
 
         lm = Curtains(lm)
         hm = Curtains(hm)
+
+        '''
+        plotting the windows:
+        df['mass'] will be the bg - mention region of interest ?
+        lm_mixed, hm_mixed, ob1_mixed, ob2_mixed, signal_mixed are the ones that enter the whole bg.
+        '''
+        woi = [40, 150]
+        mixed = pd.concat([lm_mixed, hm_mixed, ob1_mixed, ob2_mixed, signal_mixed])
+        anomaly_mixed_mass = mixed['mass']
+        bg_mass = df['mass']
+
+        get_windows_plot(bg_mass, anomaly_mixed_mass, woi, bins, sv_nm)
+         
 
         # Take a look at the input features prior to scaling
         nfeatures = len(lm.feature_nms) - 1

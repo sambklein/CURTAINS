@@ -1,16 +1,15 @@
+import os
+
 import matplotlib.pyplot as plt
-
 import numpy as np
-
 import torch
+
 from utils.DRE import get_auc
 
 from .io import get_top_dir
-from .plotting import getFeaturePlot, get_bins, hist_features, hist_features_single, \
-    plot_single_feature_mass_diagnostic, plot_rates_dict
-
-import os
-
+from .plotting import (get_bins, getFeaturePlot, getInputTransformedHist,
+                       hist_features, hist_features_single, plot_rates_dict,
+                       plot_single_feature_mass_diagnostic)
 from .sampling_utils import signalMassSampler
 
 

@@ -12,6 +12,7 @@
 /data/saved_models
 /data/slims
 submit.txt
+settings.txt
   
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -87,3 +88,5 @@ venv.bak/
 grid.py
 submit.txt
 submit.sh
+repeat.txt
+notebook.sh
