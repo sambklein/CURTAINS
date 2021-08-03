@@ -119,7 +119,21 @@ def dope_data(truth, anomaly_data, beta):
 
 
 def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, mass_incl=True, balance=True,
-            beta=None, sup_title='', mscaler=None, load=False, return_rates=False, dope_splits=True, false_signal=True):
+            beta=None, sup_title='', mscaler=None, load=False, return_rates=False, dope_splits=True, false_signal=True,
+            batch_size=1000,
+            nepochs=100,
+            lr=0.0001,
+            wd=0.001,
+            drp=0.5,
+            width=32,
+            depth=3,
+            batch_norm=False,
+            layer_norm=False,
+            use_scheduler=True):
+    # Classifier hyperparameters
+    if drp > 0:
+        width = int(width / drp)
+
     if balance:
         n = min((len(interpolated), len(truth)))
         interpolated = sample_data(interpolated, n)
@@ -158,31 +172,19 @@ def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, 
         # Append a dummy noise sample to the
         beta_add_noise = 0.1
         n_features = X_train.shape[1]
+
         def add_noise(data, labels):
             n_sample = int(data.shape[0] * beta_add_noise)
             data = np.concatenate((data, np.random.multivariate_normal([0] * n_features, np.eye(n_features), n_sample)))
             labels = np.concatenate((labels, np.zeros((n_sample, 1))))
             return data, labels
+
         X_train, y_train = add_noise(X_train, y_train)
         X_val, y_val = add_noise(X_val, y_val)
 
     train_data = SupervisedDataClass(X_train, y_train)
     valid_data = SupervisedDataClass(X_val, y_val)
     test_data = SupervisedDataClass(X_test, y_test)
-
-    # Classifier hyper params, should be set in an dictionary somewhere
-    batch_size = 1000
-    nepochs = 100
-    lr = 1e-4
-    wd = 0.001
-    drp = 0.5
-    width = 32
-    depth = 3
-    if drp > 0:
-        width = int(width / drp)
-    batch_norm = False
-    layer_norm = False
-    use_scheduler = True
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(f'Classifier device {device}.')
