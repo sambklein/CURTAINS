@@ -80,19 +80,22 @@ def load_curtains_pd(sm='QCDjj_pT', dtype='float32', extraStats=False):
         directory = '/srv/beegfs/scratch/groups/rodem/anomalous_jets/data/'
 
         if extraStats:
-            nchunks = 40 if sm[:3] == 'QCD' else 5
-            filename = f"20210629_{sm}_450_1200_nevents_10M/merged_selected" if sm[:3] == 'QCD' else \
-                   f"20210430_{sm}_450_1200_nevents_1M/merged_selected"
+            if sm[:3] == 'QCD':
+                files = glob.glob(directory+f"20210629_{sm}_450_1200_nevents_10M/*.h5") 
+            else:
+                files = glob.glob(directory + f'20210430_{sm}_450_1200_nevents_1M/*.h5')
         else:
-            nchunks = 6 if sm[:3] == 'QCD' else 5
-            filename = f"20210430_{sm}_450_1200_nevents_1M/merged_selected"
+            files = glob.glob(directory + f'20210430_{sm}_450_1200_nevents_1M/*.h5')
 
+        nchunks = len(files)
         lo_obs = np.empty((nchunks, 224570, 11))
         nlo_obs = np.empty((nchunks, 224570, 11))
+        
         for i in range(nchunks):
-            with h5py.File(directory+filename+f"_{i}.h5", 'r') as readfile:
+            with h5py.File(files[i], 'r') as readfile:
                 fill_array(lo_obs[i], readfile["objects/jets/jet1_obs"][:], dtype)
                 fill_array(nlo_obs[i], readfile["objects/jets/jet2_obs"][:], dtype)
+
 
         low_level_names = ['pt', 'eta', 'phi', 'mass', 'tau1', 'tau2', 'tau3', 'd12', 'd23', 'ECF2', 'ECF3']
         lo_obs = np.vstack(lo_obs)
