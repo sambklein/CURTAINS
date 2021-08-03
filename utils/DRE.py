@@ -130,6 +130,7 @@ def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, 
             batch_norm=False,
             layer_norm=False,
             use_scheduler=True):
+
     # Classifier hyperparameters
     if drp > 0:
         width = int(width / drp)

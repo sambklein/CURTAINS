@@ -91,7 +91,7 @@ def load_curtains_pd(sm='QCDjj_pT', dtype='float32', extraStats=False):
 
         if extraStats:
             if sm[:3] == 'QCD':
-                files = glob.glob(directory+f"20210629_{sm}_450_1200_nevents_10M/*.h5") 
+                files = glob.glob(directory + f"20210629_{sm}_450_1200_nevents_10M/*.h5")
             else:
                 files = glob.glob(directory + f'20210430_{sm}_450_1200_nevents_1M/*.h5')
         else:
@@ -100,12 +100,11 @@ def load_curtains_pd(sm='QCDjj_pT', dtype='float32', extraStats=False):
         nchunks = len(files)
         lo_obs = np.empty((nchunks, 224570, 11))
         nlo_obs = np.empty((nchunks, 224570, 11))
-        
+
         for i in range(nchunks):
             with h5py.File(files[i], 'r') as readfile:
                 fill_array(lo_obs[i], readfile["objects/jets/jet1_obs"][:], dtype)
                 fill_array(nlo_obs[i], readfile["objects/jets/jet2_obs"][:], dtype)
-
 
         low_level_names = ['pt', 'eta', 'phi', 'mass', 'tau1', 'tau2', 'tau3', 'd12', 'd23', 'ECF2', 'ECF3']
         lo_obs = np.vstack(lo_obs)
@@ -127,6 +126,7 @@ def load_curtains_pd(sm='QCDjj_pT', dtype='float32', extraStats=False):
         filename = f'{sm}.csv'
         slim_file = slim_dir + '/' + filename
         return pd.read_csv(slim_file)
+
 
 # def load_curtains_pd(sm='QCDjj_pT', dtype='float32'):
 #     if on_cluster():
@@ -162,7 +162,6 @@ def load_curtains_pd(sm='QCDjj_pT', dtype='float32', extraStats=False):
 #         return pd.read_csv(slim_file)
 
 
-
 def load_curtains():
     df = load_curtains_pd()
     return Curtains(df)
@@ -194,8 +193,7 @@ def dope_dataframe(undoped, anomaly_data, doping):
     return anomaly_data, mixing_anomalies, df
 
 
-def mask_dataframe(df, context_feature, bins, indx, doping=None, anomaly_data=None):
-
+def mask_dataframe(df, context_feature, bins, indx, doping=0., anomaly_data=None):
     def mx_data(data):
         context_df = data[context_feature]
         mx = (context_df > bins[indx[0]]) & (context_df < bins[indx[1]])
@@ -204,17 +202,13 @@ def mask_dataframe(df, context_feature, bins, indx, doping=None, anomaly_data=No
     undoped_df = mx_data(df)
     anomaly_data = mx_data(anomaly_data)
 
-    if doping is not None:
-        remaining_anomalies, mixed_anomalies, df = dope_dataframe(undoped_df, anomaly_data, doping)
-    else:
-        remaining_anomalies = anomaly_data
-        df = undoped_df
+    remaining_anomalies, mixed_anomalies, df = dope_dataframe(undoped_df, anomaly_data, doping)
 
     return remaining_anomalies, mixed_anomalies, df
 
 
 def get_data(dataset, sv_nm, bins=None, normalize=True, mix_qs=False, flow=False,
-             anomaly_process='WZ_allhad_pT', doping=None, extraStats=False):
+             anomaly_process='WZ_allhad_pT', doping=0., extraStats=False):
     # Using bins and quantiles to separate semantics between separating base on self defined mass bins and quantiles
     if dataset == 'curtains':
         df = load_curtains_pd(extraStats=extraStats)
@@ -247,7 +241,6 @@ def get_data(dataset, sv_nm, bins=None, normalize=True, mix_qs=False, flow=False
         bg_mass = df['mass']
 
         get_windows_plot(bg_mass, anomaly_mixed_mass, woi, bins, sv_nm)
-         
 
         # Take a look at the input features prior to scaling
         nfeatures = len(lm.feature_nms) - 1
