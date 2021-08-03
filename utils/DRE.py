@@ -13,6 +13,7 @@ import torch
 
 from utils.plotting import add_error_hist, get_bins
 from utils.torch_utils import sample_data
+from utils.training import Timer
 
 
 class SupervisedDataClass(Dataset):
@@ -29,24 +30,32 @@ class SupervisedDataClass(Dataset):
         return self.data.shape[0]
 
 
-def get_net(batch_norm=False, width=32, depth=2, dropout=0):
+def get_net(batch_norm=False, layer_norm=False, width=32, depth=2, dropout=0):
     def net_maker(nfeatures, nclasses):
-        return dense_net(nfeatures, nclasses, layers=[width] * depth, batch_norm=batch_norm, drp=dropout)
+        return dense_net(nfeatures, nclasses, layers=[width] * depth, batch_norm=batch_norm, layer_norm=layer_norm,
+                         drp=dropout)
 
     return net_maker
 
 
 def fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, n_epochs, device, sv_dir, plot=True,
-                   save=True):
+                   save=True, scheduler=None):
+    # Initialize timer class, this is useful on the cluster as it will say if you have enough time to run the job
+    timer = Timer('irrelevant', 'irrelevant', print_text=False)
+
     # Make an object to load training data
-    data_obj = torch.utils.data.DataLoader(train_data, batch_size=batch_size, shuffle=True, num_workers=0)
-    data_valid = torch.utils.data.DataLoader(valid_data, batch_size=1000, shuffle=True, num_workers=0)
+    n_workers = 0
+    data_obj = torch.utils.data.DataLoader(train_data, batch_size=batch_size, shuffle=True, num_workers=n_workers)
+    data_valid = torch.utils.data.DataLoader(valid_data, batch_size=1000, shuffle=True, num_workers=n_workers)
     n_train = int(np.ceil(len(train_data) / batch_size))
     n_valid = int(np.ceil(len(valid_data) / 1000))
 
     train_loss = np.zeros(n_epochs)
     valid_loss = np.zeros(n_epochs)
+    scheduler_bool = scheduler is not None
     for epoch in range(n_epochs):  # loop over the dataset multiple times
+        # Start the timer
+        timer.start()
 
         running_loss = np.zeros(n_train)
         for i, data in enumerate(data_obj, 0):
@@ -60,6 +69,8 @@ def fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, n_
             loss.backward()
             # Update the parameters
             optimizer.step()
+            if scheduler_bool:
+                scheduler.step()
 
             # Get statistics
             running_loss[i] = loss.item()
@@ -75,6 +86,9 @@ def fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, n_
                 loss = classifier.compute_loss(data)
                 running_loss[i] = loss.item()
         valid_loss[epoch] = np.mean(running_loss)
+
+        # Stop the timer
+        timer.stop()
 
     if plot:
         plt.figure()
@@ -105,7 +119,7 @@ def dope_data(truth, anomaly_data, beta):
 
 
 def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, mass_incl=True, balance=True,
-            beta=None, sup_title='', mscaler=None, load=False, return_rates=False, dope_splits=True):
+            beta=None, sup_title='', mscaler=None, load=False, return_rates=False, dope_splits=True, false_signal=True):
     if balance:
         n = min((len(interpolated), len(truth)))
         interpolated = sample_data(interpolated, n)
@@ -140,11 +154,24 @@ def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, 
             test_mass = mscaler(test_mass)
         X_train, X_val, X_test = X_train[:, :-1], X_val[:, :-1], X_test[:, :-1]
 
+    if false_signal:
+        # Append a dummy noise sample to the
+        beta_add_noise = 0.1
+        n_features = X_train.shape[1]
+        def add_noise(data, labels):
+            n_sample = int(data.shape[0] * beta_add_noise)
+            data = np.concatenate((data, np.random.multivariate_normal([0] * n_features, np.eye(n_features), n_sample)))
+            labels = np.concatenate((labels, np.zeros((n_sample, 1))))
+            return data, labels
+        X_train, y_train = add_noise(X_train, y_train)
+        X_val, y_val = add_noise(X_val, y_val)
+
     train_data = SupervisedDataClass(X_train, y_train)
     valid_data = SupervisedDataClass(X_val, y_val)
     test_data = SupervisedDataClass(X_test, y_test)
 
-    batch_size = 64
+    # Classifier hyper params, should be set in an dictionary somewhere
+    batch_size = 1000
     nepochs = 100
     lr = 1e-4
     wd = 0.001
@@ -153,9 +180,13 @@ def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, 
     depth = 3
     if drp > 0:
         width = int(width / drp)
+    batch_norm = False
+    layer_norm = False
+    use_scheduler = True
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    net = get_net(batch_norm=False, width=width, depth=depth, dropout=drp)
+    print(f'Classifier device {device}.')
+    net = get_net(batch_norm=batch_norm, layer_norm=layer_norm, width=width, depth=depth, dropout=drp)
     classifier = Classifier(net, train_data.nfeatures, 1, name, directory=directory,
                             activation=torch.sigmoid).to(device)
 
@@ -164,12 +195,18 @@ def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, 
         optimizer = torch.optim.Adam(classifier.parameters(), lr=lr)
     else:
         optimizer = torch.optim.AdamW(classifier.parameters(), lr=lr, wd=wd)
+    if use_scheduler:
+        max_step = int(nepochs * np.ceil(len(X_train)))
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, max_step, 0)
+    else:
+        scheduler = None
 
     # Train
     if load:
         classifier.load(sv_dir + 'classifier')
     else:
-        fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, nepochs, device, sv_dir)
+        fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, nepochs, device, sv_dir,
+                       scheduler=scheduler)
 
     with torch.no_grad():
         y_scores = classifier.predict(test_data.data.to(device)).cpu().numpy()
@@ -185,9 +222,9 @@ def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, 
         total = len(data)
         ax.hist(data, bins=bins, weights=np.ones_like(data) / total, label=label, histtype='step')
 
-    bins = get_bins(y_scores[mx], nbins=20)
-    add_normed_hist(y_scores[mx], ax, 'BG', bins)
-    add_normed_hist(y_scores[~mx], ax, 'Signal', bins)
+    bins = get_bins(y_scores[mx], nbins=50)
+    add_normed_hist(y_scores[mx], ax, 'Signal', bins)
+    add_normed_hist(y_scores[~mx], ax, 'BG', bins)
     if anomaly_bool:
         with torch.no_grad():
             if mass_incl:
@@ -242,8 +279,9 @@ def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, 
             N_bg = bg_mass.shape[0]
             gain = N_sg / N_bg
             pm = '$\pm$'
-            ax[i].set_title(f'BG rejection {at:.2f} \n '
-                            f'Gain {gain:.2f} {pm} {gain * (N_sg ** (-0.5) + N_bg ** (-0.5)) ** (0.5) :.3f}')
+            if N_bg and N_sg:
+                ax[i].set_title(f'BG rejection {at:.2f} \n '
+                                f'Gain {gain:.2f} {pm} {gain * (N_sg ** (-0.5) + N_bg ** (-0.5)) ** (0.5) :.3f}')
         handles, labels = ax[0].get_legend_handles_labels()
         fig.legend(handles, labels, loc='upper right')
         fig.suptitle(sup_title)
