@@ -32,6 +32,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', type=str, default='curtains', help='The dataset to train on.')
 # TODO: not currently implemented, NOT a priority
 parser.add_argument('--resonant_feature', type=str, default='mass', help='The resonant feature to use for binning.')
+parser.add_argument('--mix_sb', type=int, default=0, help='Mix sidebands while training?')
 
 ## Binning parameters
 parser.add_argument("--quantiles", nargs="*", type=float, default=[1, 2, 3, 4])
@@ -41,7 +42,7 @@ parser.add_argument("--doping", type=float, default=0.)
 ## Names for saving
 parser.add_argument('-n', type=str, default='Transformer', help='The name with which to tag saved outputs.')
 parser.add_argument('-d', type=str, default='NSF_CURT', help='Directory to save contents into.')
-parser.add_argument('--load', type=int, default=0, help='Whether or not to load a model.')
+parser.add_argument('--load', type=int, default=1, help='Whether or not to load a model.')
 parser.add_argument('--model_name', type=str, default=None, help='Saved name of model to load.')
 parser.add_argument('--load_classifiers', type=int, default=0, help='Whether or not to load a model.')
 parser.add_argument('--use_mass_sampler', type=int, default=0, help='Whether or not to sample the mass.')
@@ -85,7 +86,7 @@ parser.add_argument('--det_beta', type=float, default=0.1, help='Factor to multi
 ## Plotting
 parser.add_argument('--n_sample', type=int, default=1000,
                     help='The number of features to use when calculating contours in the feature plots.')
-parser.add_argument('--light', type=int, default=0,
+parser.add_argument('--light', type=int, default=3,
                     help='We do not always want to plot everything and calculate all of the ROC plots.')
 
 ## reproducibility
@@ -115,7 +116,8 @@ writer = SummaryWriter(log_dir=log_dir)
 
 # Make datasets
 # If the distance measure is the sinkhorn distance then don't mix samples between quantiles
-mix_qs = distance[:8] != 'sinkhorn'
+# mix_qs = distance[:8] != 'sinkhorn'
+mix_qs = args.mix_sb
 datasets, signal_anomalies = get_data(args.dataset, image_dir + exp_name, bins=args.bins, mix_qs=mix_qs,
                                       doping=args.doping)
 ndata = datasets.ndata
@@ -151,11 +153,11 @@ if args.coupling:
 
 
     INN = coupling_inn(inp_dim, maker, nstack=args.nstack, tail_bound=tail_bound, tails=tails, lu=0,
-                       num_bins=args.nbins, mask=mx, spline=args.spline)
+                       num_bins=args.nbins, mask=mx, spline=args.spline, curtains_transformer=True)
 else:
     INN = spline_flow(inp_dim, args.nodes, num_blocks=args.nblocks, nstack=args.nstack, tail_bound=tail_bound,
                       tails=tails, activation=hyperparams.activations[args.activ], num_bins=args.nbins,
-                      context_features=args.ncond)
+                      context_features=args.ncond, curtains_transformer=True)
 
 # Build model
 if args.two_way:
@@ -196,10 +198,13 @@ else:
     fit(curtain_runner, optimizer, datasets.trainset, n_epochs, bsize, writer, schedulers=scheduler,
         schedulers_epoch_end=reduce_lr_inn, gclip=args.gclip, shuffle_epoch_end=args.shuffle, load_best=args.load_best)
 
+# TODO: pass inputs to this dictionary as args.
+classifier_args = {'false_signal': 2, 'batch_size': 1000, 'nepochs': 100, 'lr': 0.001, 'balance': 1, 'pure_noise': 1}
+
 # Generate test data and preprocess etc
 post_process_curtains(curtain_runner, datasets, sup_title='NSF', signal_anomalies=signal_anomalies,
                       load=args.load_classifiers, use_mass_sampler=args.use_mass_sampler,
-                      n_sample_for_plot=args.n_sample, light_job=args.light)
+                      n_sample_for_plot=args.n_sample, light_job=args.light, classifier_args=classifier_args)
 
 # Save options used for running
 register_experiment(sv_dir, f'{args.d}/{exp_name}', args)

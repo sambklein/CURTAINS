@@ -29,14 +29,14 @@ class Classifier(nn.Module):
         return next(self.parameters()).device
 
     def compute_loss(self, data):
-        inputs, target = data
+        inputs, target, weight = data
         if inputs.isnan().any():
             raise Exception('Inputs are NaNs.')
         device = self.device()
         prediction = self.predict(inputs.to(device))
         if prediction.isnan().any():
             raise Exception('Classifier has diverged.')
-        self.loss = self.loss_object(prediction, target.to(device))
+        self.loss = self.loss_object(prediction, target.to(device), weight=weight.to(device))
         return self.loss
 
     def save(self, path):

@@ -317,8 +317,10 @@ def get_samples(input_dist, target_dist, model, r_mass=False):
 
 
 def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=None, load=False, use_mass_sampler=False,
-                          n_sample_for_plot=-1, light_job=0):
-    # TODO: sample the mass!!
+                          n_sample_for_plot=-1, light_job=0, classifier_args=None):
+    if classifier_args is None:
+        classifier_args = {}
+
     low_mass_training = datasets.trainset.data1
     high_mass_training = datasets.trainset.data2
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -349,7 +351,7 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
                 data = data[:, :-1]
             return data
         else:
-            return get_samples(data, target_dist, model, r_mass=r_mass)
+            return get_samples(data, target_dist, model, r_mass=r_mass) 
 
     def get_maps(base_name, input_dataset, target_datasets):
         for i, set in enumerate(target_datasets):
@@ -382,7 +384,8 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
         ob2_samples = get_transformed(high_mass_training, lm=datasets.mass_bins[4], hm=datasets.mass_bins[5],
                                       target_dist=datasets.validationset)
         auc_ob2 = get_auc(ob2_samples, datasets.validationset.data, sv_dir, nm + 'OB2_vs_TSB2',
-                          mscaler=low_mass_training.unnorm_mass, load=load, sup_title=f'T(SB2) vs OB2')
+                          mscaler=low_mass_training.unnorm_mass, load=load, sup_title=f'T(SB2) vs OB2',
+                          **classifier_args)
 
         # Validation set two, SB1 to one mass bin lower
         get_maps('SB1', low_mass_training, {'OB1': datasets.validationset_lm})
@@ -391,49 +394,56 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
         ob1_samples = get_transformed(low_mass_training, lm=datasets.mass_bins[0], hm=datasets.mass_bins[1],
                                       target_dist=datasets.validationset_lm)
         auc_ob1 = get_auc(ob1_samples, datasets.validationset_lm.data, sv_dir, nm + 'OB1_vs_TSB1',
-                          mscaler=low_mass_training.unnorm_mass, load=load, sup_title=f'T(SB1) vs OB1')
+                          mscaler=low_mass_training.unnorm_mass, load=load, sup_title=f'T(SB1) vs OB1',
+                          **classifier_args)
 
-    if light_job <= 1:
+    if light_job <=1 or (light_job == 3):
         # Map the combined side bands into the signal region
         sb2_samples = get_transformed(high_mass_sample, lm=datasets.mass_bins[2], hm=datasets.mass_bins[3],
                                       target_dist=datasets.signalset)
         sb1_samples = get_transformed(low_mass_sample, lm=datasets.mass_bins[2], hm=datasets.mass_bins[3],
                                       target_dist=datasets.signalset)
+        samples = torch.cat((sb2_samples, sb1_samples))
+
+    if light_job <= 1:
         print('SB2 from signal set')
         auc_sb2 = get_auc(sb2_samples, datasets.signalset.data, sv_dir, nm + 'SB2',
                           mscaler=low_mass_training.unnorm_mass,
-                          load=load, sup_title=f'T(SB2) vs SR')
+                          load=load, sup_title=f'T(SB2) vs SR',
+                          **classifier_args)
         print('SB1 from signal set')
         auc_sb1 = get_auc(sb1_samples, datasets.signalset.data, sv_dir, nm + 'SB1',
                           mscaler=low_mass_training.unnorm_mass,
-                          load=load, sup_title=f'T(SB1) vs SR')
-
-        samples = torch.cat((sb2_samples, sb1_samples))
+                          load=load, sup_title=f'T(SB1) vs SR',
+                          **classifier_args)
         # For the feature plot we only want to look at as many samples as there are in SB1
         getFeaturePlot(model, datasets.signalset, samples, high_mass_sample, nm, sv_dir, 'SB1 and SB2 to Signal ',
                        datasets.signalset.feature_nms, n_sample_for_plot=n_sample_for_plot)
 
         print('Without anomalies injected')
         auc = get_auc(samples, datasets.signalset.data, sv_dir, nm + 'SB12', mscaler=low_mass_training.unnorm_mass,
-                      load=False, sup_title=f'T(SB1) U T(SB2) vs SR')
+                      load=False, sup_title=f'T(SB1) U T(SB2) vs SR',
+                      **classifier_args)
 
-    if not light_job:
+    if (not light_job) or (light_job == 3):
         # Get the AUC of the ROC for a classifier trained to separate interpolated samples from data
         print('Benchmark classifier separating samples from anomalies')
         auc_super_info = get_auc(signal_anomalies.data.to(device), datasets.signalset.data, sv_dir,
                                  nm + 'Super', mscaler=low_mass_training.unnorm_mass, load=load,
-                                 sup_title=f'QCD SR vs Anomalies SR', return_rates=True)
+                                 sup_title=f'QCD SR vs Anomalies SR', return_rates=True,
+                                 **classifier_args)
         auc_supervised = auc_super_info[0]
 
         print('With anomalies injected')
         rates_sr_vs_transformed = {'Supervised': auc_super_info[1]}
         rates_sr_qcd_vs_anomalies = {'Supervised': auc_super_info[1]}
-        for beta in [0.5, 1, 5, 10]:
+        for beta in [0.5, 1, 5]:
             auc_info = get_auc(samples, datasets.signalset.data, sv_dir, nm + f'{beta}%Anomalies',
                                anomaly_data=signal_anomalies.data.to(device), beta=beta / 100,
                                sup_title=f'QCD in SR doped with {beta:.3f}% anomalies',
                                mscaler=low_mass_training.unnorm_mass,
-                               load=load, return_rates=True)
+                               load=load, return_rates=True,
+                               **classifier_args)
             auc_anomalies = auc_info[0]
             rates_sr_vs_transformed[f'{beta}'] = auc_info[1]
             rates_sr_qcd_vs_anomalies[f'{beta}'] = auc_info[2]

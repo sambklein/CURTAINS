@@ -6,8 +6,43 @@ import numpy as np
 
 from utils.io import on_cluster
 
+class BaseData(Dataset):
+    def deal_with_nans(self):
+        nan_mask = self.data.isnan().any(1)
+        num_nans = nan_mask.sum()
+        if num_nans > 0:
+            self.data = self.data[~nan_mask]
+            warnings.warn(f'There are {num_nans} samples with NaN values. These have been dropped.');
+        # This isn't dynamic, so if you want to modify the size of the dataset this must be updated as well
+        self.shape = self.data.shape
 
-class BasePhysics(Dataset):
+    def normalize(self):
+        for i, train_feature in enumerate(self.data.t()):
+            min_val = self.min_vals[i]
+            max_val = self.max_vals[i]
+            zo = (train_feature - min_val) / (max_val - min_val)
+            self.data.t()[i] = (zo - 0.5) * 2
+        self.normed = True
+        self.deal_with_nans()
+
+    def unnormalize(self, data_in=None):
+
+        data = self.unscale(data_in)
+
+        if self.normed or (data_in is not None):
+            temp = torch.empty_like(data)
+            for i, train_feature in enumerate(data.t()):
+                min_val = self.min_vals[i]
+                max_val = self.max_vals[i]
+                zo = train_feature / 2 + 0.5
+                temp.t()[i] = zo * (max_val - min_val) + min_val
+            data = temp
+            if data_in is None:
+                self.normed = False
+        return data
+
+
+class BasePhysics(BaseData):
 
     def __init__(self, data, scale=None):
         super(BasePhysics, self).__init__()
@@ -17,15 +52,6 @@ class BasePhysics(Dataset):
         self.normed = False
         self.set_scale(scale)
         self.deal_with_nans()
-
-    def deal_with_nans(self):
-        nan_mask = self.data.isnan().any(1)
-        num_nans = nan_mask.sum()
-        if num_nans > 0:
-            self.data = self.data[~nan_mask]
-            warnings.warn(f'There are {num_nans} samples with NaN values. These have been dropped.');
-        # This isn't dynamic, so if you want to modify the size of the dataset this must be updated as well
-        self.shape = self.data.shape
 
     def set_scale(self, scale):
         if scale is None:
@@ -55,31 +81,6 @@ class BasePhysics(Dataset):
         data /= self.scale_norm
         if data_in is None:
             self.scale_norm = 1
-        return data
-
-    def normalize(self):
-        for i, train_feature in enumerate(self.data.t()):
-            min_val = self.min_vals[i]
-            max_val = self.max_vals[i]
-            zo = (train_feature - min_val) / (max_val - min_val)
-            self.data.t()[i] = (zo - 0.5) * 2
-        self.normed = True
-        self.deal_with_nans()
-
-    def unnormalize(self, data_in=None):
-
-        data = self.unscale(data_in)
-
-        if self.normed or (data_in is not None):
-            temp = torch.empty_like(data)
-            for i, train_feature in enumerate(data.t()):
-                min_val = self.min_vals[i]
-                max_val = self.max_vals[i]
-                zo = train_feature / 2 + 0.5
-                temp.t()[i] = zo * (max_val - min_val) + min_val
-            data = temp
-            if data_in is None:
-                self.normed = False
         return data
 
     def __len__(self):

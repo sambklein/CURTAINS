@@ -32,7 +32,7 @@ def spline_flow(inp_dim, nodes, num_blocks=2, nstack=3, tail_bound=None, tails=N
 
 
 def coupling_inn(inp_dim, maker, nstack=3, tail_bound=None, tails=None, lu=0, num_bins=10, mask=[1, 0],
-                 unconditional_transform=False, spline=True):
+                 unconditional_transform=False, spline=True, curtains_transformer=False):
     transform_list = []
     for i in range(nstack):
         # If a tail function is passed apply the same tail bound to every layer, if not then only use the tail bound on
@@ -60,4 +60,9 @@ def coupling_inn(inp_dim, maker, nstack=3, tail_bound=None, tails=None, lu=0, nu
         else:
             transform_list += [transforms.ReversePermutation(inp_dim)]
 
-    return transforms.CompositeTransform(transform_list[:-1])
+    if not (curtains_transformer and (nstack % 2 == 0)):
+        # If the above conditions are satisfied then you want to permute back to the original ordering such that the
+        # output features line up with their original ordering.
+        transform_list = transform_list[:-1]
+
+    return transforms.CompositeTransform(transform_list)

@@ -208,7 +208,7 @@ def mask_dataframe(df, context_feature, bins, indx, doping=0., anomaly_data=None
 
 
 def get_data(dataset, sv_nm, bins=None, normalize=True, mix_qs=False, flow=False,
-             anomaly_process='WZ_allhad_pT', doping=0., extraStats=False):
+             anomaly_process='WZ_allhad_pT', doping=0., extraStats=True):
     # Using bins and quantiles to separate semantics between separating base on self defined mass bins and quantiles
     if dataset == 'curtains':
         df = load_curtains_pd(extraStats=extraStats)
@@ -221,6 +221,7 @@ def get_data(dataset, sv_nm, bins=None, normalize=True, mix_qs=False, flow=False
 
         anomaly_data = load_curtains_pd(sm=anomaly_process)
 
+        # TODO: when doping is not zero you don't want the signal anomalies to contain duplicates!!
         _, lm_mixed, lm = mask_dataframe(df, context_feature, bins, [1, 2], doping, anomaly_data)
         _, hm_mixed, hm = mask_dataframe(df, context_feature, bins, [3, 4], doping, anomaly_data)
         _, ob1_mixed, ob1 = mask_dataframe(df, context_feature, bins, [0, 1], doping, anomaly_data)
@@ -276,6 +277,26 @@ def get_data(dataset, sv_nm, bins=None, normalize=True, mix_qs=False, flow=False
         signal_anomalies.normalize()
 
     return drape, signal_anomalies
+
+
+def get_koala_data(bins=None, anomaly_process='WZ_allhad_pT', doping=0., extraStats=True, dtype=torch.float32):
+    df = load_curtains_pd(extraStats=extraStats)
+
+    # Split the data into different datasets based on the binning
+    context_feature = 'mass'
+
+    anomaly_data = load_curtains_pd(sm=anomaly_process)
+
+    _, lm_mixed, lm = mask_dataframe(df, context_feature, bins, [1, 2], doping, anomaly_data)
+    _, hm_mixed, hm = mask_dataframe(df, context_feature, bins, [3, 4], doping, anomaly_data)
+    _, ob1_mixed, ob1 = mask_dataframe(df, context_feature, bins, [0, 1], doping, anomaly_data)
+    _, ob2_mixed, ob2 = mask_dataframe(df, context_feature, bins, [4, 5], doping, anomaly_data)
+    signal_anomalies, signal_mixed, signal = mask_dataframe(df, context_feature, bins, [2, 3], doping, anomaly_data)
+
+    background = pd.concat((lm, hm), 0)
+
+    return torch.tensor(background.values, dtype=dtype), torch.tensor(signal.values, dtype=dtype), torch.tensor(
+        signal_anomalies.values, dtype=dtype)
 
 
 def main():

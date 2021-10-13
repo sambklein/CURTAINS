@@ -17,17 +17,56 @@ from utils.training import Timer
 
 
 class SupervisedDataClass(Dataset):
-    def __init__(self, data, labels, dtype=torch.float32):
+    def __init__(self, data, labels, weights=None, dtype=torch.float32):
         super(SupervisedDataClass, self).__init__()
         self.data = torch.tensor(data, dtype=dtype)
         self.targets = torch.tensor(labels, dtype=dtype)
         self.nfeatures = self.data.shape[1]
+        self.weights = torch.ones_like(self.targets)
+        if weights == 'balance':
+            n_ones = self.targets.sum()
+            n_zeros = self.targets.shape[0] - n_ones
+            if n_ones < n_zeros:
+                self.weights[self.targets == 1] = n_zeros / n_ones
+            elif n_ones > n_zeros:
+                self.weights[self.targets == 0] = n_ones / n_zeros
+        elif weights is not None:
+            self.weights = weights
+
+        self.normed = False
 
     def __getitem__(self, item):
-        return self.data[item], self.targets[item]
+        return self.data[item], self.targets[item], self.weights[item]
 
     def __len__(self):
         return self.data.shape[0]
+
+    def get_and_set_norm_facts(self, normalize=False):
+        self.max_vals = self.data.max(0)[0]
+        self.min_vals = self.data.min(0)[0]
+        if normalize:
+            self.normalize()
+        return self.max_vals, self.min_vals
+
+    def set_norm_facts(self, facts):
+        self.max_vals, self.min_vals = facts
+
+    def normalize(self, facts=None):
+        if facts is not None:
+            self.set_norm_facts(facts)
+        if not self.normed:
+            self.data = (self.data - self.min_vals) / (self.max_vals - self.min_vals)
+            self.normed = True
+
+    def unnormalize(self, data_in=None):
+        data_passed = data_in is not None
+        if self.normed or data_passed:
+            if not data_passed:
+                data_in = self.data
+            data_in = data_in * (self.max_vals - self.min_vals) + self.min_vals
+            if not data_passed:
+                self.data = data_in
+        return data_in
 
 
 def get_net(batch_norm=False, layer_norm=False, width=32, depth=2, dropout=0):
@@ -39,7 +78,7 @@ def get_net(batch_norm=False, layer_norm=False, width=32, depth=2, dropout=0):
 
 
 def fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, n_epochs, device, sv_dir, plot=True,
-                   save=True, scheduler=None):
+                   save=True, scheduler=None, pure_noise=False):
     # Initialize timer class, this is useful on the cluster as it will say if you have enough time to run the job
     timer = Timer('irrelevant', 'irrelevant', print_text=False)
 
@@ -49,6 +88,10 @@ def fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, n_
     data_valid = torch.utils.data.DataLoader(valid_data, batch_size=1000, shuffle=True, num_workers=n_workers)
     n_train = int(np.ceil(len(train_data) / batch_size))
     n_valid = int(np.ceil(len(valid_data) / 1000))
+    if pure_noise:
+        # Get the data bounding values
+        l1 = train_data.data.min()
+        l2 = train_data.data.max()
 
     train_loss = np.zeros(n_epochs)
     valid_loss = np.zeros(n_epochs)
@@ -56,6 +99,12 @@ def fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, n_
     for epoch in range(n_epochs):  # loop over the dataset multiple times
         # Start the timer
         timer.start()
+        if pure_noise:
+            # Replace the signal data with random samples from a uniform distribution
+            mx = (train_data.targets == 0).view(-1)
+            train_data.data[mx] = (l1 - l2) * torch.rand_like(train_data.data[mx]) + l2
+            data_obj = torch.utils.data.DataLoader(train_data, batch_size=batch_size, shuffle=True,
+                                                   num_workers=n_workers)
 
         running_loss = np.zeros(n_train)
         for i, data in enumerate(data_obj, 0):
@@ -119,7 +168,8 @@ def dope_data(truth, anomaly_data, beta):
 
 
 def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, mass_incl=True, balance=True,
-            beta=None, sup_title='', mscaler=None, load=False, return_rates=False, dope_splits=True, false_signal=True,
+            beta=None, sup_title='', mscaler=None, load=False, return_rates=False, dope_splits=True, false_signal=1,
+            normalize=False,
             batch_size=1000,
             nepochs=100,
             lr=0.0001,
@@ -129,8 +179,13 @@ def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, 
             depth=3,
             batch_norm=False,
             layer_norm=False,
-            use_scheduler=True):
-
+            use_scheduler=True,
+            use_weights=True,
+            thresholds=[0, 0.5, 0.8, 0.95, 0.99],
+            plot_mass_dists=True,
+            beta_add_noise=0.1,
+            pure_noise=False
+            ):
     # Classifier hyperparameters
     if drp > 0:
         width = int(width / drp)
@@ -169,23 +224,35 @@ def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, 
             test_mass = mscaler(test_mass)
         X_train, X_val, X_test = X_train[:, :-1], X_val[:, :-1], X_test[:, :-1]
 
-    if false_signal:
+    if false_signal > 0:
         # Append a dummy noise sample to the
-        beta_add_noise = 0.1
         n_features = X_train.shape[1]
 
         def add_noise(data, labels):
             n_sample = int(data.shape[0] * beta_add_noise)
-            data = np.concatenate((data, np.random.multivariate_normal([0] * n_features, np.eye(n_features), n_sample)))
+            if false_signal == 1:
+                data = np.concatenate(
+                    (data, np.random.multivariate_normal([0] * n_features, np.eye(n_features), n_sample)))
+            else:
+                l1 = data.min()
+                l2 = data.max()
+                data = np.concatenate(
+                    (data, ((l1 - l2) * np.random.rand(*data.shape) + l2)[:n_sample]))
             labels = np.concatenate((labels, np.zeros((n_sample, 1))))
             return data, labels
 
         X_train, y_train = add_noise(X_train, y_train)
         X_val, y_val = add_noise(X_val, y_val)
 
-    train_data = SupervisedDataClass(X_train, y_train)
-    valid_data = SupervisedDataClass(X_val, y_val)
-    test_data = SupervisedDataClass(X_test, y_test)
+    weights = 'balance' if use_weights else None
+    train_data = SupervisedDataClass(X_train, y_train, weights=weights)
+    valid_data = SupervisedDataClass(X_val, y_val, weights=weights)
+    test_data = SupervisedDataClass(X_test, y_test, weights=weights)
+
+    if normalize:
+        facts = train_data.get_and_set_norm_facts(normalize=True)
+        valid_data.normalize(facts)
+        test_data.normalize(facts)
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(f'Classifier device {device}.')
@@ -194,7 +261,7 @@ def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, 
                             activation=torch.sigmoid).to(device)
 
     # Make an optimizer object
-    if wd is not None:
+    if (wd is not None) or (wd == 0.):
         optimizer = torch.optim.Adam(classifier.parameters(), lr=lr)
     else:
         optimizer = torch.optim.AdamW(classifier.parameters(), lr=lr, wd=wd)
@@ -209,7 +276,7 @@ def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, 
         classifier.load(sv_dir + 'classifier')
     else:
         fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, nepochs, device, sv_dir,
-                       scheduler=scheduler)
+                       scheduler=scheduler, pure_noise=pure_noise)
 
     with torch.no_grad():
         y_scores = classifier.predict(test_data.data.to(device)).cpu().numpy()
@@ -257,9 +324,8 @@ def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, 
         ax.set_title(f'{sup_title} {roc_auc:.2f}')
     fig.savefig(sv_dir + 'roc.png')
 
-    if mass_incl:
+    if mass_incl and plot_mass_dists:
         # Plot the mass distribution for different cuts on the classifier
-        thresholds = [0, 0.5, 0.8, 0.95, 0.99]
         fig, ax = plt.subplots(1, len(thresholds), figsize=(5 * len(thresholds) + 2, 5))
         mx = labels_test == 0
         bins = None

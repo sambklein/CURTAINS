@@ -5,7 +5,7 @@ import torch
 
 from data.data_loaders import get_data
 from utils.DRE import get_auc
-from utils.io import get_top_dir
+from utils.io import get_top_dir, register_experiment
 from utils.plotting import plot_rates_dict
 from utils.torch_utils import shuffle_tensor
 
@@ -23,9 +23,24 @@ def parse_args():
 
     # Classifier set up
 
-    # Dataset and training parameters
+    # Dataset parameters
     parser.add_argument('--dataset', type=str, default='curtains', help='The dataset to train on.')
     parser.add_argument("--bins", nargs="*", type=float, default=[55, 65, 75, 85, 95, 105])
+    parser.add_argument("--split_data", type=int, default=0)
+
+    # Training parameters
+    parser.add_argument('--batch_size', type=int, default=10, help='Size of batch for training.')
+    parser.add_argument('--nepochs', type=int, default=100, help='Number of epochs.')
+    parser.add_argument('--lr', type=float, default=0.0001, help='Classifier learning rate.')
+    parser.add_argument('--wd', type=float, default=0., help='Weight Decay, set to None for ADAM.')
+    parser.add_argument('--drp', type=float, default=0.5, help='Dropout to apply.')
+    parser.add_argument('--width', type=int, default=32, help='Width to use for the classifier.')
+    parser.add_argument('--depth', type=int, default=3, help='Depth of classifier to use.')
+    parser.add_argument('--batch_norm', type=int, default=0, help='Apply batch norm?')
+    parser.add_argument('--layer_norm', type=int, default=0, help='Apply layer norm?')
+    parser.add_argument('--use_scheduler', type=int, default=0, help='Use cosine annealing of the learning rate?')
+    parser.add_argument('--false_signal', type=int, default=2, help='Add random noise samples to the signal set?')
+    parser.add_argument('--use_weight', type=int, default=1, help='Apply weights to the data?')
 
     return parser.parse_args()
 
@@ -34,10 +49,11 @@ def test_classifier():
     args = parse_args()
 
     top_dir = get_top_dir()
-    sv_dir = top_dir + f'/images/{args.outputdir}/'
+    sv_dir = top_dir + f'/images/{args.outputdir}_{args.outputname}/'
     if not os.path.exists(sv_dir):
         os.makedirs(sv_dir, exist_ok=True)
     nm = args.outputname
+    register_experiment(top_dir, f'{args.outputdir}_{args.outputname}/{args.outputname}', args)
 
     datasets, signal_anomalies = get_data(args.dataset, sv_dir + nm, bins=args.bins)
 
@@ -45,15 +61,43 @@ def test_classifier():
 
     training_data = shuffle_tensor(datasets.signalset.data)
 
-    data_to_dope, undoped_data = torch.split(training_data, int(len(training_data) / 2))
+    if args.split_data:
+        betas_to_scan = [0.5, 1, 5]
+        data_to_dope, undoped_data = torch.split(training_data, int(len(training_data) / 2))
+        pure_noise = False
+    else:
+        betas_to_scan = [0]
+        args.false_signal = 0
+        undoped_data = training_data
+        l1 = undoped_data.min()
+        l2 = undoped_data.max()
+        data_to_dope = (l1 - l2) * torch.rand_like(undoped_data) + l2
+        pure_noise = True
 
     rates_sr_vs_transformed = {}
     rates_sr_qcd_vs_anomalies = {}
-    for beta in [0.5, 1, 5]:
-        auc_info = get_auc(data_to_dope, undoped_data, sv_dir, nm + f'{beta}%Anomalies',
-                           anomaly_data=signal_anomalies.data.to(device), beta=beta / 100,
+    for beta in betas_to_scan:
+        auc_info = get_auc(undoped_data, data_to_dope, sv_dir, nm + f'{beta}%Anomalies',
+                           anomaly_data=signal_anomalies.data.to(device),
+                           beta=beta / 100,
                            sup_title=f'QCD in SR doped with {beta:.3f}% anomalies',
-                           load=args.load, return_rates=True)
+                           load=args.load,
+                           return_rates=True,
+                           false_signal=args.false_signal,
+                           batch_size=args.batch_size,
+                           nepochs=args.nepochs,
+                           lr=args.lr,
+                           wd=args.wd,
+                           drp=args.drp,
+                           width=args.width,
+                           depth=args.depth,
+                           batch_norm=args.batch_norm,
+                           layer_norm=args.layer_norm,
+                           use_scheduler=args.use_scheduler,
+                           use_weights=args.use_weight,
+                           beta_add_noise=1,
+                           pure_noise=pure_noise
+                           )
 
         rates_sr_vs_transformed[f'{beta}'] = auc_info[1]
         rates_sr_qcd_vs_anomalies[f'{beta}'] = auc_info[2]

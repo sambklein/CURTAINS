@@ -41,7 +41,7 @@ class linearPDF(zfit.pdf.ZPDF):
         if limits is not None:
             limits = (self.scaler(limit) for limit in limits)
         sample = super().sample(*args, limits=limits, **kwargs)
-        if self.scaler is not None:
+        if self.unscaler is not None:
             sample = self.unscaler(torch.tensor(sample.numpy(), dtype=torch.float32))
         return sample
 
