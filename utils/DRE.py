@@ -17,11 +17,18 @@ from utils.training import Timer
 
 
 class SupervisedDataClass(Dataset):
-    def __init__(self, data, labels, weights=None, dtype=torch.float32):
+    def __init__(self, data, labels, weights=None, dtype=torch.float32, noise_generator=None):
         super(SupervisedDataClass, self).__init__()
+        self.dtype = dtype
         self.data = torch.tensor(data, dtype=dtype)
         self.targets = torch.tensor(labels, dtype=dtype)
         self.nfeatures = self.data.shape[1]
+        self.noise_generator = noise_generator
+        self.normed = False
+        if noise_generator is not None:
+            self.base_data = data
+            self.base_labels = labels
+            self.update_data()
         self.weights = torch.ones_like(self.targets)
         if weights == 'balance':
             n_ones = self.targets.sum()
@@ -32,8 +39,6 @@ class SupervisedDataClass(Dataset):
                 self.weights[self.targets == 0] = n_ones / n_zeros
         elif weights is not None:
             self.weights = weights
-
-        self.normed = False
 
     def __getitem__(self, item):
         return self.data[item], self.targets[item], self.weights[item]
@@ -51,12 +56,27 @@ class SupervisedDataClass(Dataset):
     def set_norm_facts(self, facts):
         self.max_vals, self.min_vals = facts
 
-    def normalize(self, facts=None):
+    def update_data(self):
+        if self.noise_generator is not None:
+            data, targets = self.noise_generator(self.base_data, self.base_labels)
+            self.data, self.targets = torch.tensor(data, dtype=self.dtype), torch.tensor(targets, dtype=self.dtype)
+            if self.normed:
+                self.normed = False
+                self.normalize()
+
+    def normalize(self, data_in=None, facts=None):
+        data_passed = data_in is not None
+        if data_passed:
+            data_in = self.data
         if facts is not None:
             self.set_norm_facts(facts)
         if not self.normed:
-            self.data = (self.data - self.min_vals) / (self.max_vals - self.min_vals)
+            data_out = (data_in - self.min_vals) / (self.max_vals - self.min_vals)
             self.normed = True
+        if data_passed:
+            return data_out
+        else:
+            self.data = data_out
 
     def unnormalize(self, data_in=None):
         data_passed = data_in is not None
@@ -99,6 +119,9 @@ def fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, n_
     for epoch in range(n_epochs):  # loop over the dataset multiple times
         # Start the timer
         timer.start()
+
+        train_data.update_data()
+        valid_data.update_data()
         if pure_noise:
             # Replace the signal data with random samples from a uniform distribution
             mx = (train_data.targets == 0).view(-1)
@@ -167,8 +190,18 @@ def dope_data(truth, anomaly_data, beta):
     return anomaly_data, truth
 
 
-def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, mass_incl=True, balance=True,
-            beta=None, sup_title='', mscaler=None, load=False, return_rates=False, dope_splits=True, false_signal=1,
+def get_auc(interpolated, truth, directory, name,
+            split=0.5,
+            anomaly_data=None,
+            mass_incl=True,
+            balance=True,
+            beta=None,
+            sup_title='',
+            mscaler=None,
+            load=False,
+            return_rates=False,
+            dope_splits=True,
+            false_signal=1,
             normalize=False,
             batch_size=1000,
             nepochs=100,
@@ -240,13 +273,16 @@ def get_auc(interpolated, truth, directory, name, split=0.5, anomaly_data=None, 
                     (data, ((l1 - l2) * np.random.rand(*data.shape) + l2)[:n_sample]))
             labels = np.concatenate((labels, np.zeros((n_sample, 1))))
             return data, labels
+    else:
+        add_noise = None
 
-        X_train, y_train = add_noise(X_train, y_train)
-        X_val, y_val = add_noise(X_val, y_val)
+        # X_train, y_train = add_noise(X_train, y_train)
+        # X_val, y_val = add_noise(X_val, y_val)
 
     weights = 'balance' if use_weights else None
-    train_data = SupervisedDataClass(X_train, y_train, weights=weights)
-    valid_data = SupervisedDataClass(X_val, y_val, weights=weights)
+    train_data = SupervisedDataClass(X_train, y_train, weights=weights, noise_generator=add_noise)
+    valid_data = SupervisedDataClass(X_val, y_val, weights=weights, noise_generator=add_noise)
+    # Don't add noise to the test set
     test_data = SupervisedDataClass(X_test, y_test, weights=weights)
 
     if normalize:

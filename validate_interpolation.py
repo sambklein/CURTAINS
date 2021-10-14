@@ -83,6 +83,10 @@ parser.add_argument('--ncond', type=int, default=1,
 parser.add_argument('--load_best', type=int, default=0, help='Load the model that has the best validation score.')
 parser.add_argument('--det_beta', type=float, default=0.1, help='Factor to multiply determinant by in the loss.')
 
+## Classifier training
+parser.add_argument('--beta_add_noise', type=float, default=0.1,
+                    help='The value of epsilon to use in the 1-e training.')
+
 ## Plotting
 parser.add_argument('--n_sample', type=int, default=1000,
                     help='The number of features to use when calculating contours in the feature plots.')
@@ -199,7 +203,8 @@ else:
         schedulers_epoch_end=reduce_lr_inn, gclip=args.gclip, shuffle_epoch_end=args.shuffle, load_best=args.load_best)
 
 # TODO: pass inputs to this dictionary as args.
-classifier_args = {'false_signal': 2, 'batch_size': 1000, 'nepochs': 100, 'lr': 0.001, 'balance': 1, 'pure_noise': 1}
+classifier_args = {'false_signal': 2, 'batch_size': 1000, 'nepochs': 100,
+                   'lr': 0.001, 'balance': 0, 'pure_noise': 0, 'beta_add_noise': args.beta_add_noise}
 
 # Generate test data and preprocess etc
 post_process_curtains(curtain_runner, datasets, sup_title='NSF', signal_anomalies=signal_anomalies,

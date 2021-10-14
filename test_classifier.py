@@ -27,6 +27,7 @@ def parse_args():
     parser.add_argument('--dataset', type=str, default='curtains', help='The dataset to train on.')
     parser.add_argument("--bins", nargs="*", type=float, default=[55, 65, 75, 85, 95, 105])
     parser.add_argument("--split_data", type=int, default=0)
+    parser.add_argument("--sb_signal_frac", type=float, default=0.)
 
     # Training parameters
     parser.add_argument('--batch_size', type=int, default=10, help='Size of batch for training.')
@@ -39,8 +40,12 @@ def parse_args():
     parser.add_argument('--batch_norm', type=int, default=0, help='Apply batch norm?')
     parser.add_argument('--layer_norm', type=int, default=0, help='Apply layer norm?')
     parser.add_argument('--use_scheduler', type=int, default=0, help='Use cosine annealing of the learning rate?')
+
+    # Classifier settings
     parser.add_argument('--false_signal', type=int, default=2, help='Add random noise samples to the signal set?')
     parser.add_argument('--use_weight', type=int, default=1, help='Apply weights to the data?')
+    parser.add_argument('--beta_add_noise', type=float, default=0.01,
+                        help='The value of epsilon to use in the 1-e training.')
 
     return parser.parse_args()
 
@@ -55,14 +60,14 @@ def test_classifier():
     nm = args.outputname
     register_experiment(top_dir, f'{args.outputdir}_{args.outputname}/{args.outputname}', args)
 
-    datasets, signal_anomalies = get_data(args.dataset, sv_dir + nm, bins=args.bins)
+    datasets, signal_anomalies = get_data(args.dataset, sv_dir + nm, bins=args.bins, doping=args.sb_signal_frac)
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     training_data = shuffle_tensor(datasets.signalset.data)
 
     if args.split_data:
-        betas_to_scan = [0.5, 1, 5]
+        betas_to_scan = [0.1, 0.5, 1, 5]
         data_to_dope, undoped_data = torch.split(training_data, int(len(training_data) / 2))
         pure_noise = False
     else:
@@ -95,7 +100,7 @@ def test_classifier():
                            layer_norm=args.layer_norm,
                            use_scheduler=args.use_scheduler,
                            use_weights=args.use_weight,
-                           beta_add_noise=1,
+                           beta_add_noise=args.beta_add_noise,
                            pure_noise=pure_noise
                            )
 
