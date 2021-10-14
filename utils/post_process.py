@@ -282,7 +282,7 @@ def transform_to_mass(data, lm, hm, mass_sampler, model):
 
     with torch.no_grad():
         feature_sample = {'forward': model.transform_to_mass, 'inverse': model.inverse_transform_to_mass}[
-            direction](data.data[:, :-1], data_mass, sample_mass)
+            direction](data.data[:, :-1], data_mass, sample_mass)[0]
     return torch.cat((feature_sample, sample_mass), 1).cpu()
 
 

@@ -26,7 +26,7 @@ class linearPDF(zfit.pdf.ZPDF):
         sample = super().sample(*args, limits=limits, **kwargs)
         if self.scaler is not None:
             sample = self.unscaler(torch.tensor(sample.numpy(), dtype=torch.float32))
-        return sample
+        return sample 
 
 
 #ATLAS dijet functions
@@ -59,5 +59,5 @@ class dijet_ATLAS_fit(zfit.pdf.ZPDF):
         sample = super().sample(*args, limits=limits, **kwargs)
         sample = sample*self.root_s
         if self.scaler is not None:
-            sample = self.unscaler(sample)
+            sample = self.unscaler(torch.tensor(sample.numpy(), dtype=torch.float32))
         return sample

@@ -45,7 +45,7 @@ parser.add_argument('-d', type=str, default='NSF_CURT', help='Directory to save 
 parser.add_argument('--load', type=int, default=1, help='Whether or not to load a model.')
 parser.add_argument('--model_name', type=str, default=None, help='Saved name of model to load.')
 parser.add_argument('--load_classifiers', type=int, default=0, help='Whether or not to load a model.')
-parser.add_argument('--use_mass_sampler', type=int, default=0, help='Whether or not to sample the mass.')
+parser.add_argument('--use_mass_sampler', type=int, default=1, help='Whether or not to sample the mass.')
 
 ## Hyper parameters
 parser.add_argument('--distance', type=str, default='sinkhorn_slow', help='Type of dist measure to use.')
