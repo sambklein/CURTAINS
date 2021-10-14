@@ -113,7 +113,7 @@ def torch_dists(nm, latent_dim):
 def get_sinkhorn(sinkhorn_dist):
     # This will remove the entropic bias from the OT distance.
     def sinkhorn_divergence(x, y):
-        return sinkhorn_dist(x, y) - 0.5 * sinkhorn_dist(y, y)
+        return sinkhorn_dist(x, y)
 
     return sinkhorn_divergence
 
