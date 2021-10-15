@@ -317,7 +317,7 @@ def get_samples(input_dist, target_dist, model, r_mass=False):
 
 
 def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=None, load=False, use_mass_sampler=False,
-                          n_sample_for_plot=-1, light_job=0, classifier_args=None):
+                          n_sample_for_plot=-1, light_job=0, classifier_args=None, plot=True):
     if classifier_args is None:
         classifier_args = {}
 
@@ -354,13 +354,14 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
             return get_samples(data, target_dist, model, r_mass=r_mass)
 
     def get_maps(base_name, input_dataset, target_datasets):
-        for i, set in enumerate(target_datasets):
-            target_sample = target_datasets[set]
-            print(f"Now evaluating sample {set} from {base_name}")
-            samples = get_transformed(input_dataset, target_dist=target_sample, r_mass=False)
-            # For the feature plot we only want to look at as many samples as there are in SB1
-            getFeaturePlot(model, target_sample, samples, input_dataset, nm, sv_dir, f'{base_name} to {set}',
-                           datasets.signalset.feature_nms, n_sample_for_plot=n_sample_for_plot)
+        if plot:
+            for i, set in enumerate(target_datasets):
+                target_sample = target_datasets[set]
+                print(f"Now evaluating sample {set} from {base_name}")
+                samples = get_transformed(input_dataset, target_dist=target_sample, r_mass=False)
+                # For the feature plot we only want to look at as many samples as there are in SB1
+                getFeaturePlot(model, target_sample, samples, input_dataset, nm, sv_dir, f'{base_name} to {set}',
+                               datasets.signalset.feature_nms, n_sample_for_plot=n_sample_for_plot)
 
     # Map low mass samples to high mass
     high_mass_datasets = {'Signal Set': datasets.signalset, 'SB2': high_mass_training,

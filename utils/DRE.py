@@ -120,8 +120,8 @@ def fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, n_
         # Start the timer
         timer.start()
 
-        train_data.update_data()
-        valid_data.update_data()
+        # train_data.update_data()
+        # valid_data.update_data()
         if pure_noise:
             # Replace the signal data with random samples from a uniform distribution
             mx = (train_data.targets == 0).view(-1)

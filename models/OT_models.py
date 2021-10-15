@@ -20,45 +20,9 @@ class curtains_transformer(base_model):
         # Providing the context means we condition on the masses
         return self.transformer(features, context=torch.cat((lm, hm), 1))
 
-    def transform_to_data(self, dl, dh, batch_size=None):
-        """Transform features in dl to the masses given in dh"""
-        batch_size = None
-        if batch_size is not None:
-            raise Exception('Batch size arg not implemented.')
-            # n_full = int(dl.shape[0] // batch_size)
-            # nfit = n_full * batch_size
-            # # The last feature is the mass or resonant feature (lm = low mass, hm = high mass)
-            # lm = dl[:nfit, -1].view(-1, batch_size, 1)
-            # hm = dh[:nfit, -1].view(-1, batch_size, 1)
-            # low_mass_features = dl[:nfit, :-1].view(-1, batch_size, self.take - 1)
-            # nbatches = lm.size[1]
-            # sampled_features = torch.empty_like(low_mass_features)
-            # for i in range(nbatches):
-            #     sampled_features[i] = self.transform_to_mass(low_mass_features[i], lm[i], hm[i])
-            # sampled_features = sampled_features.view(-1, self.take - 1)
-            # return torch.cat(
-            #     (sampled_features, self.transform_to_mass(low_mass_features[nfit:, :-1], dl[nfit:, -1], dh[nfit:, -1])))
-        else:
-            # The last feature is the mass or resonant feature (lm = low mass, hm = high mass)
-            lm = dl[:, -1].view(-1, 1)
-            hm = dh[:, -1].view(-1, 1)
-            low_mass_features = dl[:, :-1]
-            return self.transform_to_mass(low_mass_features, lm, hm)
-
     def inverse_transform_to_mass(self, features, lm, hm):
         # Providing the context means we condition on the masses
         return self.transformer.inverse(features, context=torch.cat((lm, hm), 1))
-
-    # Transform to ... given data
-    def inverse_transform_to_data(self, dl, dh, batch_size=None):
-        """Transform features in dh to the masses given in dl"""
-        # TODO: Need to implement the batch size, should take previous implementation and make it generic
-        batch_size = None
-        # The last feature is the mass or resonant feature (lm = low mass, hm = high mass)
-        lm = dl[:, -1].view(-1, 1)
-        hm = dh[:, -1].view(-1, 1)
-        high_mass_features = dh[:, :-1]
-        return self.inverse_transform_to_mass(high_mass_features, lm, hm)
 
     def compute_loss(self, data, batch_size):
         # The data is passed with concatenated pairs of low mass and high mass features
