@@ -120,8 +120,8 @@ def fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, n_
         # Start the timer
         timer.start()
 
-        # train_data.update_data()
-        # valid_data.update_data()
+        train_data.update_data()
+        valid_data.update_data()
         if pure_noise:
             # Replace the signal data with random samples from a uniform distribution
             mx = (train_data.targets == 0).view(-1)
@@ -267,8 +267,11 @@ def get_auc(interpolated, truth, directory, name,
                 data = np.concatenate(
                     (data, np.random.multivariate_normal([0] * n_features, np.eye(n_features), n_sample)))
             else:
-                l1 = data.min()
-                l2 = data.max()
+                # l1 = data.min(0)
+                # l2 = data.max(0)
+                # The data is normalised, so we take this as the support for the 1+eps
+                l1 = -1
+                l2 = 1
                 data = np.concatenate(
                     (data, ((l1 - l2) * np.random.rand(*data.shape) + l2)[:n_sample]))
             labels = np.concatenate((labels, np.zeros((n_sample, 1))))

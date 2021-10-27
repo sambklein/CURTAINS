@@ -339,14 +339,17 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
     mass_sampler = signalMassSampler(masses, edge1, edge2, plt_sv_dir=sv_dir,
                                      scaler=low_mass_training.unnorm_mass, unscaler=low_mass_training.norm_mass)
 
-    def get_transformed(data, lm=None, hm=None, target_dist=None, r_mass=True):
+    def get_transformed(data, lm=None, hm=None, target_dist=None, r_mass=True, oversample=4):
         if use_mass_sampler:
             # TODO: the bin information should be stored in the class not found from data.
             if hm is None:
                 hm = target_dist.data[:, -1].max()
             if lm is None:
                 lm = target_dist.data[:, -1].min()
-            data = transform_to_mass(data, lm, hm, mass_sampler, model)
+            data_lst = []
+            for i in range(oversample):
+                data_lst += [transform_to_mass(data, lm, hm, mass_sampler, model)]
+            data = torch.cat(data_lst, 0)
             if not r_mass:
                 data = data[:, :-1]
             return data
@@ -410,6 +413,11 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
         getFeaturePlot(model, datasets.signalset, samples, high_mass_sample, nm, sv_dir, 'SB1 and SB2 to Signal ',
                        datasets.signalset.feature_nms, n_sample_for_plot=n_sample_for_plot)
 
+        print('Without anomalies injected')
+        auc = get_auc(samples, datasets.signalset.data, sv_dir, nm + 'SB12', mscaler=low_mass_training.unnorm_mass,
+                      load=False, sup_title=f'T(SB1) U T(SB2) vs SR',
+                      **classifier_args)
+
     if light_job <= 1:
         print('SB2 from signal set')
         auc_sb2 = get_auc(sb2_samples, datasets.signalset.data, sv_dir, nm + 'SB2',
@@ -422,23 +430,25 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
                           load=load, sup_title=f'T(SB1) vs SR',
                           **classifier_args)
 
-        print('Without anomalies injected')
-        auc = get_auc(samples, datasets.signalset.data, sv_dir, nm + 'SB12', mscaler=low_mass_training.unnorm_mass,
-                      load=False, sup_title=f'T(SB1) U T(SB2) vs SR',
-                      **classifier_args)
+        # print('Without anomalies injected')
+        # auc = get_auc(samples, datasets.signalset.data, sv_dir, nm + 'SB12', mscaler=low_mass_training.unnorm_mass,
+        #               load=False, sup_title=f'T(SB1) U T(SB2) vs SR',
+        #               **classifier_args)
 
     if (not light_job) or (light_job == 3):
         # Get the AUC of the ROC for a classifier trained to separate interpolated samples from data
-        print('Benchmark classifier separating samples from anomalies')
-        auc_super_info = get_auc(signal_anomalies.data.to(device), datasets.signalset.data, sv_dir,
-                                 nm + 'Super', mscaler=low_mass_training.unnorm_mass, load=load,
-                                 sup_title=f'QCD SR vs Anomalies SR', return_rates=True,
-                                 **classifier_args)
-        auc_supervised = auc_super_info[0]
-
-        print('With anomalies injected')
-        rates_sr_vs_transformed = {'Supervised': auc_super_info[1]}
-        rates_sr_qcd_vs_anomalies = {'Supervised': auc_super_info[1]}
+        # print('Benchmark classifier separating samples from anomalies')
+        # auc_super_info = get_auc(signal_anomalies.data.to(device), datasets.signalset.data.to(device), sv_dir,
+        #                          nm + 'Super', mscaler=low_mass_training.unnorm_mass, load=load,
+        #                          sup_title=f'QCD SR vs Anomalies SR', return_rates=True,
+        #                          **classifier_args)
+        # auc_supervised = auc_super_info[0]
+        #
+        # print('With anomalies injected')
+        # rates_sr_vs_transformed = {'Supervised': auc_super_info[1]}
+        # rates_sr_qcd_vs_anomalies = {'Supervised': auc_super_info[1]}
+        rates_sr_vs_transformed = {}
+        rates_sr_qcd_vs_anomalies = {}
         for beta in [0.5, 1, 5]:
             auc_info = get_auc(samples, datasets.signalset.data, sv_dir, nm + f'{beta}%Anomalies',
                                anomaly_data=signal_anomalies.data.to(device), beta=beta / 100,

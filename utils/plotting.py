@@ -82,6 +82,8 @@ def add_off_diagonal(axes, i, j, data, color):
     coef, pval = stats.spearmanr(f1, f2)
     axes[i, j].annotate(f'SPR {coef:.2f}', xy=(0.95, 0.95), xycoords='axes fraction', ha='right', va='top', size=6)
 
+def kde_plot(x, y, axes, levels=5):
+    sns.kdeplot(tensor2numpy(x), y=tensor2numpy(y), ax=axes, alpha=0.4, levels=levels, color='red', fill=True)
 
 def add_contour(axes, i, j, data, sampled):
     sns.kdeplot(tensor2numpy(data[:, j]), y=tensor2numpy(data[:, i]), ax=axes[i, j], alpha=0.4, levels=3,

@@ -36,7 +36,9 @@ parser.add_argument('--mix_sb', type=int, default=0, help='Mix sidebands while t
 
 ## Binning parameters
 parser.add_argument("--quantiles", nargs="*", type=float, default=[1, 2, 3, 4])
-parser.add_argument("--bins", nargs="*", type=float, default=[55, 65, 75, 85, 95, 105])
+# parser.add_argument("--bins", nargs="*", type=float, default=[55, 65, 75, 85, 95, 105])
+# parser.add_argument("--bins", nargs="*", type=float, default=[1000, 1200, 1800, 1900, 2000, 2100])
+parser.add_argument("--bins", nargs="*", type=float, default=[1000, 1200, 1400, 1600, 1800, 2000])
 parser.add_argument("--doping", type=float, default=0.)
 
 ## Names for saving
@@ -124,7 +126,7 @@ writer = SummaryWriter(log_dir=log_dir)
 # mix_qs = distance[:8] != 'sinkhorn'
 mix_qs = args.mix_sb
 datasets, signal_anomalies = get_data(args.dataset, image_dir + exp_name, bins=args.bins, mix_qs=mix_qs,
-                                      doping=args.doping)
+                                      doping=args.doping, feature_type=1)
 ndata = datasets.ndata
 inp_dim = datasets.nfeatures
 print('There are {} training examples, {} validation examples, {} signal examples and {} anomaly samples.'.format(

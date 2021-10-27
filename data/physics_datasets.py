@@ -6,6 +6,7 @@ import numpy as np
 
 from utils.io import on_cluster
 
+
 class BaseData(Dataset):
     def deal_with_nans(self):
         nan_mask = self.data.isnan().any(1)
@@ -50,19 +51,21 @@ class BasePhysics(BaseData):
         self.num_points = data.shape[0]
         self.scale_norm = 1
         self.normed = False
-        self.set_scale(scale)
         self.deal_with_nans()
+        self.set_scale(scale)
 
     def set_scale(self, scale):
         if scale is None:
             # If no scaling variable is passed then this is the train set, so find the scaling vars
-            self.max_vals = []
-            self.min_vals = []
-            for train_feature in self.data.t():
-                # self.max_vals += [train_feature.max()]
-                # self.min_vals += [train_feature.min()]
-                self.max_vals += [train_feature.quantile(0.9999)]
-                self.min_vals += [train_feature.quantile(0.0001)]
+            self.max_vals = self.data.quantile(0.99, 0)
+            self.min_vals = self.data.quantile(0.01, 0)
+            # self.max_vals = []
+            # self.min_vals = []
+            # for train_feature in self.data.t():
+            #     # self.max_vals += [train_feature.max()]
+            #     # self.min_vals += [train_feature.min()]
+            #     self.max_vals += [train_feature.quantile(0.9999)]
+            #     self.min_vals += [train_feature.quantile(0.0001)]
         else:
             self.max_vals = scale[0]
             self.min_vals = scale[1]
@@ -91,25 +94,64 @@ class BasePhysics(BaseData):
 
 
 class Curtains(BasePhysics):
-    def __init__(self, df, norm=None, dtype=torch.float32):
+    def __init__(self, df, norm=None, dtype=torch.float32, features=0):
         self.df = df
-        data, feature_nms = self.get_features(df)
+        self.features = features
+        data, feature_nms = self.get_features(df, features)
         self.feature_nms = feature_nms
         super(Curtains, self).__init__(torch.tensor(data).type(dtype), scale=norm)
 
     @staticmethod
-    def get_features(df):
-        # TODO: better handling of this for outputting names and selecting features in one place - list of lists?
-        nfeatures = 4
-        data = np.zeros((df.shape[0], nfeatures + 1))
-        # The last data feature is always the context
-        # 'pt', 'eta', 'phi', 'mass', 'tau1', 'tau2', 'tau3', 'd12', 'd23', 'ECF2', 'ECF3'
-        data[:, 0] = df['tau2'] / df['tau1']
-        data[:, 1] = df['tau3'] / df['tau2']
-        data[:, 2] = np.log(df['d23'] + 1)
-        data[:, 3] = np.log(df['d12'] + 1)
-        data[:, 4] = df['mass']
-        return data, [r'$\tau_{21}$', r'$\tau_{32}$', r'$d_{23}$', r'$d_{12}$', 'mass']
+    def get_features(df, features):
+        if features == 0:
+            # TODO: better handling of this for outputting names and selecting features in one place - list of lists?
+            nfeatures = 4
+            data = np.zeros((df.shape[0], nfeatures + 1))
+            # The last data feature is always the context
+            # 'pt', 'eta', 'phi', 'mass', 'tau1', 'tau2', 'tau3', 'd12', 'd23', 'ECF2', 'ECF3'
+            data[:, 0] = df['tau2'] / df['tau1']
+            data[:, 1] = df['tau3'] / df['tau2']
+            data[:, 2] = np.log(df['d23'] + 1)
+            data[:, 3] = np.log(df['d12'] + 1)
+            data[:, 4] = df['mass']
+            return data, [r'$\tau_{21}$', r'$\tau_{32}$', r'$d_{23}$', r'$d_{12}$', 'mass']
+
+        else:
+            # nfeatures = 9
+            # data = np.zeros((df.shape[0], nfeatures + 1))
+            # # The last data feature is always the context
+            # # 'pt', 'eta', 'phi', 'mass', 'tau1', 'tau2', 'tau3', 'd12', 'd23', 'ECF2', 'ECF3'
+            # data[:, 0] = df['pt'] + df['nlo_pt']
+            # data[:, 1] = df['mass'] + df['nlo_mass']
+            # data[:, 2] = df['pt']
+            # data[:, 3] = df['nlo_pt']
+            # data[:, 4] = df['mass']
+            # data[:, 5] = df['nlo_mass']
+            # phi_1 = df['phi']
+            # phi_2 = df['nlo_phi']
+            # delPhi = np.arctan2(np.sin(phi_1 - phi_2), np.cos(phi_1 - phi_2))
+            # data[:, 6] = ((df['eta'] - df['nlo_eta']) ** 2 + delPhi ** 2) ** (0.5)
+            # data[:, 7] = df['ptjj']
+            # data[:, 8] = df['ptjj'] * data[:, 6]
+            # # data[:, 2] = np.log(df['d23'] + 1)
+            # # data[:, 3] = np.log(df['d12'] + 1)
+            # data[:, 9] = df['mjj']
+            # return data, [r'$p_t + p_t$', r'$m + m$', r'$p_t$', r'$nlo p_t$', 'mass', 'nlo mass',
+            #                r'$dR_{jj}$', r'$p_{t, jj}$', r'$p_{t, jj} * dR_{jj}$', r'$m_{JJ}$']
+            nfeatures = 4
+            data = np.zeros((df.shape[0], nfeatures + 1))
+            # The last data feature is always the context
+            # 'pt', 'eta', 'phi', 'mass', 'tau1', 'tau2', 'tau3', 'd12', 'd23', 'ECF2', 'ECF3'
+            data[:, 0] = df['pt'] + df['nlo_pt']
+            data[:, 1] = df['pt']
+            data[:, 2] = df['nlo_pt']
+            phi_1 = df['phi']
+            phi_2 = df['nlo_phi']
+            delPhi = np.arctan2(np.sin(phi_1 - phi_2), np.cos(phi_1 - phi_2))
+            data[:, 3] = ((df['eta'] - df['nlo_eta']) ** 2 + delPhi ** 2) ** (0.5)
+            data[:, 4] = df['mjj']
+            return data, [r'$p_t + p_t$', r'$p_t$', r'$nlo p_t$',
+                          r'$dR_{jj}$',  r'$m_{JJ}$']
 
     def get_quantile(self, quantile):
         # Returns a numpy array of the training features, plus the context feature on the end
@@ -222,7 +264,8 @@ class CurtainsTrainSet(Dataset):
     def copy_construct(self, inds):
         # At present this does not need to be more detailed, we don't care about the scaling properties while training
         # TODO should add a copyconstruct to the base model and the Curtains method to make this easier
-        dataset = CurtainsTrainSet(Curtains(self.data1.df.iloc[inds]), Curtains(self.data2.df.iloc[inds]))
+        dataset = CurtainsTrainSet(Curtains(self.data1.df.iloc[inds], features=self.data1.features),
+                                   Curtains(self.data2.df.iloc[inds], features=self.data1.features))
         dataset.set_norm_fact(self.norm_fact)
         if self.data1.normed:
             dataset.normalize()

@@ -1,6 +1,7 @@
 import torch
 
-from utils.plotting import hist_features, get_windows_plot
+from utils.plotting import hist_features, get_windows_plot, add_contour, kde_plot
+from utils.torch_utils import tensor2numpy, shuffle_tensor
 from .physics_datasets import JetsDataset, WrappingCurtains, Curtains, CurtainsTrainSet
 
 import glob
@@ -75,6 +76,33 @@ def fill_array(to_fill, obj, dtype):
     to_fill[:len(arr)] = arr
 
 
+def convert_from_cylindrical(data):
+    data = data.to_numpy()
+    constPx = data[:, 0] * np.cos(data[:, 2])
+    constPy = data[:, 0] * np.sin(data[:, 2])
+    constPz = data[:, 0] * np.sinh(data[:, 1])
+
+    three_vector = np.column_stack((constPx, constPy, constPz))
+    jetP2 = np.sum(three_vector ** 2, axis=1)
+    constE = np.sqrt(jetP2 + data[:, 3] ** 2)
+
+    JetinExyz = np.hstack((constE.reshape(-1, 1), three_vector))
+    return JetinExyz
+
+
+def calculate_mass(four_vector):
+    return (four_vector[:, 0] ** 2 - np.sum(four_vector[:, 1:4] ** 2, axis=1)) ** 0.5
+
+
+def get_dijet_features(df):
+    fv1 = convert_from_cylindrical(df.iloc[:, :4])
+    fv2 = convert_from_cylindrical(df.iloc[:, 11:15])
+    tot_fv = fv1 + fv2
+    mjj = calculate_mass(tot_fv)
+    ptjj = (tot_fv[:, 1] ** 2 + tot_fv[:, 2] ** 2) ** (0.5)
+    return mjj, ptjj
+
+
 def load_curtains_pd(sm='QCDjj_pT', dtype='float32', extraStats=False):
     if on_cluster():
 
@@ -119,13 +147,20 @@ def load_curtains_pd(sm='QCDjj_pT', dtype='float32', extraStats=False):
                 os.makedirs(get_top_dir() + '/data/slims/', exist_ok=True)
                 df_sv.to_csv(slim_file, index=False)
 
+        mjj, ptjj = get_dijet_features(df)
+        df['mjj'] = mjj
+        df['ptjj'] = ptjj
         return df
 
     else:
         slim_dir = get_top_dir() + '/data/slims'
         filename = f'{sm}.csv'
         slim_file = slim_dir + '/' + filename
-        return pd.read_csv(slim_file)
+        df = pd.read_csv(slim_file)
+        mjj, ptjj = get_dijet_features(df)
+        df['mjj'] = mjj
+        df['ptjj'] = ptjj
+        return df
 
 
 # def load_curtains_pd(sm='QCDjj_pT', dtype='float32'):
@@ -196,7 +231,7 @@ def dope_dataframe(undoped, anomaly_data, doping):
 def mask_dataframe(df, context_feature, bins, indx, doping=0., anomaly_data=None):
     def mx_data(data):
         context_df = data[context_feature]
-        mx = (context_df > bins[indx[0]]) & (context_df < bins[indx[1]])
+        mx = (context_df >= bins[indx[0]]) & (context_df < bins[indx[1]])
         return data.loc[mx]
 
     undoped_df = mx_data(df)
@@ -208,7 +243,7 @@ def mask_dataframe(df, context_feature, bins, indx, doping=0., anomaly_data=None
 
 
 def get_data(dataset, sv_nm, bins=None, normalize=True, mix_qs=False, flow=False,
-             anomaly_process='WZ_allhad_pT', doping=0., extraStats=True):
+             anomaly_process='WZ_allhad_pT', doping=0., extraStats=True, feature_type=0):
     # Using bins and quantiles to separate semantics between separating base on self defined mass bins and quantiles
     if dataset == 'curtains':
         df = load_curtains_pd(extraStats=extraStats)
@@ -217,7 +252,12 @@ def get_data(dataset, sv_nm, bins=None, normalize=True, mix_qs=False, flow=False
 
     if bins:
         # Split the data into different datasets based on the binning
-        context_feature = 'mass'
+        if feature_type == 0:
+            context_feature = 'mass'
+            woi = [40, 150]
+        else:
+            context_feature = 'mjj'
+            woi = [40, 5000]
 
         anomaly_data = load_curtains_pd(sm=anomaly_process)
 
@@ -228,44 +268,79 @@ def get_data(dataset, sv_nm, bins=None, normalize=True, mix_qs=False, flow=False
         _, ob2_mixed, ob2 = mask_dataframe(df, context_feature, bins, [4, 5], doping, anomaly_data)
         signal_anomalies, signal_mixed, signal = mask_dataframe(df, context_feature, bins, [2, 3], doping, anomaly_data)
 
-        lm = Curtains(lm)
-        hm = Curtains(hm)
-
         '''
         plotting the windows:
         df['mass'] will be the bg - mention region of interest ?
         lm_mixed, hm_mixed, ob1_mixed, ob2_mixed, signal_mixed are the ones that enter the whole bg.
         '''
-        woi = [40, 150]
         mixed = pd.concat([lm_mixed, hm_mixed, ob1_mixed, ob2_mixed, signal_mixed])
-        anomaly_mixed_mass = mixed['mass']
-        bg_mass = df['mass']
+        anomaly_mixed_mass = mixed[context_feature]
+        bg_mass = df[context_feature]
 
         get_windows_plot(bg_mass, anomaly_mixed_mass, woi, bins, sv_nm)
+
+        lm = Curtains(lm, features=feature_type)
+        hm = Curtains(hm, features=feature_type)
 
         # Take a look at the input features prior to scaling
         nfeatures = len(lm.feature_nms) - 1
         fig, axs = plt.subplots(1, nfeatures, figsize=(5 * nfeatures + 2, 5))
         hist_features(lm, hm, nfeatures, axs, axs_nms=lm.feature_nms, labels=['SB1', 'SB2'], legend=False)
         print(sv_nm + '_inital_features.png')
-        for i in range(nfeatures):
-            axs[i].vlines(lm[:, i].max().item(), 0, 0.5, label='SB1', colors='r')
-            axs[i].vlines(hm[:, i].max().item(), 0, 0.5, label='SB2', colors='b')
-            axs[i].vlines(lm[:, i].min().item(), 0, 0.5, colors='r')
-            axs[i].vlines(hm[:, i].min().item(), 0, 0.5, colors='b')
+        # for i in range(nfeatures):
+        #     # TODO: don't take this to 0.5! You can't always see everything!
+        #     axs[i].vlines(lm[:, i].max().item(), 0, 0.5, label='SB1', colors='r')
+        #     axs[i].vlines(hm[:, i].max().item(), 0, 0.5, label='SB2', colors='b')
+        #     axs[i].vlines(lm[:, i].min().item(), 0, 0.5, colors='r')
+        #     axs[i].vlines(hm[:, i].min().item(), 0, 0.5, colors='b')
         # (lm[:, 1] > hm[:, 1].max()).sum(), 3 variables for our outlier!! TODO: implement this counting
-        handles, labels = axs[i].get_legend_handles_labels()
-        fig.legend(handles, labels, loc='upper right')
+        # handles, labels = axs[i].get_legend_handles_labels()
+        # fig.legend(handles, labels, loc='upper right')
         fig.savefig(sv_nm + '_inital_features.png')
 
         training_data = CurtainsTrainSet(lm, hm, mix_qs=mix_qs, stack=flow)
 
         # Set the normalization factors for the other datasets
         scale = training_data.set_and_get_norm_facts()
-        validation_data_lm = Curtains(ob1, norm=scale)
-        validation_data = Curtains(ob2, norm=scale)
-        signal_data = Curtains(signal, norm=scale)
-        signal_anomalies = Curtains(signal_anomalies, norm=scale)
+        validation_data_lm = Curtains(ob1, norm=scale, features=feature_type)
+        validation_data = Curtains(ob2, norm=scale, features=feature_type)
+        signal_data = Curtains(signal, norm=scale, features=feature_type)
+        signal_anomalies = Curtains(signal_anomalies, norm=scale, features=feature_type)
+
+        # Plot some correlations
+        fig, axs = plt.subplots(1, nfeatures, figsize=(5 * nfeatures + 2, 10))
+        n_percent = 0.1
+        def sample_tensor(tensor):
+            tensor = shuffle_tensor(tensor)
+            n = int(tensor.shape[0] * n_percent)
+            print(n)
+            return tensor[:n]
+        # d_for_plot = torch.cat(
+        #     (shuffle_tensor(validation_data_lm.data)[:ntake],
+        #      shuffle_tensor(lm.data)[:ntake],
+        #      shuffle_tensor(hm.data)[:ntake],
+        #      shuffle_tensor(signal_data.data)[:ntake],
+        #      shuffle_tensor(signal_data.data)[:ntake])
+        #     , 0)
+        d_for_plot = torch.cat(
+            (sample_tensor(lm.data),
+             sample_tensor(hm.data),
+             sample_tensor(signal_data.data))
+            , 0)
+        # nfeatures = 2
+        # mx = (df['mass'] > 65) & (df['mass'] < 95)
+        # ntake = 100000 if sum(mx) > 50000 else sum(mx)
+        # df2 = df[mx].sample(n=ntake)
+        # d_for_plot = np.zeros((ntake, nfeatures + 1))
+        # d_for_plot[:, 0] = df2['tau1']
+        # d_for_plot[:, 1] = df2['tau2']
+        # d_for_plot[:, -1] = df2['mass']
+        # d_for_plot = lm.data
+        for i in range(nfeatures):
+            kde_plot(d_for_plot[:, -1], d_for_plot[:, i], axs[i], levels=20)
+            axs[i].set_ylabel(lm.feature_nms[i])
+            axs[i].set_xlabel(r'$m_{JJ}$')
+        fig.savefig(sv_nm + '_feature_correlations.png', bbox_inches='tight')
 
         drape = WrappingCurtains(training_data, signal_data, validation_data, validation_data_lm, bins)
 

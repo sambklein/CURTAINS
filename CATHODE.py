@@ -10,6 +10,7 @@ from nflows import flows
 
 from tensorboardX import SummaryWriter
 
+from models.cathode import Cathode
 from models.flow_models import contextual_flow
 from models.nn.networks import dense_net
 from utils.hyperparams import get_measure
@@ -60,7 +61,7 @@ parser.add_argument('--coupling_depth', type=int, default=3,
                     help='Depth of network used to learn transformer parameters.')
 
 parser.add_argument('--batch_size', type=int, default=10, help='Size of batch for training.')
-parser.add_argument('--epochs', type=int, default=50,
+parser.add_argument('--epochs', type=int, default=1,
                     help='The number of epochs to train for.')
 parser.add_argument('--nstack', type=int, default='3',
                     help='The number of spline transformations to stack in the inn.')
@@ -82,7 +83,7 @@ parser.add_argument('--load_best', type=int, default=0, help='Load the model tha
 parser.add_argument('--det_beta', type=float, default=0.1, help='Factor to multiply determinant by in the loss.')
 
 ## Classifier training
-parser.add_argument('--beta_add_noise', type=float, default=0.1,
+parser.add_argument('--beta_add_noise', type=float, default=0.01,
                     help='The value of epsilon to use in the 1-e training.')
 
 ## Redundat args for matching to Curtains
@@ -155,18 +156,20 @@ if args.base_dist == 'normal':
     # datasets.scale = tail_bound
     # datasets.scale_data()
 
-# TODO: allow this to be a coupling flow
-transformation = spline_flow(inp_dim, args.nodes, num_blocks=args.nblocks, nstack=args.nstack, tail_bound=tail_bound,
-                             tails=tails, activation=hyperparams.activations[args.activ], num_bins=args.nbins,
-                             context_features=1)
-base_dist = hyperparams.nflows_dists(args.base_dist, inp_dim, shift=bdist_shift, bound=tail_bound)
-flow = flows.Flow(transformation, base_dist)
+# # TODO: allow this to be a coupling flow
+# transformation = spline_flow(inp_dim, args.nodes, num_blocks=args.nblocks, nstack=args.nstack, tail_bound=tail_bound,
+#                              tails=tails, activation=hyperparams.activations[args.activ], num_bins=args.nbins,
+#                              context_features=1)
+# base_dist = hyperparams.nflows_dists(args.base_dist, inp_dim, shift=bdist_shift, bound=tail_bound)
+# flow = flows.Flow(transformation, base_dist)
 
 # Build model
-cathode = contextual_flow(flow, base_dist, device, exp_name, dir=args.d)
+# cathode = contextual_flow(flow, base_dist, device, exp_name, dir=args.d)
+cathode = Cathode(inp_dim, exp_name, device, dir=args.d)
 
 # Define optimizers and learning rate schedulers
-optimizer = optim.Adam(cathode.parameters(), lr=args.lr)
+optimizer = cathode.optimizer
+# optimizer = optim.Adam(cathode.parameters(), lr=args.lr)
 scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, ndata / bsize * n_epochs, 0)
 
 # Reduce lr on plateau at end of epochs
@@ -186,6 +189,7 @@ if args.load:
         nm = exp_name
     path = get_top_dir() + f'/data/saved_models/model_{nm}'
     cathode.load(path)
+    cathode.eval()
 else:
     fit(cathode, optimizer, datasets.trainset, n_epochs, bsize, writer, schedulers=scheduler,
         schedulers_epoch_end=reduce_lr_inn, gclip=args.gclip, shuffle_epoch_end=args.shuffle, load_best=args.load_best)

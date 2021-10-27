@@ -16,4 +16,8 @@ def shuffle_tensor(data):
 
 
 def tensor2numpy(tensor):
-    return tensor.detach().cpu().numpy()
+    try:
+        return tensor.detach().cpu().numpy()
+    except Exception as e:
+        print('Transform from tensor to numpy failed. Returning object directly.')
+        return tensor
