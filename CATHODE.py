@@ -38,13 +38,16 @@ parser.add_argument('--resonant_feature', type=str, default='mass', help='The re
 
 ## Binning parameters
 parser.add_argument("--quantiles", nargs="*", type=float, default=[1, 2, 3, 4])
-parser.add_argument("--bins", nargs="*", type=float, default=[55, 65, 75, 85, 95, 105])
+# parser.add_argument("--bins", nargs="*", type=float, default=[55, 65, 75, 85, 95, 105])
+parser.add_argument("--bins", nargs="*", type=float, default=[2000, 2500, 3000, 3500, 4000, 4500])
+# parser.add_argument("--bins", nargs="*", type=float, default=[3000, 3200, 3400, 3600, 3800, 4000])
 parser.add_argument("--doping", type=float, default=0.)
+parser.add_argument("--feature_type", type=int, default=2)
 
 ## Names for saving
 parser.add_argument('-n', type=str, default='cathode', help='The name with which to tag saved outputs.')
 parser.add_argument('-d', type=str, default='NSF_CATHODE', help='Directory to save contents into.')
-parser.add_argument('--load', type=int, default=1, help='Whether or not to load a model.')
+parser.add_argument('--load', type=int, default=0, help='Whether or not to load a model.')
 parser.add_argument('--model_name', type=str, default=None, help='Saved name of model to load.')
 parser.add_argument('--load_classifiers', type=int, default=0, help='Whether or not to load a model.')
 parser.add_argument('--use_mass_sampler', type=int, default=1, help='Whether or not to sample the mass.')
@@ -125,7 +128,7 @@ writer = SummaryWriter(log_dir=log_dir)
 # Make datasets
 mix_qs = True
 datasets, signal_anomalies = get_data(args.dataset, image_dir + exp_name, bins=args.bins, doping=args.doping,
-                                      mix_qs=mix_qs)
+                                      mix_qs=mix_qs, feature_type=args.feature_type)
 ndata = datasets.ndata
 inp_dim = datasets.nfeatures
 print('There are {} training examples, {} validation examples, {} signal examples and {} anomaly samples.'.format(

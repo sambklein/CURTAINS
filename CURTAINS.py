@@ -38,8 +38,11 @@ parser.add_argument('--mix_sb', type=int, default=0, help='Mix sidebands while t
 parser.add_argument("--quantiles", nargs="*", type=float, default=[1, 2, 3, 4])
 # parser.add_argument("--bins", nargs="*", type=float, default=[55, 65, 75, 85, 95, 105])
 # parser.add_argument("--bins", nargs="*", type=float, default=[1000, 1200, 1800, 1900, 2000, 2100])
-parser.add_argument("--bins", nargs="*", type=float, default=[1000, 1200, 1400, 1600, 1800, 2000])
+# parser.add_argument("--bins", nargs="*", type=float, default=[1000, 1200, 1400, 1600, 1800, 2000])
+# parser.add_argument("--bins", nargs="*", type=float, default=[2000, 2500, 3000, 3500, 4000, 4500])
+parser.add_argument("--bins", nargs="*", type=float, default=[3000, 3200, 3400, 3600, 3800, 4000])
 parser.add_argument("--doping", type=float, default=0.)
+parser.add_argument("--feature_type", type=int, default=2)
 
 ## Names for saving
 parser.add_argument('-n', type=str, default='Transformer', help='The name with which to tag saved outputs.')
@@ -101,6 +104,7 @@ parser.add_argument('--seed', type=int, default=1638128,
                     help='Random seed for PyTorch and NumPy.')
 
 args = parser.parse_args()
+# args.d += '_' + args.n
 
 torch.manual_seed(args.seed)
 np.random.seed(args.seed)
@@ -121,12 +125,15 @@ if not os.path.exists(image_dir):
 log_dir = sv_dir + '/logs/' + exp_name
 writer = SummaryWriter(log_dir=log_dir)
 
+# Save options used for running
+register_experiment(sv_dir, f'{args.d}/{exp_name}', args)
+
 # Make datasets
 # If the distance measure is the sinkhorn distance then don't mix samples between quantiles
 # mix_qs = distance[:8] != 'sinkhorn'
 mix_qs = args.mix_sb
 datasets, signal_anomalies = get_data(args.dataset, image_dir + exp_name, bins=args.bins, mix_qs=mix_qs,
-                                      doping=args.doping, feature_type=1)
+                                      doping=args.doping, feature_type=args.feature_type)
 ndata = datasets.ndata
 inp_dim = datasets.nfeatures
 print('There are {} training examples, {} validation examples, {} signal examples and {} anomaly samples.'.format(
@@ -214,6 +221,3 @@ post_process_curtains(curtain_runner, datasets, sup_title='NSF', signal_anomalie
                       load=args.load_classifiers, use_mass_sampler=args.use_mass_sampler,
                       n_sample_for_plot=args.n_sample, light_job=args.light, classifier_args=classifier_args,
                       plot=args.plot)
-
-# Save options used for running
-register_experiment(sv_dir, f'{args.d}/{exp_name}', args)

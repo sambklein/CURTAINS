@@ -1,5 +1,7 @@
 import pathlib
 import json
+import os
+import pandas as pd
 
 
 def on_cluster():
@@ -29,3 +31,9 @@ def read_experiment(sv_dir, exp_name, args):
     with open(sv_dir + exp_name + "_exp_info.json", "r") as file_name:
         json_dict = json.load(file_name)
     return json.loads(json_dict)
+
+
+def make_slim(df, directory, filename, overwrite=False):
+    slim_name = f'{directory}/slim_{filename}'
+    if (not os.path.isfile(slim_name)) or overwrite:
+        pd.to_hdf(slim_name, df.sample(10000))

@@ -437,18 +437,16 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
 
     if (not light_job) or (light_job == 3):
         # Get the AUC of the ROC for a classifier trained to separate interpolated samples from data
-        # print('Benchmark classifier separating samples from anomalies')
-        # auc_super_info = get_auc(signal_anomalies.data.to(device), datasets.signalset.data.to(device), sv_dir,
-        #                          nm + 'Super', mscaler=low_mass_training.unnorm_mass, load=load,
-        #                          sup_title=f'QCD SR vs Anomalies SR', return_rates=True,
-        #                          **classifier_args)
-        # auc_supervised = auc_super_info[0]
-        #
-        # print('With anomalies injected')
-        # rates_sr_vs_transformed = {'Supervised': auc_super_info[1]}
-        # rates_sr_qcd_vs_anomalies = {'Supervised': auc_super_info[1]}
-        rates_sr_vs_transformed = {}
-        rates_sr_qcd_vs_anomalies = {}
+        print('Benchmark classifier separating samples from anomalies')
+        auc_super_info = get_auc(signal_anomalies.data.to(device), datasets.signalset.data.to(device), sv_dir,
+                                 nm + 'Super', mscaler=low_mass_training.unnorm_mass, load=load,
+                                 sup_title=f'QCD SR vs Anomalies SR', return_rates=True,
+                                 **classifier_args)
+        print('With anomalies injected')
+        rates_sr_vs_transformed = {'Supervised': auc_super_info[1]}
+        rates_sr_qcd_vs_anomalies = {'Supervised': auc_super_info[1]}
+        # rates_sr_vs_transformed = {}
+        # rates_sr_qcd_vs_anomalies = {}
         for beta in [0.5, 1, 5]:
             auc_info = get_auc(samples, datasets.signalset.data, sv_dir, nm + f'{beta}%Anomalies',
                                anomaly_data=signal_anomalies.data.to(device), beta=beta / 100,

@@ -34,8 +34,11 @@ parser.add_argument('--dataset', type=str, default='curtains', help='The dataset
 
 ## Binning parameters
 parser.add_argument("--quantiles", nargs="*", type=float, default=[1, 2, 3, 4])
-parser.add_argument("--bins", nargs="*", type=float, default=[55, 65, 75, 85, 95, 105])
+# parser.add_argument("--bins", nargs="*", type=float, default=[55, 65, 75, 85, 95, 105])
+parser.add_argument("--bins", nargs="*", type=float, default=[2000, 2500, 3000, 3500, 4000, 4500])
+# parser.add_argument("--bins", nargs="*", type=float, default=[3000, 3200, 3400, 3600, 3800, 4000])
 parser.add_argument("--doping", type=float, default=0.)
+parser.add_argument("--feature_type", type=int, default=2)
 
 ## Names for saving
 parser.add_argument('-n', type=str, default='test', help='The name with which to tag saved outputs.')
@@ -79,7 +82,8 @@ log_dir = sv_dir + '/logs/' + exp_name
 writer = SummaryWriter(log_dir=log_dir)
 
 # Make datasets
-background, signal, signal_region_anomalies = get_koala_data(bins=args.bins, doping=args.doping)
+background, signal, signal_region_anomalies = get_koala_data(bins=args.bins, doping=args.doping,
+                                                             feature_type=args.feature_type)
 ndata, inp_dim = background.shape
 print('There are {} training examples, {} signal examples and {} anomaly samples.'.format(
     len(background), len(signal), len(signal_region_anomalies)))

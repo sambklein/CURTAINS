@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 import glob
 
 # Taken from https://github.com/bayesiains/nsf/blob/master/data/base.py
-from utils.io import get_top_dir, on_cluster
+from utils.io import get_top_dir, on_cluster, make_slim
 
 
 def load_jets(sm='QCD', split=0.1, normalize=True, dtype='float32'):
@@ -103,8 +103,8 @@ def get_dijet_features(df):
     return mjj, ptjj
 
 
-def load_curtains_pd(sm='QCDjj_pT', dtype='float32', extraStats=False):
-    if on_cluster():
+def load_curtains_pd(sm='QCDjj_pT', dtype='float32', extraStats=False, feature_type=0):
+    if on_cluster() and (feature_type < 2):
 
         # directory = '/srv/beegfs/scratch/groups/rodem/anomalous_jets/data/'
         # nchunks = 6 if sm[:3] == 'QCD' else 5
@@ -150,9 +150,9 @@ def load_curtains_pd(sm='QCDjj_pT', dtype='float32', extraStats=False):
         mjj, ptjj = get_dijet_features(df)
         df['mjj'] = mjj
         df['ptjj'] = ptjj
-        return df
+        # return df
 
-    else:
+    elif feature_type < 2:
         slim_dir = get_top_dir() + '/data/slims'
         filename = f'{sm}.csv'
         slim_file = slim_dir + '/' + filename
@@ -160,7 +160,66 @@ def load_curtains_pd(sm='QCDjj_pT', dtype='float32', extraStats=False):
         mjj, ptjj = get_dijet_features(df)
         df['mjj'] = mjj
         df['ptjj'] = ptjj
-        return df
+        # return df
+
+    if feature_type == 0:
+        data = pd.DataFrame()
+        data[r'$\tau_{21}$'] = df['tau2'] / df['tau1']
+        data[r'$\tau_{32}$'] = df['tau3'] / df['tau2']
+        data[r'$d_{23}$'] = df['tau3'] / df['tau2']
+        data[r'$d_{12}$'] = np.log(df['d12'] + 1)
+        data[r'$d_{32}$'] = np.log(df['d23'] + 1)
+        data['mass'] = np.log(df['d12'] + 1)
+
+    elif feature_type == 1:
+        data = pd.DataFrame()
+        data[r'$p_t + p_t$'] = df['pt'] + df['nlo_pt']
+        data[r'$p_t$'] = df['pt']
+        data[r'$nlo p_t$'] = df['nlo_pt']
+        phi_1 = df['phi']
+        phi_2 = df['nlo_phi']
+        delPhi = np.arctan2(np.sin(phi_1 - phi_2), np.cos(phi_1 - phi_2))
+        data[r'$dR_{jj}$'] = ((df['eta'] - df['nlo_eta']) ** 2 + delPhi ** 2) ** (0.5)
+        data[r'$m_{JJ}$'] = df['mjj']
+
+    elif feature_type == 2:
+        if on_cluster():
+            directory = '/srv/beegfs/scratch/groups/rodem/LHCO'
+        else:
+            directory = 'data/downloads'
+        lhco_filename = 'events_anomalydetection_v2.features.h5'
+        df = pd.read_hdf(f'{directory}/{lhco_filename}')
+        # make_slim(df, directory, lhco_filename)
+        if sm == 'QCDjj_pT':
+            # TODO: is background labelled 0?
+            df = df.loc[df['label'] == 0]
+        else:
+            df = df.loc[df['label'] == 1]
+
+        for jet in ['j1', 'j2']:
+            df[f'pt{jet}'] = np.sqrt(df[f'px{jet}'] ** 2 + df[f'py{jet}'] ** 2)
+            df[f'eta{jet}'] = np.arcsinh(df[f'pz{jet}'] / df[f'pt{jet}'])
+            df[f'phi{jet}'] = np.arctan2(df[f'py{jet}'], df[f'px{jet}'])
+            df[f'p{jet}'] = np.sqrt(df[f'pz{jet}'] ** 2 + df[f'pt{jet}'] ** 2)
+            df[f'e{jet}'] = np.sqrt(df[f'm{jet}'] ** 2 + df[f'p{jet}'] ** 2)
+
+        data = df[['mj1', 'mj2']].copy()
+        data[r'$\tau_{21}$'] = df['tau2j1'] / df['tau1j1']
+        # data[r'$\tau_{32}$'] = df['tau3j1'] / df['tau2j1']
+        data[r'$\tau_{21}~j_2$'] = df['tau2j2'] / df['tau1j2']
+        # data[r'$\tau_{32}~j_2$'] = df['tau3j2'] / df['tau2j2']
+        data[r'$p_t$'] = df['ptj1']
+        data[r'$p_t~j2$'] = df['ptj2']
+        phi_1 = df['phij1']
+        phi_2 = df['phij2']
+        delPhi = np.arctan2(np.sin(phi_1 - phi_2), np.cos(phi_1 - phi_2))
+        data[r'$dR_{jj}$'] = ((df['etaj1'] - df['etaj2']) ** 2 + delPhi ** 2) ** (0.5)
+        data['mjj'] = calculate_mass(
+            np.sum([df[[f'ej{i}', f'pxj{i}', f'pyj{i}', f'pzj{i}']].to_numpy() for i in range(1, 3)], 0))
+        if not on_cluster():
+            data = data.sample(100000)
+
+    return data
 
 
 # def load_curtains_pd(sm='QCDjj_pT', dtype='float32'):
@@ -246,7 +305,7 @@ def get_data(dataset, sv_nm, bins=None, normalize=True, mix_qs=False, flow=False
              anomaly_process='WZ_allhad_pT', doping=0., extraStats=True, feature_type=0):
     # Using bins and quantiles to separate semantics between separating base on self defined mass bins and quantiles
     if dataset == 'curtains':
-        df = load_curtains_pd(extraStats=extraStats)
+        df = load_curtains_pd(extraStats=extraStats, feature_type=feature_type)
     else:
         raise NotImplementedError('The loader of this dataset has not been implemented yet.')
 
@@ -259,7 +318,7 @@ def get_data(dataset, sv_nm, bins=None, normalize=True, mix_qs=False, flow=False
             context_feature = 'mjj'
             woi = [40, 5000]
 
-        anomaly_data = load_curtains_pd(sm=anomaly_process)
+        anomaly_data = load_curtains_pd(sm=anomaly_process, feature_type=feature_type)
 
         # TODO: when doping is not zero you don't want the signal anomalies to contain duplicates!!
         _, lm_mixed, lm = mask_dataframe(df, context_feature, bins, [1, 2], doping, anomaly_data)
@@ -279,8 +338,8 @@ def get_data(dataset, sv_nm, bins=None, normalize=True, mix_qs=False, flow=False
 
         get_windows_plot(bg_mass, anomaly_mixed_mass, woi, bins, sv_nm)
 
-        lm = Curtains(lm, features=feature_type)
-        hm = Curtains(hm, features=feature_type)
+        lm = Curtains(lm)
+        hm = Curtains(hm)
 
         # Take a look at the input features prior to scaling
         nfeatures = len(lm.feature_nms) - 1
@@ -302,19 +361,20 @@ def get_data(dataset, sv_nm, bins=None, normalize=True, mix_qs=False, flow=False
 
         # Set the normalization factors for the other datasets
         scale = training_data.set_and_get_norm_facts()
-        validation_data_lm = Curtains(ob1, norm=scale, features=feature_type)
-        validation_data = Curtains(ob2, norm=scale, features=feature_type)
-        signal_data = Curtains(signal, norm=scale, features=feature_type)
-        signal_anomalies = Curtains(signal_anomalies, norm=scale, features=feature_type)
+        validation_data_lm = Curtains(ob1, norm=scale)
+        validation_data = Curtains(ob2, norm=scale)
+        signal_data = Curtains(signal, norm=scale)
+        signal_anomalies = Curtains(signal_anomalies, norm=scale)
 
         # Plot some correlations
         fig, axs = plt.subplots(1, nfeatures, figsize=(5 * nfeatures + 2, 10))
         n_percent = 0.1
+
         def sample_tensor(tensor):
             tensor = shuffle_tensor(tensor)
             n = int(tensor.shape[0] * n_percent)
-            print(n)
             return tensor[:n]
+
         # d_for_plot = torch.cat(
         #     (shuffle_tensor(validation_data_lm.data)[:ntake],
         #      shuffle_tensor(lm.data)[:ntake],
@@ -354,13 +414,17 @@ def get_data(dataset, sv_nm, bins=None, normalize=True, mix_qs=False, flow=False
     return drape, signal_anomalies
 
 
-def get_koala_data(bins=None, anomaly_process='WZ_allhad_pT', doping=0., extraStats=True, dtype=torch.float32):
-    df = load_curtains_pd(extraStats=extraStats)
+def get_koala_data(bins=None, anomaly_process='WZ_allhad_pT', doping=0., extraStats=True, dtype=torch.float32,
+                   feature_type=0):
+    df = load_curtains_pd(extraStats=extraStats, feature_type=feature_type)
 
     # Split the data into different datasets based on the binning
-    context_feature = 'mass'
+    if feature_type == 0:
+        context_feature = 'mass'
+    else:
+        context_feature = 'mjj'
 
-    anomaly_data = load_curtains_pd(sm=anomaly_process)
+    anomaly_data = load_curtains_pd(sm=anomaly_process, feature_type=feature_type)
 
     _, lm_mixed, lm = mask_dataframe(df, context_feature, bins, [1, 2], doping, anomaly_data)
     _, hm_mixed, hm = mask_dataframe(df, context_feature, bins, [3, 4], doping, anomaly_data)
