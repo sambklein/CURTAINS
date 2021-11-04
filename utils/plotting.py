@@ -201,15 +201,14 @@ def hist_features(originals, sample, data_dim, axs, axs_nms=None, labels=None, l
             axs[i].legend()
 
 
-def hist_features_single(originals, model, feature_nms, axs, bins, label='data'):
+def hist_features_single(originals, feature_nms, axs, bins, label='data'):
     data_dim = len(feature_nms) - 1
     # if not isinstance(bins, list):
     #     bins = [bins] * data_dim
     for i in range(data_dim):
-        axs[i].hist(model.get_numpy(originals[:, i]), label=label, alpha=0.5, density=True, bins=bins[i],
+        axs[i].hist(tensor2numpy(originals[:, i]), label=label, alpha=0.5, density=True, bins=bins[i],
                     histtype='step')
         axs[i].set_title(feature_nms[i])
-        # axs[i].legend()
 
 
 def plot_single_feature_mass_diagnostic(model, samples, generating_data, feature_names, sv_dir, title, nm):

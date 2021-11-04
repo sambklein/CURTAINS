@@ -203,20 +203,42 @@ def load_curtains_pd(sm='QCDjj_pT', dtype='float32', extraStats=False, feature_t
             df[f'p{jet}'] = np.sqrt(df[f'pz{jet}'] ** 2 + df[f'pt{jet}'] ** 2)
             df[f'e{jet}'] = np.sqrt(df[f'm{jet}'] ** 2 + df[f'p{jet}'] ** 2)
 
+        fig, axs_ = plt.subplots(2, 4, figsize=(22, 12))
+        tplot = df[['ptj1', 'etaj1', 'phij1', 'ej1', 'ptj2', 'etaj2', 'phij2', 'ej2']]
+        for i, ax in enumerate(fig.axes):
+            ax.hist(tplot.iloc[:, i], alpha=0.5, density=True, bins=50, histtype='step')
+            ax.set_title(tplot.keys()[i])
+        fig.savefig('test')
+
         data = df[['mj1', 'mj2']].copy()
-        data[r'$\tau_{21}$'] = df['tau2j1'] / df['tau1j1']
-        # data[r'$\tau_{32}$'] = df['tau3j1'] / df['tau2j1']
-        data[r'$\tau_{21}~j_2$'] = df['tau2j2'] / df['tau1j2']
+        # data[r'$\tau_{21}$'] = df['tau2j1'] / df['tau1j1']
+        # # data[r'$\tau_{32}$'] = df['tau3j1'] / df['tau2j1']
+        # data[r'$\tau_{21}~j_2$'] = df['tau2j2'] / df['tau1j2']
         # data[r'$\tau_{32}~j_2$'] = df['tau3j2'] / df['tau2j2']
-        data[r'$p_t$'] = df['ptj1']
-        data[r'$p_t~j2$'] = df['ptj2']
+        # data = pd.DataFrame()
+        # data[r'$p_t$'] = df['ptj1']
+        # data[r'$p_t~j2$'] = df['ptj2']
         phi_1 = df['phij1']
         phi_2 = df['phij2']
         delPhi = np.arctan2(np.sin(phi_1 - phi_2), np.cos(phi_1 - phi_2))
         data[r'$dR_{jj}$'] = ((df['etaj1'] - df['etaj2']) ** 2 + delPhi ** 2) ** (0.5)
+
+        # data['delPhi'] = abs(delPhi)
+        # data['delEta'] = abs(df['etaj1'] - df['etaj2'])
+
         data['mjj'] = calculate_mass(
             np.sum([df[[f'ej{i}', f'pxj{i}', f'pyj{i}', f'pzj{i}']].to_numpy() for i in range(1, 3)], 0))
+
+        # for feature in ['delPhi', 'delEta']:
+        # # for feature in [r'$dR_{jj}$', 'delPhi', 'delEta']:
+        #     fig, axs_ = plt.subplots(1, 2, figsize=(20, 8))
+        #     axs_[0].hist(data[feature], alpha=0.5, density=True, bins=50, histtype='step')
+        #     # axs_[1].hist2d(data[r'$dR_{jj}$'], data['mjj'], alpha=0.5, density=True, bins=50)
+        #     sns.kdeplot(data[feature][:10000], y=data['mjj'], ax=axs_[1], alpha=0.4, levels=10, color='red', fill=True)
+        #     fig.savefig(feature)
+
         if not on_cluster():
+            data = data.sample(frac=1)
             data = data.sample(100000)
 
     return data
@@ -396,11 +418,11 @@ def get_data(dataset, sv_nm, bins=None, normalize=True, mix_qs=False, flow=False
         # d_for_plot[:, 1] = df2['tau2']
         # d_for_plot[:, -1] = df2['mass']
         # d_for_plot = lm.data
-        for i in range(nfeatures):
-            kde_plot(d_for_plot[:, -1], d_for_plot[:, i], axs[i], levels=20)
-            axs[i].set_ylabel(lm.feature_nms[i])
-            axs[i].set_xlabel(r'$m_{JJ}$')
-        fig.savefig(sv_nm + '_feature_correlations.png', bbox_inches='tight')
+        # for i in range(nfeatures):
+        #     kde_plot(d_for_plot[:, -1], d_for_plot[:, i], axs[i], levels=20)
+        #     axs[i].set_ylabel(lm.feature_nms[i])
+        #     axs[i].set_xlabel(r'$m_{JJ}$')
+        # fig.savefig(sv_nm + '_feature_correlations.png', bbox_inches='tight')
 
         drape = WrappingCurtains(training_data, signal_data, validation_data, validation_data_lm, bins)
 

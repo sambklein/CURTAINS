@@ -3,12 +3,13 @@ from .base_model import base_model
 
 
 class curtains_transformer(base_model):
-    def __init__(self, INN, device, exp_name, dist_measure, nfeatures, dir='INN_test', det_beta=0):
+    def __init__(self, INN, device, exp_name, dist_measure, nfeatures, dir='INN_test', det_beta=0, direction=0):
         # nfeatures that we want to learn, plus the context feature
         self.take = nfeatures + 1
         self.det_beta = det_beta
         super(curtains_transformer, self).__init__(INN, device, exp_name, dir=dir)
         self.dist_measure = dist_measure
+        self.direction = direction
 
     def set_loss_names(self):
         self.loss_names = ['OT distance']
@@ -31,17 +32,20 @@ class curtains_transformer(base_model):
         # The next #self.take are the high mass samples (dl = data low)
         dh = data[:, self.take:]
         # This returns the transformation we are after
-        transformed, detJ = self.transform_to_data(dl, dh)
+        if self.direction == 0:
+            transformed, detJ = self.transform_to_data(dl, dh)
+        elif self.direction == -1:
+            transformed, detJ = self.inverse_transform_to_data(dl, dh)
         # Drop the mass feature from the high mass sample
-        high_mass_features = dh[:, :-1]
+        features = dh[:, :-1]
         # Calculate the distance between the transformation and the high mass
-        dists = self.dist_measure(transformed, high_mass_features)
+        dists = self.dist_measure(transformed, features)
         losses = [dists]
         mean_detJ = detJ.mean()
         if self.det_beta:
             losses += [mean_detJ]
         self.set_loss_dict(losses)
-        return dists - self.det_beta * detJ
+        return dists - self.det_beta * detJ.mean()
 
 
 class delta_curtains_transformer(curtains_transformer):
@@ -89,8 +93,9 @@ class delta_mass_curtains_transformer(curtains_transformer):
 class tucan(curtains_transformer):
     """Two way curtain transformer = tucan"""
 
-    def __init__(self, INN, device, exp_name, dist_measure, nfeatures, dir='INN_test', det_beta=0):
-        super(tucan, self).__init__(INN, device, exp_name, dist_measure, nfeatures, dir=dir, det_beta=det_beta)
+    def __init__(self, INN, device, exp_name, dist_measure, nfeatures, dir='INN_test', det_beta=0, **kwargs):
+        super(tucan, self).__init__(INN, device, exp_name, dist_measure, nfeatures, dir=dir, det_beta=det_beta,
+                                    **kwargs)
         self.iter = 0
         self.set_loss_names()
 
@@ -105,6 +110,7 @@ class tucan(curtains_transformer):
         dl = data[:, :self.take]
         # The next #self.take are the high mass samples (dl = data low)
         dh = data[:, self.take:]
+
         # This returns the transformation from high mass to low mass
         transformed_lm, detJ_lm = self.inverse_transform_to_data(dl, dh)
         # This returns the transformation from low mass to high mass

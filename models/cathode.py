@@ -203,7 +203,10 @@ class Cathode(DensityEstimator):
 
     def my_round(self, x, nsf):
         if x:
-            x = round(x, nsf - (int(np.floor(np.log10(abs(x)))) - 1))
+            try:
+                x = round(x, nsf - (int(np.floor(np.log10(abs(x)))) - 1))
+            except Exception as e:
+                print(e)
         return x
 
     def get_loss_state(self, nsf=10):

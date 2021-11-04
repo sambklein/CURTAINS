@@ -11,6 +11,7 @@ from .plotting import (get_bins, getFeaturePlot, getInputTransformedHist,
                        hist_features, hist_features_single, plot_rates_dict,
                        plot_single_feature_mass_diagnostic)
 from .sampling_utils import signalMassSampler
+from .torch_utils import tensor2numpy
 
 
 def calculate_mass(four_vector):
@@ -366,6 +367,18 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
                 getFeaturePlot(model, target_sample, samples, input_dataset, nm, sv_dir, f'{base_name} to {set}',
                                datasets.signalset.feature_nms, n_sample_for_plot=n_sample_for_plot)
 
+                samples = get_samples(input_dataset, target_sample, model, r_mass=True)
+                f_nms = input_dataset.feature_nms
+                fig, axs = plt.subplots(1, len(f_nms), figsize=(8 * len(f_nms), 5))
+                for i in range(len(f_nms)):
+                    # axs[i].scatter(tensor2numpy(input_dataset[:len(samples), i]),
+                    #                tensor2numpy(samples[:, i]))
+                    axs[i].hist2d(tensor2numpy(input_dataset[:len(samples), i]),
+                                   tensor2numpy(samples[:, i]), bins=50)
+                    axs[i].set_xlabel(f'{base_name} {f_nms[i]}')
+                    axs[i].set_ylabel(f'{set} {f_nms[i]}')
+                fig.savefig(f'{sv_dir}/{set}_{base_name}_compare.png')
+
     # Map low mass samples to high mass
     high_mass_datasets = {'Signal Set': datasets.signalset, 'SB2': high_mass_training,
                           'OB2': datasets.validationset}
@@ -486,56 +499,57 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
             rates_sr_vs_transformed[f'{beta}'] = auc_info[1]
             rates_sr_qcd_vs_anomalies[f'{beta}'] = auc_info[2]
 
+        # TODO: include the info in auc_anomalies in the legend
         plot_rates_dict(sv_dir, rates_sr_qcd_vs_anomalies, 'SB1 QCD vs SR Anomalies')
         plot_rates_dict(sv_dir, rates_sr_vs_transformed, 'SB1 vs T(SR)')
 
-    if light_job < 2:
-        with open(sv_dir + '/auc_{}.npy'.format(nm), 'wb') as f:
-            np.save(f, auc_sb2)
-            np.save(f, auc_sb1)
-            if not light_job:
-                np.save(f, auc_supervised)
-                np.save(f, auc_anomalies)
-            np.save(f, auc)
-
-    nmass = 5
-    masses = np.linspace(datasets.signalset.data[:, -1].min().item(),
-                         datasets.trainset.data2.data[:, -1].max().item(), nmass)
-
-    nfeatures = datasets.nfeatures
-    fig, ax = plt.subplots(1, nfeatures, figsize=(5 * nfeatures + 2, 5))
-    bns = []
-    lm = low_mass_sample.unnormalize(low_mass_sample.data)
-    for i in range(nfeatures):
-        bns += [get_bins(lm[:, i])]
-    hist_features_single(lm, model, datasets.signalset.feature_nms, ax, bns, label='SB1')
-    for mass in masses:
-        with torch.no_grad():
-            samples = model.transform_to_data(low_mass_sample.data.to(device),
-                                              mass * torch.ones((low_mass_sample.data.shape[0], 1)).to(device))[0]
-        # getCrossFeaturePlot(model, low_mass_sample.unnormalize(low_mass_sample.data), samples, nm, sv_dir, mass,
-        #                     datasets.signalset.feature_nms)
-        hist_features_single(samples, model, datasets.signalset.feature_nms, ax, bns,
-                             label=f'Mass: {low_mass_sample.unnormalize(torch.tensor(mass).view(-1, 1)).item():.2f}')
-    handles, labels = ax[0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc='upper right')
-    fig.tight_layout()
-    fig.savefig(sv_dir + f'/feature_distributions_{nm}')
-
-    # Look at the distributions at different fixed mass values
-    max_mass = datasets.validationset.data[:, -1].max().item()
-    min_mass = min(datasets.signalset.data[:, -1].min().item(), datasets.validationset.data[:, -1].min().item())
-    nshuffle = 100
-    nsamp = low_mass_sample.shape[0]
-    samples = torch.empty((nshuffle, nsamp, nfeatures))
-    for i in range(nshuffle):
-        mass_sample = (min_mass - max_mass) * torch.rand(nsamp, 1) + max_mass
-        with torch.no_grad():
-            samples[i] = model.transform_to_data(low_mass_sample, mass_sample.to(device))[0]
-
-    smp = low_mass_sample.unnormalize(samples.view(-1, nfeatures))
-    plot_single_feature_mass_diagnostic(model, samples.view(-1, nfeatures), smp, datasets.signalset.feature_nms, sv_dir,
-                                        'Mass Diagnostic', nm)
+    # if light_job < 2:
+    #     with open(sv_dir + '/auc_{}.npy'.format(nm), 'wb') as f:
+    #         np.save(f, auc_sb2)
+    #         np.save(f, auc_sb1)
+    #         if not light_job:
+    #             np.save(f, auc_supervised)
+    #             np.save(f, auc_anomalies)
+    #         np.save(f, auc)
+    #
+    # nmass = 5
+    # masses = np.linspace(datasets.signalset.data[:, -1].min().item(),
+    #                      datasets.trainset.data2.data[:, -1].max().item(), nmass)
+    #
+    # nfeatures = datasets.nfeatures
+    # fig, ax = plt.subplots(1, nfeatures, figsize=(5 * nfeatures + 2, 5))
+    # bns = []
+    # lm = low_mass_sample.unnormalize(low_mass_sample.data)
+    # for i in range(nfeatures):
+    #     bns += [get_bins(lm[:, i])]
+    # hist_features_single(lm, model, datasets.signalset.feature_nms, ax, bns, label='SB1')
+    # for mass in masses:
+    #     with torch.no_grad():
+    #         samples = model.transform_to_data(low_mass_sample.data.to(device),
+    #                                           mass * torch.ones((low_mass_sample.data.shape[0], 1)).to(device))[0]
+    #     # getCrossFeaturePlot(model, low_mass_sample.unnormalize(low_mass_sample.data), samples, nm, sv_dir, mass,
+    #     #                     datasets.signalset.feature_nms)
+    #     hist_features_single(samples, model, datasets.signalset.feature_nms, ax, bns,
+    #                          label=f'Mass: {low_mass_sample.unnormalize(torch.tensor(mass).view(-1, 1)).item():.2f}')
+    # handles, labels = ax[0].get_legend_handles_labels()
+    # fig.legend(handles, labels, loc='upper right')
+    # fig.tight_layout()
+    # fig.savefig(sv_dir + f'/feature_distributions_{nm}')
+    #
+    # # Look at the distributions at different fixed mass values
+    # max_mass = datasets.validationset.data[:, -1].max().item()
+    # min_mass = min(datasets.signalset.data[:, -1].min().item(), datasets.validationset.data[:, -1].min().item())
+    # nshuffle = 100
+    # nsamp = low_mass_sample.shape[0]
+    # samples = torch.empty((nshuffle, nsamp, nfeatures))
+    # for i in range(nshuffle):
+    #     mass_sample = (min_mass - max_mass) * torch.rand(nsamp, 1) + max_mass
+    #     with torch.no_grad():
+    #         samples[i] = model.transform_to_data(low_mass_sample, mass_sample.to(device))[0]
+    #
+    # smp = low_mass_sample.unnormalize(samples.view(-1, nfeatures))
+    # plot_single_feature_mass_diagnostic(model, samples.view(-1, nfeatures), smp, datasets.signalset.feature_nms, sv_dir,
+    #                                     'Mass Diagnostic', nm)
 
 
 def post_process_flows_for_flows(model, datasets, sup_title='NSF'):

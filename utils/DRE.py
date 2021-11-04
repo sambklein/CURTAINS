@@ -219,6 +219,9 @@ def get_auc(interpolated, truth, directory, name,
             beta_add_noise=0.1,
             pure_noise=False
             ):
+
+    interpolated = interpolated.detach().cpu()
+    truth = truth.detach().cpu()
     # Classifier hyperparameters
     if drp > 0:
         width = int(width / drp)

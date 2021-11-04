@@ -113,7 +113,7 @@ def torch_dists(nm, latent_dim):
 def get_sinkhorn(sinkhorn_dist):
     # This will remove the entropic bias from the OT distance.
     def sinkhorn_divergence(x, y):
-        return sinkhorn_dist(x, y)
+        return sinkhorn_dist(x, y) / sinkhorn_dist(y, y)
 
     return sinkhorn_divergence
 
@@ -125,13 +125,17 @@ def get_measure(name):
 
     if name == 'sinkhorn':
         dist = SamplesLoss('sinkhorn', scaling=0.7, blur=0.01)
-        dist = get_sinkhorn(dist)
+        # dist = get_sinkhorn(dist)
 
     if name == 'sinkhorn1':
         dist = SamplesLoss('sinkhorn', scaling=0.5, blur=0.01, p=1)
 
     if name == 'sinkhorn_slow':
         dist = SamplesLoss('sinkhorn', scaling=0.9, blur=0.05)
+        # dist = get_sinkhorn(dist)
+
+    if name == 'energy':
+        dist = SamplesLoss('energy', blur=0.05)
 
     if name.casefold() == 'mmd':
         dist = SamplesLoss('gaussian')

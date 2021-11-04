@@ -39,8 +39,8 @@ parser.add_argument('--resonant_feature', type=str, default='mass', help='The re
 ## Binning parameters
 parser.add_argument("--quantiles", nargs="*", type=float, default=[1, 2, 3, 4])
 # parser.add_argument("--bins", nargs="*", type=float, default=[55, 65, 75, 85, 95, 105])
-parser.add_argument("--bins", nargs="*", type=float, default=[2000, 2500, 3000, 3500, 4000, 4500])
-# parser.add_argument("--bins", nargs="*", type=float, default=[3000, 3200, 3400, 3600, 3800, 4000])
+# parser.add_argument("--bins", nargs="*", type=float, default=[2000, 2500, 3000, 3500, 4000, 4500])
+parser.add_argument("--bins", nargs="*", type=float, default=[3000, 3200, 3400, 3600, 3800, 4000])
 parser.add_argument("--doping", type=float, default=0.)
 parser.add_argument("--feature_type", type=int, default=2)
 

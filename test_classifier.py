@@ -25,7 +25,8 @@ def parse_args():
 
     # Dataset parameters
     parser.add_argument('--dataset', type=str, default='curtains', help='The dataset to train on.')
-    parser.add_argument("--bins", nargs="*", type=float, default=[55, 65, 75, 85, 95, 105])
+    parser.add_argument("--bins", nargs="*", type=float, default=[2300, 2700, 3300, 3700, 4000, 4300])
+    parser.add_argument("--feature_type", type=int, default=2)
     parser.add_argument("--split_data", type=int, default=0)
     parser.add_argument("--sb_signal_frac", type=float, default=0.)
 
@@ -60,14 +61,15 @@ def test_classifier():
     nm = args.outputname
     register_experiment(top_dir, f'{args.outputdir}_{args.outputname}/{args.outputname}', args)
 
-    datasets, signal_anomalies = get_data(args.dataset, sv_dir + nm, bins=args.bins, doping=args.sb_signal_frac)
+    datasets, signal_anomalies = get_data(args.dataset, sv_dir + nm, bins=args.bins, doping=args.sb_signal_frac,
+                                          feature_type=args.feature_type)
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     training_data = shuffle_tensor(datasets.signalset.data)
 
     if args.split_data:
-        betas_to_scan = [0.1, 0.5, 1, 5]
+        betas_to_scan = [0.01, 0.1, 0.5, 1, 5, 10, 15]
         data_to_dope, undoped_data = torch.split(training_data, int(len(training_data) / 2))
         pure_noise = False
     else:
