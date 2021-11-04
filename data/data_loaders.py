@@ -1,6 +1,6 @@
 import torch
 
-from utils.plotting import hist_features, get_windows_plot, add_contour, kde_plot
+from utils.plotting import hist_features, get_windows_plot, add_contour, kde_plot, plot_delta_mass
 from utils.torch_utils import tensor2numpy, shuffle_tensor
 from .physics_datasets import JetsDataset, WrappingCurtains, Curtains, CurtainsTrainSet
 
@@ -432,6 +432,11 @@ def get_data(dataset, sv_nm, bins=None, normalize=True, mix_qs=False, flow=False
     if normalize:
         drape.normalize()
         signal_anomalies.normalize()
+
+    ntake = min(len(lm), len(signal_data))
+    # TODO: saving in experiment name
+    plot_delta_mass(training_data.data[:, 3] - training_data.data[:, -1],
+                    true_deltas=lm[:ntake, -1] - signal_data.data[:ntake, -1], name=None, bins=100)
 
     return drape, signal_anomalies
 

@@ -32,7 +32,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', type=str, default='curtains', help='The dataset to train on.')
 # TODO: not currently implemented, NOT a priority
 parser.add_argument('--resonant_feature', type=str, default='mass', help='The resonant feature to use for binning.')
-parser.add_argument('--mix_sb', type=int, default=0, help='Mix sidebands while training?')
+parser.add_argument('--mix_sb', type=int, default=1, help='Mix sidebands while training?')
 
 ## Binning parameters
 parser.add_argument("--quantiles", nargs="*", type=float, default=[1, 2, 3, 4])
@@ -44,7 +44,7 @@ parser.add_argument("--quantiles", nargs="*", type=float, default=[1, 2, 3, 4])
 # parser.add_argument("--bins", nargs="*", type=float, default=[2700, 3000, 3300, 3600, 3900, 4100])
 # parser.add_argument("--bins", nargs="*", type=float, default=[2300, 2700, 3300, 3700, 4000, 4300])
 # parser.add_argument("--bins", nargs="*", type=float, default=[2300, 2700, 3300, 3700, 4900, 5000])
-parser.add_argument("--bins", nargs="*", type=float, default=[2900, 3100, 3300, 3500, 3700, 3900])
+parser.add_argument("--bins", nargs="*", type=float, default=[2900, 3100, 3300, 3500, 3800, 4000])
 parser.add_argument("--doping", type=float, default=0.)
 parser.add_argument("--feature_type", type=int, default=2)
 
@@ -69,7 +69,7 @@ parser.add_argument('--coupling_depth', type=int, default=3,
                     help='Depth of network used to learn transformer parameters.')
 
 parser.add_argument('--batch_size', type=int, default=100, help='Size of batch for training.')
-parser.add_argument('--epochs', type=int, default=1,
+parser.add_argument('--epochs', type=int, default=2,
                     help='The number of epochs to train for.')
 parser.add_argument('--nstack', type=int, default=4,
                     help='The number of spline transformations to stack in the inn.')

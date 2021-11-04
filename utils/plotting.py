@@ -9,6 +9,8 @@ from matplotlib import pyplot as plt  # , pyplot  # , pyplot
 # import matplotlib.patches as mpatches
 # from sklearn.manifold import TSNE
 import seaborn as sns
+
+from utils.io import get_top_dir
 from utils.torch_utils import tensor2numpy, shuffle_tensor
 from scipy import stats
 
@@ -300,3 +302,17 @@ def getInputTransformedHist(model, input, transformed, nm, savedir, region, feat
     plt.tight_layout()
     plt.savefig(savedir + '/InputvTransformedHist_{}.png'.format(region))        
     plt.clf()
+
+
+def plot_delta_mass(deltas, true_deltas=None, name=None, alpha=0.5, bins=50):
+    deltas = tensor2numpy(deltas)
+    fig = plt.figure(figsize=(8, 5))
+    plt.hist(deltas, bins=bins, alpha=alpha, label='Training')
+    if true_deltas is not None:
+        true_deltas = tensor2numpy(true_deltas)
+        plt.hist(true_deltas, bins=bins, alpha=alpha, label='True')
+        plt.legend()
+    if name is None:
+        name = f'{get_top_dir()}/images/delta_mass.png'
+    plt.savefig(name)
+    fig.clf()
