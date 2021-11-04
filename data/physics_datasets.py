@@ -282,7 +282,8 @@ class CurtainsTrainSet(Dataset):
         # At present this does not need to be more detailed, we don't care about the scaling properties while training
         # TODO should add a copyconstruct to the base model and the Curtains method to make this easier
         dataset = CurtainsTrainSet(Curtains(self.data1.df.iloc[inds]),
-                                   Curtains(self.data2.df.iloc[inds]))
+                                   Curtains(self.data2.df.iloc[inds]),
+                                   mix_qs=self.mix_qs, stack=self.stack)
         dataset.set_norm_fact(self.norm_fact)
         if self.data1.normed:
             dataset.normalize()
