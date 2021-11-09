@@ -11,6 +11,7 @@ from tensorboardX import SummaryWriter
 
 from models.nn.networks import dense_net
 from utils.hyperparams import get_measure
+from utils.sampling_utils import signalMassSampler
 
 from utils.training import fit
 
@@ -80,7 +81,7 @@ parser.add_argument('--nodes', type=int, default=20,
 parser.add_argument('--activ', type=str, default='relu',
                     help='The activation function to use in the networks in the neural spline.')
 parser.add_argument('--lr', type=float, default=0.001,
-                    help='The learning rate.')
+                    help='The learning rate.') 
 parser.add_argument('--reduce_lr_plat', type=int, default=0,
                     help='Whether to apply the reduce learning rate on plateau scheduler.')
 parser.add_argument('--gclip', type=int, default=5,
@@ -91,6 +92,7 @@ parser.add_argument('--ncond', type=int, default=1,
                     help='The number of features to condition on.')
 parser.add_argument('--load_best', type=int, default=0, help='Load the model that has the best validation score.')
 parser.add_argument('--det_beta', type=float, default=0.1, help='Factor to multiply determinant by in the loss.')
+parser.add_argument('--sample_m_train', type=int, default=0, help='Use mass sampler during training?')
 
 ## Classifier training
 parser.add_argument('--beta_add_noise', type=float, default=0.,
@@ -189,7 +191,20 @@ else:
     else:
         transformer = delta_curtains_transformer
 
-curtain_runner = transformer(INN, device, exp_name, measure, datasets.nfeatures, dir=args.d, det_beta=args.det_beta)
+if args.sample_m_train:
+    m1 = datasets.trainset.data1[:, -1]
+    m2 = datasets.trainset.data2[:, -1]
+    masses = torch.cat((m1, m2))
+    edge1 = datasets.mass_bins[2].item()
+    edge2 = datasets.mass_bins[3].item()
+    low_mass_training = datasets.trainset.data1
+    mass_sampler = signalMassSampler(masses, edge1, edge2, plt_sv_dir=sv_dir,
+                                     scaler=low_mass_training.unnorm_mass, unscaler=low_mass_training.norm_mass)
+else:
+    mass_sampler = None
+
+curtain_runner = transformer(INN, device, exp_name, measure, datasets.nfeatures, dir=args.d, det_beta=args.det_beta,
+                             mass_sampler=mass_sampler)
 
 # Define optimizers and learning rate schedulers
 optimizer = optim.Adam(INN.parameters(), lr=args.lr)
@@ -224,4 +239,4 @@ classifier_args = {'false_signal': 2, 'batch_size': 1000, 'nepochs': 100,
 post_process_curtains(curtain_runner, datasets, sup_title='NSF', signal_anomalies=signal_anomalies,
                       load=args.load_classifiers, use_mass_sampler=args.use_mass_sampler,
                       n_sample_for_plot=args.n_sample, light_job=args.light, classifier_args=classifier_args,
-                      plot=args.plot)
+                      plot=args.plot, mass_sampler=mass_sampler)

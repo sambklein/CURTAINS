@@ -9,12 +9,13 @@ class base_model(ABC, nn.Module):
     Within the scope of this project this is the basic definition of a model
     """
 
-    def __init__(self, transformer, device, exp_name, dir='test'):
+    def __init__(self, transformer, device, exp_name, dir='test', mass_sampler=None):
         super(base_model, self).__init__()
         self.transformer = transformer
         self.device = device
         self.exp_name = exp_name
         self.dir = dir
+        self.mass_sampler = mass_sampler
         self.set_loss_names()
 
     @abstractmethod
@@ -31,6 +32,9 @@ class base_model(ABC, nn.Module):
         Transform features to [lm, hm], return transform, log_prob
         """
         return 0
+
+    def sample_mass(self, mass):
+        return self.mass_sampler.sample(len(mass), limits=(mass.min().item(), mass.max().item())).to(mass.device)
 
     def transform_to_data(self, dl, dh, batch_size=None):
         """Transform features in dl to the masses given in dh"""
@@ -54,6 +58,8 @@ class base_model(ABC, nn.Module):
             # The last feature is the mass or resonant feature (lm = low mass, hm = high mass)
             lm = dl[:, -1].view(-1, 1)
             hm = dh[:, -1].view(-1, 1)
+            if self.mass_sampler is not None:
+                hm = self.sample_mass(hm)
             low_mass_features = dl[:, :-1]
             return self.transform_to_mass(low_mass_features, lm, hm)
 
@@ -71,6 +77,8 @@ class base_model(ABC, nn.Module):
         batch_size = None
         # The last feature is the mass or resonant feature (lm = low mass, hm = high mass)
         lm = dl[:, -1].view(-1, 1)
+        if self.mass_sampler is not None:
+            lm = self.sample_mass(lm)
         hm = dh[:, -1].view(-1, 1)
         high_mass_features = dh[:, :-1]
         return self.inverse_transform_to_mass(high_mass_features, lm, hm)

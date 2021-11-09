@@ -11,7 +11,7 @@ from .plotting import (get_bins, getFeaturePlot, getInputTransformedHist,
                        hist_features, hist_features_single, plot_rates_dict,
                        plot_single_feature_mass_diagnostic)
 from .sampling_utils import signalMassSampler
-from .torch_utils import tensor2numpy
+from .torch_utils import tensor2numpy, shuffle_tensor
 
 
 def calculate_mass(four_vector):
@@ -303,8 +303,8 @@ def get_samples(input_dist, target_dist, model, r_mass=False):
     with torch.no_grad():
         # id = input_dist.data[input_dist.data[:, -1].sort()[1]][:nsamp]
         # td = target_dist.data[target_dist.data[:, -1].sort()[1]][:nsamp]
-        id = input_dist.data[:nsamp]
-        td = target_dist.data[:nsamp]
+        id = shuffle_tensor(input_dist.data)[:nsamp]
+        td = shuffle_tensor(target_dist.data)[:nsamp]
 
         mass = td[:, -1].view(-1, 1)
         if direction == 'forward':
@@ -318,7 +318,7 @@ def get_samples(input_dist, target_dist, model, r_mass=False):
 
 
 def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=None, load=False, use_mass_sampler=False,
-                          n_sample_for_plot=-1, light_job=0, classifier_args=None, plot=True):
+                          n_sample_for_plot=-1, light_job=0, classifier_args=None, plot=True, mass_sampler=None):
     if classifier_args is None:
         classifier_args = {}
 
@@ -331,14 +331,15 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
         os.makedirs(sv_dir)
     nm = model.exp_name
 
-    # Fit the mass to use for sampling
-    m1 = datasets.trainset.data1[:, -1]
-    m2 = datasets.trainset.data2[:, -1]
-    masses = torch.cat((m1, m2))
-    edge1 = datasets.mass_bins[2].item()
-    edge2 = datasets.mass_bins[3].item()
-    mass_sampler = signalMassSampler(masses, edge1, edge2, plt_sv_dir=sv_dir,
-                                     scaler=low_mass_training.unnorm_mass, unscaler=low_mass_training.norm_mass)
+    if mass_sampler is None:
+        # Fit the mass to use for sampling
+        m1 = datasets.trainset.data1[:, -1]
+        m2 = datasets.trainset.data2[:, -1]
+        masses = torch.cat((m1, m2))
+        edge1 = datasets.mass_bins[2].item()
+        edge2 = datasets.mass_bins[3].item()
+        mass_sampler = signalMassSampler(masses, edge1, edge2, plt_sv_dir=sv_dir,
+                                         scaler=low_mass_training.unnorm_mass, unscaler=low_mass_training.norm_mass)
 
     def get_transformed(data, lm=None, hm=None, target_dist=None, r_mass=True, oversample=4):
         if use_mass_sampler:

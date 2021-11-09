@@ -3,11 +3,11 @@ from .base_model import base_model
 
 
 class curtains_transformer(base_model):
-    def __init__(self, INN, device, exp_name, dist_measure, nfeatures, dir='INN_test', det_beta=0, direction=0):
+    def __init__(self, INN, device, exp_name, dist_measure, nfeatures, dir='INN_test', det_beta=0, direction=0, **kwargs):
         # nfeatures that we want to learn, plus the context feature
         self.take = nfeatures + 1
         self.det_beta = det_beta
-        super(curtains_transformer, self).__init__(INN, device, exp_name, dir=dir)
+        super(curtains_transformer, self).__init__(INN, device, exp_name, dir=dir, **kwargs)
         self.dist_measure = dist_measure
         self.direction = direction
 
