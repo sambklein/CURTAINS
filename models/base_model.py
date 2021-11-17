@@ -36,7 +36,6 @@ class base_model(ABC, nn.Module):
     def sample_mass(self, mass, n_sample=None):
         if n_sample is None:
             n_sample = len(mass)
-        print(n_sample)
         return self.mass_sampler.sample(n_sample, limits=(mass.min().item(), mass.max().item())).to(mass.device)
 
     def transform_to_data(self, dl, dh, batch_size=None):

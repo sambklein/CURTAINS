@@ -92,7 +92,7 @@ parser.add_argument('--ncond', type=int, default=1,
                     help='The number of features to condition on.')
 parser.add_argument('--load_best', type=int, default=0, help='Load the model that has the best validation score.')
 parser.add_argument('--det_beta', type=float, default=0.1, help='Factor to multiply determinant by in the loss.')
-parser.add_argument('--sample_m_train', type=int, default=1, help='Use mass sampler during training?')
+parser.add_argument('--sample_m_train', type=int, default=0, help='Use mass sampler during training?')
 
 ## Classifier training
 parser.add_argument('--beta_add_noise', type=float, default=0.,
