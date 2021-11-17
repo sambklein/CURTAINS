@@ -33,7 +33,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', type=str, default='curtains', help='The dataset to train on.')
 # TODO: not currently implemented, NOT a priority
 parser.add_argument('--resonant_feature', type=str, default='mass', help='The resonant feature to use for binning.')
-parser.add_argument('--mix_sb', type=int, default=1, help='Mix sidebands while training?')
+parser.add_argument('--mix_sb', type=int, default=2, help='Mix sidebands while training?')
 
 ## Binning parameters
 parser.add_argument("--quantiles", nargs="*", type=float, default=[1, 2, 3, 4])
@@ -58,7 +58,7 @@ parser.add_argument('--load_classifiers', type=int, default=0, help='Whether or 
 parser.add_argument('--use_mass_sampler', type=int, default=1, help='Whether or not to sample the mass.')
 
 ## Hyper parameters
-parser.add_argument('--distance', type=str, default='sinkhorn', help='Type of dist measure to use.')
+parser.add_argument('--distance', type=str, default='energy', help='Type of dist measure to use.')
 parser.add_argument('--coupling', type=int, default=1, help='One to use coupling layers, zero for autoregressive.')
 parser.add_argument('--spline', type=int, default=0, help='One to use spline transformations.')
 parser.add_argument('--two_way', type=int, default=1,
@@ -81,7 +81,7 @@ parser.add_argument('--nodes', type=int, default=20,
 parser.add_argument('--activ', type=str, default='relu',
                     help='The activation function to use in the networks in the neural spline.')
 parser.add_argument('--lr', type=float, default=0.001,
-                    help='The learning rate.') 
+                    help='The learning rate.')
 parser.add_argument('--reduce_lr_plat', type=int, default=0,
                     help='Whether to apply the reduce learning rate on plateau scheduler.')
 parser.add_argument('--gclip', type=int, default=5,
@@ -92,7 +92,7 @@ parser.add_argument('--ncond', type=int, default=1,
                     help='The number of features to condition on.')
 parser.add_argument('--load_best', type=int, default=0, help='Load the model that has the best validation score.')
 parser.add_argument('--det_beta', type=float, default=0.1, help='Factor to multiply determinant by in the loss.')
-parser.add_argument('--sample_m_train', type=int, default=0, help='Use mass sampler during training?')
+parser.add_argument('--sample_m_train', type=int, default=1, help='Use mass sampler during training?')
 
 ## Classifier training
 parser.add_argument('--beta_add_noise', type=float, default=0.,

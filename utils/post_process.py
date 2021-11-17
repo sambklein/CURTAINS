@@ -282,8 +282,10 @@ def transform_to_mass(data, lm, hm, mass_sampler, model):
         raise NotImplementedError('The mass range to which you map cannot overlap with the input mass range.')
 
     with torch.no_grad():
-        feature_sample = {'forward': model.transform_to_mass, 'inverse': model.inverse_transform_to_mass}[
-            direction](data.data[:, :-1], data_mass, sample_mass)[0]
+        if direction == 'forward':
+            feature_sample = model.transform_to_data(data.data[:, :-1], data_mass, sample_mass)[0]
+        elif direction == 'inverse':
+            feature_sample = model.inverse_transform_to_data(data.data[:, :-1], sample_mass, data_mass)[0]
     return torch.cat((feature_sample, sample_mass), 1).cpu()
 
 

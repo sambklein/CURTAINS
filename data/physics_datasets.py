@@ -227,9 +227,9 @@ class CurtainsTrainSet(Dataset):
                     masses = band[:, -1]
                     max_mass = masses.max()
                     min_mass = masses.min()
-                    # TODO: quantile instead?
-                    # split = min_mass + (max_mass - min_mass) / 2
                     split = min_mass + (max_mass - min_mass) / 2
+                    # split = masses.mean()
+                    # split = masses.median()
                     lm = band[masses < split]
                     hm = band[masses > split]
                     ntake = min(len(lm), len(hm))
@@ -238,13 +238,13 @@ class CurtainsTrainSet(Dataset):
                 d1 = self.data1[torch.randperm(self.s1, device='cpu')]
                 d2 = self.data2[torch.randperm(self.s2, device='cpu')]
                 data = torch.cat((mix_side_bands(d1), mix_side_bands(d2)), 0)
-                self.mix_qs = 0
+                # self.mix_qs = 0
             else:
                 # This method keeps the high mass and low mass regions separated
                 d1 = self.data1[torch.randperm(self.s1, device='cpu')]
                 d2 = self.data2[torch.randperm(self.s2, device='cpu')]
                 data = torch.cat((d1[:self.ndata].data, d2[:self.ndata].data), 1)
-                self.mix_qs = 2
+                # self.mix_qs = 2
             return data
 
     def set_norm_fact(self, scale):

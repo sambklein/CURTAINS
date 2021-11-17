@@ -33,8 +33,11 @@ class base_model(ABC, nn.Module):
         """
         return 0
 
-    def sample_mass(self, mass):
-        return self.mass_sampler.sample(len(mass), limits=(mass.min().item(), mass.max().item())).to(mass.device)
+    def sample_mass(self, mass, n_sample=None):
+        if n_sample is None:
+            n_sample = len(mass)
+        print(n_sample)
+        return self.mass_sampler.sample(n_sample, limits=(mass.min().item(), mass.max().item())).to(mass.device)
 
     def transform_to_data(self, dl, dh, batch_size=None):
         """Transform features in dl to the masses given in dh"""
@@ -59,7 +62,14 @@ class base_model(ABC, nn.Module):
             lm = dl[:, -1].view(-1, 1)
             hm = dh[:, -1].view(-1, 1)
             if self.mass_sampler is not None:
-                hm = self.sample_mass(hm)
+                hm_test = self.sample_mass(hm, n_sample=lm.shape[0])
+                # if hm.shape[0] != lm.shape[0]:
+                #     print(lm.shape)
+                #     print(hm.shape)
+                #     mass = hm
+                #     print(mass.min().item(), mass.max().item())
+                # hm[:len(hm_test)] = hm_test
+                hm = hm_test
             low_mass_features = dl[:, :-1]
             return self.transform_to_mass(low_mass_features, lm, hm)
 
@@ -77,9 +87,17 @@ class base_model(ABC, nn.Module):
         batch_size = None
         # The last feature is the mass or resonant feature (lm = low mass, hm = high mass)
         lm = dl[:, -1].view(-1, 1)
-        if self.mass_sampler is not None:
-            lm = self.sample_mass(lm)
         hm = dh[:, -1].view(-1, 1)
+        if self.mass_sampler is not None:
+            lm_test = self.sample_mass(lm, n_sample=hm.shape[0])
+            # if hm.shape[0] != lm.shape[0]:
+            #     print(lm.shape)
+            #     print(hm.shape)
+            #     mass = lm
+            #     print(mass.min().item(), mass.max().item())
+            # TODO: why is this necessary? Sometimes the sampler returns one less value than it should?
+            # lm[:len(lm_test)] = lm_test
+            lm = lm_test
         high_mass_features = dh[:, :-1]
         return self.inverse_transform_to_mass(high_mass_features, lm, hm)
 
