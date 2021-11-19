@@ -125,6 +125,9 @@ if not os.path.exists(image_dir):
 log_dir = sv_dir + '/logs/' + exp_name
 writer = SummaryWriter(log_dir=log_dir)
 
+# Save options used for running
+register_experiment(sv_dir, f'{args.d}/{exp_name}', args)
+
 # Make datasets
 mix_qs = True
 datasets, signal_anomalies = get_data(args.dataset, image_dir + exp_name, bins=args.bins, doping=args.doping,
@@ -206,6 +209,3 @@ post_process_curtains(cathode, datasets, sup_title='NSF', signal_anomalies=signa
                       load=args.load_classifiers, use_mass_sampler=args.use_mass_sampler,
                       n_sample_for_plot=args.n_sample, light_job=args.light, classifier_args=classifier_args,
                       plot=args.plot)
-
-# Save options used for running
-register_experiment(sv_dir, f'{args.d}/{exp_name}', args)
