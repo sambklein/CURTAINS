@@ -211,4 +211,4 @@ classifier_args = {'false_signal': 2, 'batch_size': 1000, 'nepochs': args.classi
 post_process_curtains(cathode, datasets, sup_title='NSF', signal_anomalies=signal_anomalies,
                       load=args.load_classifiers, use_mass_sampler=args.use_mass_sampler,
                       n_sample_for_plot=args.n_sample, light_job=args.light, classifier_args=classifier_args,
-                      plot=args.plot, cathode=True) 
+                      plot=args.plot, cathode=True)

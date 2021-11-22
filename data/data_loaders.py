@@ -182,7 +182,7 @@ def load_curtains_pd(sm='QCDjj_pT', dtype='float32', extraStats=False, feature_t
         data[r'$dR_{jj}$'] = ((df['eta'] - df['nlo_eta']) ** 2 + delPhi ** 2) ** (0.5)
         data[r'$m_{JJ}$'] = df['mjj']
 
-    elif feature_type == 2:
+    elif feature_type in [2, 3]:
         if on_cluster():
             directory = '/srv/beegfs/scratch/groups/rodem/LHCO'
         else:
@@ -211,13 +211,14 @@ def load_curtains_pd(sm='QCDjj_pT', dtype='float32', extraStats=False, feature_t
         fig.savefig('test')
 
         data = df[['mj1', 'mj2']].copy()
-        # data[r'$\tau_{21}$'] = df['tau2j1'] / df['tau1j1']
-        # # data[r'$\tau_{32}$'] = df['tau3j1'] / df['tau2j1']
-        # data[r'$\tau_{21}~j_2$'] = df['tau2j2'] / df['tau1j2']
-        # data[r'$\tau_{32}~j_2$'] = df['tau3j2'] / df['tau2j2']
+        data['mj2-mj1'] = df['mj2'] - df['mj1']
+        data[r'$\tau_{21}^{j_1}$'] = df['tau2j1'] / df['tau1j1']
+        # data[r'$\tau_{32}$'] = df['tau3j1'] / df['tau2j1']
+        data[r'$\tau_{21}^{j_2}$'] = df['tau2j2'] / df['tau1j2']
+        data[r'$\tau_{32}^{j_2}$'] = df['tau3j2'] / df['tau2j2']
         # data = pd.DataFrame()
-        # data[r'$p_t$'] = df['ptj1']
-        # data[r'$p_t~j2$'] = df['ptj2']
+        data[r'$p_t^{j_1}$'] = df['ptj1']
+        data[r'$p_t^{j_2}$'] = df['ptj2']
         phi_1 = df['phij1']
         phi_2 = df['phij2']
         delPhi = np.arctan2(np.sin(phi_1 - phi_2), np.cos(phi_1 - phi_2))
@@ -228,6 +229,18 @@ def load_curtains_pd(sm='QCDjj_pT', dtype='float32', extraStats=False, feature_t
 
         data['mjj'] = calculate_mass(
             np.sum([df[[f'ej{i}', f'pxj{i}', f'pyj{i}', f'pzj{i}']].to_numpy() for i in range(1, 3)], 0))
+
+        if feature_type == 2:
+            data = data[['mj1', 'mj2', r'$dR_{jj}$', 'mjj']]
+
+        if feature_type == 3:
+            data = data[['mj1', 'mj2-mj1', r'$\tau_{21}^{j_1}$', r'$\tau_{21}^{j_2}$', r'$dR_{jj}$', 'mjj']]
+
+            eps = 1e-6
+            mn = data.min() - eps
+            mx = data.max() + eps
+            data = (data - mn) / (mx - mn)
+            data = np.log(data) - np.log(1-data)
 
         # for feature in ['delPhi', 'delEta']:
         # # for feature in [r'$dR_{jj}$', 'delPhi', 'delEta']:
