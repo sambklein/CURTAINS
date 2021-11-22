@@ -236,11 +236,15 @@ def load_curtains_pd(sm='QCDjj_pT', dtype='float32', extraStats=False, feature_t
         if feature_type == 3:
             data = data[['mj1', 'mj2-mj1', r'$\tau_{21}^{j_1}$', r'$\tau_{21}^{j_2}$', r'$dR_{jj}$', 'mjj']]
 
-            eps = 1e-6
-            mn = data.min() - eps
-            mx = data.max() + eps
-            data = (data - mn) / (mx - mn)
-            data = np.log(data) - np.log(1-data)
+            def scale_features(data):
+                eps = 1e-6
+                mn = data.min() - eps
+                mx = data.max() + eps
+                data = (data - mn) / (mx - mn)
+                data = np.log(data) - np.log(1 - data)
+                return data
+
+            data.iloc[:, :-1] = scale_features(data.iloc[:, :-1])
 
         # for feature in ['delPhi', 'delEta']:
         # # for feature in [r'$dR_{jj}$', 'delPhi', 'delEta']:
