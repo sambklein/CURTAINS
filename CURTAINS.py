@@ -56,7 +56,6 @@ parser.add_argument('-d', type=str, default='NSF_CURT', help='Directory to save 
 parser.add_argument('--load', type=int, default=1, help='Whether or not to load a model.')
 parser.add_argument('--model_name', type=str, default=None, help='Saved name of model to load.')
 parser.add_argument('--load_classifiers', type=int, default=0, help='Whether or not to load a model.')
-parser.add_argument('--use_mass_sampler', type=int, default=1, help='Whether or not to sample the mass.')
 
 ## Hyper parameters
 parser.add_argument('--distance', type=str, default='energy', help='Type of dist measure to use.')
@@ -98,6 +97,9 @@ parser.add_argument('--sample_m_train', type=int, default=0, help='Use mass samp
 ## Classifier training
 parser.add_argument('--beta_add_noise', type=float, default=0.,
                     help='The value of epsilon to use in the 1-e training.')
+parser.add_argument('--classifier_epochs', type=int, default=1,
+                    help='The value of epsilon to use in the 1-e training.')
+parser.add_argument('--use_mass_sampler', type=int, default=0, help='Whether or not to sample the mass.')
 
 ## Plotting
 parser.add_argument('--n_sample', type=int, default=1000,
@@ -233,7 +235,7 @@ else:
         schedulers_epoch_end=reduce_lr_inn, gclip=args.gclip, shuffle_epoch_end=args.shuffle, load_best=args.load_best)
 
 # TODO: check the LR in particular!!
-classifier_args = {'false_signal': 2, 'batch_size': 1000, 'nepochs': 100,
+classifier_args = {'false_signal': 2, 'batch_size': 1000, 'nepochs': args.classifier_epochs,
                    'lr': 0.001, 'balance': 0, 'pure_noise': 0, 'beta_add_noise': args.beta_add_noise}
 
 # Generate test data and preprocess etc

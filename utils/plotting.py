@@ -9,6 +9,7 @@ from matplotlib import pyplot as plt  # , pyplot  # , pyplot
 # import matplotlib.patches as mpatches
 # from sklearn.manifold import TSNE
 import seaborn as sns
+from sklearn.metrics import auc
 
 from utils.io import get_top_dir
 from utils.torch_utils import tensor2numpy, shuffle_tensor
@@ -42,6 +43,7 @@ def plot2Dhist(data, ax, bins=50, bounds=None):
               origin='lower', aspect='auto',
               extent=[xbins.min(), xbins.max(), ybins.min(), ybins.max()],
               )
+
 
 def add_error_hist(ax, data, bins, color, error_bars=False, normalised=True, label='', norm=None):
     y, binEdges = np.histogram(data, bins=bins)
@@ -84,8 +86,10 @@ def add_off_diagonal(axes, i, j, data, color):
     coef, pval = stats.spearmanr(f1, f2)
     axes[i, j].annotate(f'SPR {coef:.2f}', xy=(0.95, 0.95), xycoords='axes fraction', ha='right', va='top', size=6)
 
+
 def kde_plot(x, y, axes, levels=5):
     sns.kdeplot(tensor2numpy(x), y=tensor2numpy(y), ax=axes, alpha=0.4, levels=levels, color='red', fill=True)
+
 
 def add_contour(axes, i, j, data, sampled):
     sns.kdeplot(tensor2numpy(data[:, j]), y=tensor2numpy(data[:, i]), ax=axes[i, j], alpha=0.4, levels=3,
@@ -102,7 +106,6 @@ def add_contour(axes, i, j, data, sampled):
 
 def getFeaturePlot(model, original, sampled, lm_sample, nm, savedir, region, feature_names, nbins=20, contour=True,
                    n_sample_for_plot=-1):
-
     if n_sample_for_plot > 0:
         original = shuffle_tensor(original)
         sampled = shuffle_tensor(sampled)
@@ -234,53 +237,56 @@ def plot_rates_dict(sv_dir, rates_dict, title):
     ax.plot([0, 1], [0, 1], 'k--')
     for nm, rates in rates_dict.items():
         fpr, tpr = rates
+        c_auc = f' AUC: {auc(fpr, tpr):.2f}'
         if 'Supervised' in nm:
-            label = nm
+            label = nm + c_auc
         else:
-            label = f'Doping {nm}%'
+            label = f'Doping {nm}%' + c_auc
         ax.plot(fpr, tpr, linewidth=2, label=label)
     ax.set_xticks(np.arange(0, 1.1, 0.1))
     ax.set_xlabel('False positive rate')
     ax.set_ylabel('True positive rate')
     ax.set_title(title)
-    fig.tight_layout(rect=[0, 0, 0.75, 1])
-    fig.legend(bbox_to_anchor=(0.76, 0.94), loc='upper left')
-    fig.savefig(sv_dir + f'/{title}_roc.png')
+    ax.set_aspect('equal')
+    # fig.tight_layout(rect=[0, 0, 0.9, 1])
+    lgd = fig.legend(bbox_to_anchor=(0.76, 0.94), loc='upper left')
+    fig.savefig(sv_dir + f'/{title}_roc.png', bbox_extra_artists=(lgd,), bbox_inches='tight')
 
 
 def get_windows_plot(bgspectra, anomalyspectra, woi, windows, sv_dir):
-
     '''
         args: bgspectra: The background masses: np array.
               anomalyspectra: The anomaly masses: np array.
               woi: Window of Interest: Tuple of masses - These are the mass bounds of this plot.
               windows: SB1, SB2, SW bins. Pass the args.bins here.
               sv_dir = where you want to save the plot.
-    '''    
+    '''
     fig, ax = plt.subplots()
     anomalyspectra = anomalyspectra.values
     bgspectra = bgspectra.values
 
-    sigAnomaly = anomalyspectra[np.where(np.logical_and(anomalyspectra>windows[2], anomalyspectra<windows[3]))]
-    
+    sigAnomaly = anomalyspectra[np.where(np.logical_and(anomalyspectra > windows[2], anomalyspectra < windows[3]))]
+
     bgcount, bins, _ = ax.hist(bgspectra, bins=np.arange(woi[0], woi[1], 2), label='QCD', histtype='step')
     # count, _ , _ =ax.hist(anomalyspectra, bins=bins, label='Signal', histtype='step')
     # ax.hist(sigAnomaly, bins=bins, label='Signal', histtype='step', color='red')
     ax.hist(anomalyspectra, bins=bins, histtype='step', color='red')
-    ax.axvspan(windows[1], windows[2], ymin=0., ymax=1.5*np.max(bgcount), alpha=0.1, color='green', label='Side bands')
-    ax.axvspan(windows[2], windows[3], ymin=0., ymax=1.5*np.max(bgcount), alpha=0.1, color='red', label='Signal Window')
-    ax.axvspan(windows[3], windows[4], ymin=0., ymax=1.5*np.max(bgcount), alpha=0.1, color='green')
-    ax.vlines([windows[1], windows[2], windows[3], windows[4]], ymin=0, ymax=1.5*np.max(bgcount), ls='dashed', color='black')
+    ax.axvspan(windows[1], windows[2], ymin=0., ymax=1.5 * np.max(bgcount), alpha=0.1, color='green',
+               label='Side bands')
+    ax.axvspan(windows[2], windows[3], ymin=0., ymax=1.5 * np.max(bgcount), alpha=0.1, color='red',
+               label='Signal Window')
+    ax.axvspan(windows[3], windows[4], ymin=0., ymax=1.5 * np.max(bgcount), alpha=0.1, color='green')
+    ax.vlines([windows[1], windows[2], windows[3], windows[4]], ymin=0, ymax=1.5 * np.max(bgcount), ls='dashed',
+              color='black')
     plt.legend(frameon=False)
     ax.set_xlabel("Mass (Gev)")
     ax.set_ylabel("Count")
-    ax.set_ylim(0, 1.5*np.max(bgcount))
-       
+    ax.set_ylim(0, 1.5 * np.max(bgcount))
+
     fig.savefig(f'{sv_dir}_windows.png')
 
 
 def getInputTransformedHist(model, input, transformed, nm, savedir, region, feature_names):
-
     s1 = input.data.shape[0]
     s2 = transformed.data.shape[0]
     print(f"Region: {region}, Input {input.data.shape[0]}, Transformed {transformed.data.shape[0]}\n")
@@ -291,16 +297,16 @@ def getInputTransformedHist(model, input, transformed, nm, savedir, region, feat
     nfeatures = len(feature_names) - 1
 
     fig, axes = plt.subplots(1, nfeatures, figsize=(8 * nfeatures + 3, 8), sharex=True, sharey=True)
-    for i in range(nfeatures):      
+    for i in range(nfeatures):
         axes[i].set_xlabel(feature_names[i])
-        axes[i].hist2d(model.get_numpy(input[:, i]), model.get_numpy(transformed[:,i]), bins=[np.linspace(-1, 1, 60), np.linspace(-1, 1, 60)], alpha=0.6)
+        axes[i].hist2d(model.get_numpy(input[:, i]), model.get_numpy(transformed[:, i]),
+                       bins=[np.linspace(-1, 1, 60), np.linspace(-1, 1, 60)], alpha=0.6)
         axes[i].set_xlim(-1.0, 1.0)
         axes[i].set_ylim(-1.0, 1.0)
-        
 
     fig.suptitle(region)
     plt.tight_layout()
-    plt.savefig(savedir + '/InputvTransformedHist_{}.png'.format(region))        
+    plt.savefig(savedir + '/InputvTransformedHist_{}.png'.format(region))
     plt.clf()
 
 

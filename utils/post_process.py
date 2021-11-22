@@ -1,4 +1,6 @@
+import json
 import os
+import pickle
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -320,7 +322,8 @@ def get_samples(input_dist, target_dist, model, r_mass=False):
 
 
 def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=None, load=False, use_mass_sampler=False,
-                          n_sample_for_plot=-1, light_job=0, classifier_args=None, plot=True, mass_sampler=None):
+                          n_sample_for_plot=-1, light_job=0, classifier_args=None, plot=True, mass_sampler=None,
+                          cathode=False):
     if classifier_args is None:
         classifier_args = {}
 
@@ -367,7 +370,8 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
                 print(f"Now evaluating sample {set} from {base_name}")
                 samples = get_transformed(input_dataset, target_dist=target_sample, r_mass=False)
                 # For the feature plot we only want to look at as many samples as there are in SB1
-                getFeaturePlot(model, target_sample, samples, input_dataset, nm, sv_dir, f'{base_name} to {set}',
+                title = f'{base_name} to {set}' if not cathode else f'Sampled from {set}'
+                getFeaturePlot(model, target_sample, samples, input_dataset, nm, sv_dir, title,
                                datasets.signalset.feature_nms, n_sample_for_plot=n_sample_for_plot)
 
                 samples = get_samples(input_dataset, target_sample, model, r_mass=True)
@@ -377,7 +381,7 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
                     # axs[i].scatter(tensor2numpy(input_dataset[:len(samples), i]),
                     #                tensor2numpy(samples[:, i]))
                     axs[i].hist2d(tensor2numpy(input_dataset[:len(samples), i]),
-                                   tensor2numpy(samples[:, i]), bins=50)
+                                  tensor2numpy(samples[:, i]), bins=50)
                     axs[i].set_xlabel(f'{base_name} {f_nms[i]}')
                     axs[i].set_ylabel(f'{set} {f_nms[i]}')
                 fig.savefig(f'{sv_dir}/{set}_{base_name}_compare.png')
@@ -426,7 +430,8 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
         samples = torch.cat((sb2_samples, sb1_samples))
 
         # For the feature plot we only want to look at as many samples as there are in SB1
-        getFeaturePlot(model, datasets.signalset, samples, high_mass_sample, nm, sv_dir, 'SB1 and SB2 to Signal ',
+        title = 'SB1 and SB2 to Signal' if not cathode else f'Sampled from Signal'
+        getFeaturePlot(model, datasets.signalset, samples, high_mass_sample, nm, sv_dir, title,
                        datasets.signalset.feature_nms, n_sample_for_plot=n_sample_for_plot)
 
         print('Without anomalies injected')
@@ -459,11 +464,9 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
                                  sup_title=f'QCD SR vs Anomalies SR', return_rates=True,
                                  **classifier_args)
         print('With anomalies injected')
-        rates_sr_vs_transformed = {'Supervised': auc_super_info[1]}
+        rates_sr_vs_transformed = {}
         rates_sr_qcd_vs_anomalies = {'Supervised': auc_super_info[1]}
-        # rates_sr_vs_transformed = {}
-        # rates_sr_qcd_vs_anomalies = {}
-        for beta in [0.5, 1, 5]:
+        for beta in [0.5, 1, 5, 15]:
             auc_info = get_auc(samples, datasets.signalset.data, sv_dir, nm + f'{beta}%Anomalies',
                                anomaly_data=signal_anomalies.data.to(device), beta=beta / 100,
                                sup_title=f'QCD in SR doped with {beta:.3f}% anomalies',
@@ -471,88 +474,94 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
                                load=load, return_rates=True,
                                **classifier_args)
             auc_anomalies = auc_info[0]
-            rates_sr_vs_transformed[f'{beta}'] = auc_info[1]
+            rates_sr_vs_transformed[f'{beta}'] = auc_info[3]
             rates_sr_qcd_vs_anomalies[f'{beta}'] = auc_info[2]
 
         plot_rates_dict(sv_dir, rates_sr_qcd_vs_anomalies, 'SR QCD vs SR Anomalies')
         plot_rates_dict(sv_dir, rates_sr_vs_transformed, 'T(SB12) vs SR')
 
-        # Transform signal region samples into SB1 (TODO: same for map to SB2)
-        sb1_samples = get_transformed(datasets.signalset, lm=datasets.mass_bins[1], hm=datasets.mass_bins[2],
-                                      target_dist=low_mass_sample)
-        anom_sb1_samples = get_transformed(signal_anomalies.data.to(device), lm=datasets.mass_bins[1],
-                                           hm=datasets.mass_bins[2], target_dist=low_mass_sample)
-        auc_super_info = get_auc(sb1_samples, low_mass_sample.data, sv_dir,
-                                 nm + 'SR_in_SB1', mscaler=low_mass_training.unnorm_mass, load=load,
-                                 sup_title=f'SR_in_SB1', return_rates=True,
-                                 **classifier_args)
-        auc_supervised = auc_super_info[0]
-        rates_sr_vs_transformed = {'Supervised': auc_super_info[1]}
-        rates_sr_qcd_vs_anomalies = {'Supervised': auc_super_info[1]}
-        for beta in [0.5, 1, 5]:
-            auc_info = get_auc(sb1_samples, low_mass_sample.data, sv_dir, nm + f'SR_in_SB1_{beta}%Anomalies',
-                               anomaly_data=anom_sb1_samples,
-                               beta=beta / 100,
-                               sup_title=f'SR in SB1 doped with {beta:.3f}% anomalies',
-                               mscaler=low_mass_training.unnorm_mass,
-                               load=load,
-                               return_rates=True,
-                               **classifier_args)
-            auc_anomalies = auc_info[0]
-            rates_sr_vs_transformed[f'{beta}'] = auc_info[1]
-            rates_sr_qcd_vs_anomalies[f'{beta}'] = auc_info[2]
+        with open(f'{sv_dir}/rates.pkl', 'wb') as f:
+            pickle.dump([rates_sr_qcd_vs_anomalies, rates_sr_vs_transformed], f)
 
-        # TODO: include the info in auc_anomalies in the legend
-        plot_rates_dict(sv_dir, rates_sr_qcd_vs_anomalies, 'SB1 QCD vs SR Anomalies')
-        plot_rates_dict(sv_dir, rates_sr_vs_transformed, 'SB1 vs T(SR)')
+        # with open(f'{sv_dir}/rates.pkl', 'rb') as f:
+        #     data = pickle.load(f)
 
-    # if light_job < 2:
-    #     with open(sv_dir + '/auc_{}.npy'.format(nm), 'wb') as f:
-    #         np.save(f, auc_sb2)
-    #         np.save(f, auc_sb1)
-    #         if not light_job:
-    #             np.save(f, auc_supervised)
-    #             np.save(f, auc_anomalies)
-    #         np.save(f, auc)
-    #
-    # nmass = 5
-    # masses = np.linspace(datasets.signalset.data[:, -1].min().item(),
-    #                      datasets.trainset.data2.data[:, -1].max().item(), nmass)
-    #
-    # nfeatures = datasets.nfeatures
-    # fig, ax = plt.subplots(1, nfeatures, figsize=(5 * nfeatures + 2, 5))
-    # bns = []
-    # lm = low_mass_sample.unnormalize(low_mass_sample.data)
-    # for i in range(nfeatures):
-    #     bns += [get_bins(lm[:, i])]
-    # hist_features_single(lm, model, datasets.signalset.feature_nms, ax, bns, label='SB1')
-    # for mass in masses:
-    #     with torch.no_grad():
-    #         samples = model.transform_to_data(low_mass_sample.data.to(device),
-    #                                           mass * torch.ones((low_mass_sample.data.shape[0], 1)).to(device))[0]
-    #     # getCrossFeaturePlot(model, low_mass_sample.unnormalize(low_mass_sample.data), samples, nm, sv_dir, mass,
-    #     #                     datasets.signalset.feature_nms)
-    #     hist_features_single(samples, model, datasets.signalset.feature_nms, ax, bns,
-    #                          label=f'Mass: {low_mass_sample.unnormalize(torch.tensor(mass).view(-1, 1)).item():.2f}')
-    # handles, labels = ax[0].get_legend_handles_labels()
-    # fig.legend(handles, labels, loc='upper right')
-    # fig.tight_layout()
-    # fig.savefig(sv_dir + f'/feature_distributions_{nm}')
-    #
-    # # Look at the distributions at different fixed mass values
-    # max_mass = datasets.validationset.data[:, -1].max().item()
-    # min_mass = min(datasets.signalset.data[:, -1].min().item(), datasets.validationset.data[:, -1].min().item())
-    # nshuffle = 100
-    # nsamp = low_mass_sample.shape[0]
-    # samples = torch.empty((nshuffle, nsamp, nfeatures))
-    # for i in range(nshuffle):
-    #     mass_sample = (min_mass - max_mass) * torch.rand(nsamp, 1) + max_mass
-    #     with torch.no_grad():
-    #         samples[i] = model.transform_to_data(low_mass_sample, mass_sample.to(device))[0]
-    #
-    # smp = low_mass_sample.unnormalize(samples.view(-1, nfeatures))
-    # plot_single_feature_mass_diagnostic(model, samples.view(-1, nfeatures), smp, datasets.signalset.feature_nms, sv_dir,
-    #                                     'Mass Diagnostic', nm)
+        # # Transform signal region samples into SB1 (TODO: same for map to SB2)
+        # sb1_samples = get_transformed(datasets.signalset, lm=datasets.mass_bins[1], hm=datasets.mass_bins[2],
+        #                               target_dist=low_mass_sample)
+        # anom_sb1_samples = get_transformed(signal_anomalies.data.to(device), lm=datasets.mass_bins[1],
+        #                                    hm=datasets.mass_bins[2], target_dist=low_mass_sample)
+        # auc_super_info = get_auc(sb1_samples, low_mass_sample.data, sv_dir,
+        #                          nm + 'SR_in_SB1', mscaler=low_mass_training.unnorm_mass, load=load,
+        #                          sup_title=f'SR_in_SB1', return_rates=True,
+        #                          **classifier_args)
+        # auc_supervised = auc_super_info[0]
+        # rates_sr_vs_transformed = {'Supervised': auc_super_info[1]}
+        # rates_sr_qcd_vs_anomalies = {'Supervised': auc_super_info[1]}
+        # for beta in [0.5, 1, 5]:
+        #     auc_info = get_auc(sb1_samples, low_mass_sample.data, sv_dir, nm + f'SR_in_SB1_{beta}%Anomalies',
+        #                        anomaly_data=anom_sb1_samples,
+        #                        beta=beta / 100,
+        #                        sup_title=f'SR in SB1 doped with {beta:.3f}% anomalies',
+        #                        mscaler=low_mass_training.unnorm_mass,
+        #                        load=load,
+        #                        return_rates=True,
+        #                        **classifier_args)
+        #     auc_anomalies = auc_info[0]
+        #     rates_sr_vs_transformed[f'{beta}'] = auc_info[1]
+        #     rates_sr_qcd_vs_anomalies[f'{beta}'] = auc_info[2]
+        #
+        # # TODO: include the info in auc_anomalies in the legend
+        # plot_rates_dict(sv_dir, rates_sr_qcd_vs_anomalies, 'SB1 QCD vs SR Anomalies')
+        # plot_rates_dict(sv_dir, rates_sr_vs_transformed, 'SB1 vs T(SR)')
+
+        # if light_job < 2:
+        #     with open(sv_dir + '/auc_{}.npy'.format(nm), 'wb') as f:
+        #         np.save(f, auc_sb2)
+        #         np.save(f, auc_sb1)
+        #         if not light_job:
+        #             np.save(f, auc_supervised)
+        #             np.save(f, auc_anomalies)
+        #         np.save(f, auc)
+        #
+        # nmass = 5
+        # masses = np.linspace(datasets.signalset.data[:, -1].min().item(),
+        #                      datasets.trainset.data2.data[:, -1].max().item(), nmass)
+        #
+        # nfeatures = datasets.nfeatures
+        # fig, ax = plt.subplots(1, nfeatures, figsize=(5 * nfeatures + 2, 5))
+        # bns = []
+        # lm = low_mass_sample.unnormalize(low_mass_sample.data)
+        # for i in range(nfeatures):
+        #     bns += [get_bins(lm[:, i])]
+        # hist_features_single(lm, model, datasets.signalset.feature_nms, ax, bns, label='SB1')
+        # for mass in masses:
+        #     with torch.no_grad():
+        #         samples = model.transform_to_data(low_mass_sample.data.to(device),
+        #                                           mass * torch.ones((low_mass_sample.data.shape[0], 1)).to(device))[0]
+        #     # getCrossFeaturePlot(model, low_mass_sample.unnormalize(low_mass_sample.data), samples, nm, sv_dir, mass,
+        #     #                     datasets.signalset.feature_nms)
+        #     hist_features_single(samples, model, datasets.signalset.feature_nms, ax, bns,
+        #                          label=f'Mass: {low_mass_sample.unnormalize(torch.tensor(mass).view(-1, 1)).item():.2f}')
+        # handles, labels = ax[0].get_legend_handles_labels()
+        # fig.legend(handles, labels, loc='upper right')
+        # fig.tight_layout()
+        # fig.savefig(sv_dir + f'/feature_distributions_{nm}')
+        #
+        # # Look at the distributions at different fixed mass values
+        # max_mass = datasets.validationset.data[:, -1].max().item()
+        # min_mass = min(datasets.signalset.data[:, -1].min().item(), datasets.validationset.data[:, -1].min().item())
+        # nshuffle = 100
+        # nsamp = low_mass_sample.shape[0]
+        # samples = torch.empty((nshuffle, nsamp, nfeatures))
+        # for i in range(nshuffle):
+        #     mass_sample = (min_mass - max_mass) * torch.rand(nsamp, 1) + max_mass
+        #     with torch.no_grad():
+        #         samples[i] = model.transform_to_data(low_mass_sample, mass_sample.to(device))[0]
+        #
+        # smp = low_mass_sample.unnormalize(samples.view(-1, nfeatures))
+        # plot_single_feature_mass_diagnostic(model, samples.view(-1, nfeatures), smp, datasets.signalset.feature_nms, sv_dir,
+        #                                     'Mass Diagnostic', nm)
 
 
 def post_process_flows_for_flows(model, datasets, sup_title='NSF'):

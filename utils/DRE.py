@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 import torch
 import numpy as np
 from sklearn.metrics import roc_curve, auc
@@ -219,7 +221,6 @@ def get_auc(interpolated, truth, directory, name,
             beta_add_noise=0.1,
             pure_noise=False
             ):
-
     interpolated = interpolated.detach().cpu()
     truth = truth.detach().cpu()
     # Classifier hyperparameters
@@ -249,6 +250,7 @@ def get_auc(interpolated, truth, directory, name,
     X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.1, random_state=1, stratify=y_train)
 
     if beta_bool and anomaly_bool and dope_splits:
+        X_test_pure = deepcopy(X_test)
         get_mask = lambda x: (x == 0).flatten()
         anomaly_data, X_train[get_mask(y_train)] = dope_data(X_train[get_mask(y_train)], anomaly_data, beta)
         anomaly_data, X_val[get_mask(y_val)] = dope_data(X_val[get_mask(y_val)], anomaly_data, beta)
@@ -281,9 +283,6 @@ def get_auc(interpolated, truth, directory, name,
             return data, labels
     else:
         add_noise = None
-
-        # X_train, y_train = add_noise(X_train, y_train)
-        # X_val, y_val = add_noise(X_val, y_val)
 
     weights = 'balance' if use_weights else None
     train_data = SupervisedDataClass(X_train, y_train, weights=weights, noise_generator=add_noise)
@@ -338,15 +337,21 @@ def get_auc(interpolated, truth, directory, name,
     add_normed_hist(y_scores[mx], ax, 'Signal', bins)
     add_normed_hist(y_scores[~mx], ax, 'BG', bins)
     if anomaly_bool:
+        random_labels = np.random.choice([0, 1], size=(X_test_pure.shape[0], 1))
+        pure_test_data = SupervisedDataClass(X_test_pure, random_labels)
         with torch.no_grad():
             if mass_incl:
                 ad = anomaly_data.data[:, :-1]
+                td = pure_test_data.data[:, :-1]
             else:
                 ad = anomaly_data.data
+                td = pure_test_data.data
             anomaly_scores = classifier.predict(ad.to(device)).cpu().numpy()
+            inlier_scores = classifier.predict(td.to(device)).cpu().numpy()
         add_normed_hist(anomaly_scores, ax, 'Anomalies', bins)
         fpr1, tpr1, _ = roc_curve(np.concatenate((np.zeros(len(anomaly_scores)), np.ones(len(y_scores[~mx])))),
                                   np.concatenate((anomaly_scores[:, 0], y_scores[~mx])))
+        fpr2, tpr2, _ = roc_curve(random_labels, inlier_scores)
         roc_auc_anomalies = auc(fpr1, tpr1)
     ax.set_xlabel('Classifier output')
     fig.suptitle(sup_title)
@@ -403,7 +408,7 @@ def get_auc(interpolated, truth, directory, name,
 
     if return_rates:
         if anomaly_bool:
-            return roc_auc, [fpr, tpr], [fpr1, tpr1]
+            return roc_auc, [fpr, tpr], [fpr1, tpr1], [fpr2, tpr2]
         else:
             return roc_auc, [fpr, tpr]
     else:
