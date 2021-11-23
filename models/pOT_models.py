@@ -3,13 +3,14 @@ from .base_model import base_model
 
 
 class curtains_transformer(base_model):
-    def __init__(self, INN, device, exp_name, pdist_measure, sdist_measure, weight, nfeatures, dir='INN_test'):
+    def __init__(self, INN, device, exp_name, pdist_measure, sdist_measure, weight, nfeatures, dir='INN_test', det_beta=0.0):
         # nfeatures that we want to learn, plus the context feature
         self.take = nfeatures + 1
         super(curtains_transformer, self).__init__(INN, device, exp_name, dir=dir)
         self.pdist_measure = pdist_measure
         self.sdist_measure = sdist_measure
         self.weight = weight
+        self.det_beta = det_beta
 
     def set_loss_names(self):
         self.loss_names = ['primary distance', 'secondary distance']
@@ -19,7 +20,7 @@ class curtains_transformer(base_model):
         # Providing the context means we condition on the masses
         # This function will return both the transformation and the log determinant (which we can't use),
         # so we take the first arg
-        return self.transformer(features, context=torch.cat((lm, hm), 1))[0]
+        return self.transformer(features, context=torch.cat((lm, hm), 1))
 
     def transform_to_data(self, dl, dh, batch_size=None):
         """Transform features in dl to the masses given in dh"""
@@ -49,7 +50,7 @@ class curtains_transformer(base_model):
         # Providing the context means we condition on the masses
         # This function will return both the transformation and the det (which we can't use),
         # so we take the first arg
-        return self.transformer.inverse(features, context=torch.cat((lm, hm), 1))[0]
+        return self.transformer.inverse(features, context=torch.cat((lm, hm), 1))
 
     # Transform to ... given data
     def inverse_transform_to_data(self, dl, dh, batch_size=None):
@@ -69,15 +70,16 @@ class curtains_transformer(base_model):
         # The next #self.take are the high mass samples (dl = data low)
         dh = data[:, self.take:]
         # This returns the transformation we are after
-        transformed = self.transform_to_data(dl, dh)
+        transformed, detJ = self.transform_to_data(dl, dh)
+
         # Drop the mass feature from the high mass sample
         high_mass_features = dh[:, :-1]
         # Calculate the distance between the transformation and the high mass
         pdists = self.pdist_measure(transformed, high_mass_features)
         sdists = self.sdist_measure(transformed, high_mass_features)
-        dists = pdists+self.weight*sdists
+        dists = pdists/self.weight+sdists
         self.set_loss_dict([pdists, sdists])
-        return dists
+        return dists - self.det_beta * detJ.mean()
 
 
 class delta_curtains_transformer(curtains_transformer):
@@ -85,10 +87,10 @@ class delta_curtains_transformer(curtains_transformer):
         super(delta_curtains_transformer, self).__init__(INN, device, exp_name, pdist_measure, sdist_measure, weight, nfeatures, dir=dir)
 
     def transform_to_mass(self, features, lm, hm):
-        return self.transformer(features, context=hm - lm)[0]
+        return self.transformer(features, context=hm - lm)
 
     def inverse_transform_to_mass(self, features, lm, hm):
-        return self.transformer.inverse(features, context=hm - lm)[0]
+        return self.transformer.inverse(features, context=hm - lm)
 
 
 class delta_mass_curtains_transformer(curtains_transformer):
@@ -96,10 +98,10 @@ class delta_mass_curtains_transformer(curtains_transformer):
         super(delta_mass_curtains_transformer, self).__init__(INN, device, exp_name, pdist_measure, sdist_measure, weight, nfeatures, dir=dir)
 
     def transform_to_mass(self, features, lm, hm):
-        return self.transformer(features, context=torch.cat((lm, hm), 1))[0]
+        return self.transformer(features, context=torch.cat((lm, hm), 1))
 
     def inverse_transform_to_mass(self, features, lm, hm):
-        return self.transformer.inverse(features, context=torch.cat((lm, hm), 1))[0]
+        return self.transformer.inverse(features, context=torch.cat((lm, hm), 1))
 
     # TODO: this ie) negative delta trainings
     # def compute_loss(self, data, batch_size):
@@ -123,30 +125,33 @@ class delta_mass_curtains_transformer(curtains_transformer):
 class tucan(curtains_transformer):
     """Two way curtain transformer = tucan"""
 
-    def __init__(self, INN, device, exp_name, pdist_measure, sdist_measure, weight, nfeatures, dir='INN_test'):
+    def __init__(self, INN, device, exp_name, pdist_measure, sdist_measure, weight, nfeatures, dir='INN_test', det_beta=0.0):
         super(tucan, self).__init__(INN, device, exp_name, pdist_measure, sdist_measure, weight, nfeatures, dir=dir)
         self.iter = 0
         self.pdist_measure = pdist_measure
         self.sdist_measure = sdist_measure
         self.weight = weight
+        self.det_beta = det_beta
         self.set_loss_names()
 
     def set_loss_names(self):
         self.loss_names = ['Forward primary distance', 'Inverse primary distance', 'Forward secondary distance', 'Inverse secondary distance']
 
-    def compute_loss(self, data, batch_size):
+    def compute_loss(self, data, batch_size, return_del_mass=False):
         # The data is passed with concatenated pairs of low mass and high mass features
         # The first #self.take are the low mass samples (dl = data low)
         dl = data[:, :self.take]
         # The next #self.take are the high mass samples (dl = data low)
         dh = data[:, self.take:]
         # This returns the transformation from high mass to low mass
-        transformed_lm = self.inverse_transform_to_data(dl, dh)
+        transformed_lm, detJ_lm = self.inverse_transform_to_data(dl, dh)
         # This returns the transformation from low mass to high mass
-        transformed_hm = self.transform_to_data(dl, dh)
+        transformed_hm, detJ_hm = self.transform_to_data(dl, dh)
         # Drop the mass from the feature sample
         high_mass_features = dh[:, :-1]
+        high_mass = dh[:,-1]
         low_mass_features = dl[:, :-1]
+        low_mass = dl[:,-1]
         # Calculate the distance between the transformation and truth
         forward_pdists = self.pdist_measure(transformed_hm, high_mass_features)
         forward_sdists = self.sdist_measure(transformed_hm, high_mass_features)
@@ -158,10 +163,16 @@ class tucan(curtains_transformer):
         # return sum([self.loss_dict[nm] for nm in self.loss_names])
         if self.iter:
             self.iter = 0
-            return forward_pdists+self.weight*forward_sdists
+            if return_del_mass:
+                return forward_pdists/self.weight + forward_sdists - self.det_beta * detJ_hm.mean(), high_mass-low_mass
+            else:
+                return forward_pdists/self.weight + forward_sdists - self.det_beta * detJ_hm.mean()
         else:
             self.iter = 1
-            return inverse_pdists+self.weight*inverse_sdists
+            if return_del_mass:
+                return inverse_pdists/self.weight + inverse_sdists - self.det_beta * detJ_lm.mean(), high_mass-low_mass
+            else:
+                return inverse_pdists/self.weight + inverse_sdists - self.det_beta * detJ_lm.mean()
 
 
 class delta_tucan(delta_curtains_transformer, tucan):
