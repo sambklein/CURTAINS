@@ -105,7 +105,7 @@ def add_contour(axes, i, j, data, sampled):
 
 
 def getFeaturePlot(model, original, sampled, lm_sample, nm, savedir, region, feature_names, nbins=20, contour=True,
-                   n_sample_for_plot=-1):
+                   n_sample_for_plot=-1, summary_writer=None):
     if n_sample_for_plot > 0:
         original = shuffle_tensor(original)
         sampled = shuffle_tensor(sampled)
@@ -159,6 +159,8 @@ def getFeaturePlot(model, original, sampled, lm_sample, nm, savedir, region, fea
     fig.suptitle(region)
     handles, labels = axes[0, 0].get_legend_handles_labels()
     fig.legend(handles, labels, loc='upper left', bbox_to_anchor=(0.32, 0.89), frameon=False)
+    if summary_writer is not None:
+        summary_writer.add_figure(tag=f'featurespread_{region}', figure=fig)
     plt.savefig(savedir + '/featurespread_{}_{}_{}.png'.format(region, nm, 'transformed_data'), bbox_inches="tight")
     plt.clf()
 
@@ -251,6 +253,32 @@ def plot_rates_dict(sv_dir, rates_dict, title):
     # fig.tight_layout(rect=[0, 0, 0.9, 1])
     lgd = fig.legend(bbox_to_anchor=(0.76, 0.94), loc='upper left')
     fig.savefig(sv_dir + f'/{title}_roc.png', bbox_extra_artists=(lgd,), bbox_inches='tight')
+
+    fig, ax = plt.subplots(1, 1, figsize=(7, 5))
+    rates_dict['random'] = [np.linspace(0, 1, 50), np.linspace(0, 1, 50)]
+    for nm, rates in rates_dict.items():
+        fpr, tpr = rates
+        fpr_nz = fpr[fpr != 0]
+        tpr_nz = tpr[fpr != 0]
+        if ('Supervised' in nm) or (nm == 'random'):
+            label = nm
+        else:
+            label = f'Doping {nm}%'
+        if nm == 'random':
+            line = '--'
+            color = 'k'
+        else:
+            line = '-'
+            color = None
+        ax.plot(tpr_nz, tpr_nz / (fpr_nz ** 0.5), linewidth=2, label=label, linestyle=line, color=color)
+    # ax.set_xticks(np.arange(0, 1.1, 0.1))
+    ax.set_ylabel('Significance improvement')
+    ax.set_xlabel('Signal efficiency (true positive rate)')
+    ax.set_title(title)
+    # fig.tight_layout(rect=[0, 0, 0.9, 1])
+    lgd = fig.legend(bbox_to_anchor=(0.76, 0.94), loc='upper left')
+    ax.set_aspect('equal')
+    fig.savefig(sv_dir + f'/{title}_sic.png', bbox_extra_artists=(lgd,), bbox_inches='tight')
 
 
 def get_windows_plot(bgspectra, anomalyspectra, woi, windows, sv_dir):

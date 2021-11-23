@@ -182,6 +182,11 @@ def fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, n_
 def dope_data(truth, anomaly_data, beta):
     n = int(len(truth) * (1 - beta))
     n1 = len(truth) - n
+    n_anomalies = int(len(anomaly_data))
+    if n1 > n_anomalies:
+        print(f"Can't dope higher than {beta}")
+        n1 = n_anomalies
+        n = int(len(truth)) - n1
     truth = sample_data(truth, n)
     anomaly_data, anomaly_data_train = sample_data(anomaly_data, n1, split=True)
     try:

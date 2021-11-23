@@ -1,6 +1,8 @@
 import pathlib
 import json
 import os
+import time
+
 import pandas as pd
 
 
@@ -18,6 +20,11 @@ def on_cluster():
 
 def get_top_dir():
     return str(pathlib.Path().absolute())
+
+
+def get_timestamp():
+    formatted_time = time.strftime('%d-%b-%y||%H:%M:%S')
+    return formatted_time
 
 
 def register_experiment(sv_dir, exp_name, args):

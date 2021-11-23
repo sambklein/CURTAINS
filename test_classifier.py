@@ -1,5 +1,6 @@
 import argparse
 import os
+import pickle
 
 import torch
 
@@ -69,7 +70,7 @@ def test_classifier():
     training_data = shuffle_tensor(datasets.signalset.data)
 
     if args.split_data:
-        betas_to_scan = [0.01, 0.1, 0.5, 1, 5, 10, 15]
+        betas_to_scan = [0.5, 1, 5, 15]
         data_to_dope, undoped_data = torch.split(training_data, int(len(training_data) / 2))
         pure_noise = False
     else:
@@ -111,6 +112,9 @@ def test_classifier():
 
     plot_rates_dict(sv_dir, rates_sr_qcd_vs_anomalies, 'SR QCD vs SR Anomalies')
     plot_rates_dict(sv_dir, rates_sr_vs_transformed, 'T(SB12) vs SR')
+
+    with open(f'{sv_dir}/rates.pkl', 'wb') as f:
+        pickle.dump([rates_sr_qcd_vs_anomalies, rates_sr_vs_transformed], f)
 
 
 if __name__ == '__main__':

@@ -21,7 +21,7 @@ from models.nn.flows import spline_flow, coupling_inn
 
 from utils import hyperparams
 from utils.post_process import post_process_curtains
-from utils.io import get_top_dir, register_experiment
+from utils.io import get_top_dir, register_experiment, get_timestamp
 
 from data.data_loaders import get_data, get_bin
 
@@ -56,6 +56,7 @@ parser.add_argument('-d', type=str, default='NSF_CURT', help='Directory to save 
 parser.add_argument('--load', type=int, default=1, help='Whether or not to load a model.')
 parser.add_argument('--model_name', type=str, default=None, help='Saved name of model to load.')
 parser.add_argument('--load_classifiers', type=int, default=0, help='Whether or not to load a model.')
+parser.add_argument('--log_dir', type=str, default='no_scan', help='Whether or not to load a model.')
 
 ## Hyper parameters
 parser.add_argument('--distance', type=str, default='energy', help='Type of dist measure to use.')
@@ -70,7 +71,7 @@ parser.add_argument('--coupling_depth', type=int, default=3,
                     help='Depth of network used to learn transformer parameters.')
 
 parser.add_argument('--batch_size', type=int, default=100, help='Size of batch for training.')
-parser.add_argument('--epochs', type=int, default=2,
+parser.add_argument('--epochs', type=int, default=10,
                     help='The number of epochs to train for.')
 parser.add_argument('--nstack', type=int, default=4,
                     help='The number of spline transformations to stack in the inn.')
@@ -131,8 +132,11 @@ sv_dir = get_top_dir()
 image_dir = sv_dir + f'/images/{args.d}/'
 if not os.path.exists(image_dir):
     os.makedirs(image_dir, exist_ok=True)
-log_dir = sv_dir + '/logs/' + exp_name
-writer = SummaryWriter(log_dir=log_dir)
+log_dir = f'{sv_dir}/logs/{args.log_dir}/'
+if not os.path.exists(log_dir):
+    os.makedirs(log_dir, exist_ok=True)
+timestamp = get_timestamp()
+writer = SummaryWriter(log_dir=f'{log_dir}/{exp_name}_{timestamp}')
 
 # Save options used for running
 register_experiment(sv_dir, f'{args.d}/{exp_name}', args)
@@ -242,4 +246,4 @@ classifier_args = {'false_signal': 2, 'batch_size': 1000, 'nepochs': args.classi
 post_process_curtains(curtain_runner, datasets, sup_title='NSF', signal_anomalies=signal_anomalies,
                       load=args.load_classifiers, use_mass_sampler=args.use_mass_sampler,
                       n_sample_for_plot=args.n_sample, light_job=args.light, classifier_args=classifier_args,
-                      plot=args.plot, mass_sampler=mass_sampler)
+                      plot=args.plot, mass_sampler=mass_sampler, summary_writer=writer, args=args)

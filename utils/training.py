@@ -178,6 +178,8 @@ def fit(model, optimizers, dataset, n_epochs, batch_size, writer, schedulers=Non
 
             if schedulers:
                 [scheduler.step() for scheduler in schedulers]
+                [writer.add_scalar(f'learning_rate_{i}', schedulers[i].get_last_lr(), global_step) for i in
+                 range(len(schedulers))]
 
             if i % monitor_interval == 0:
                 summaries = model.get_loss_state(4)
@@ -223,6 +225,9 @@ def fit(model, optimizers, dataset, n_epochs, batch_size, writer, schedulers=Non
             tval.set_description_str(s)
         val_save = val_save.append(val_info, ignore_index=True)
 
+        for summary, value in val_info.items():
+            writer.add_scalar(tag=f'val_{summary}', scalar_value=value, global_step=global_step)
+
         # If the best validation error doesn't exist create it - useful for reloading models
         loss_track = np.mean(list(val_info.values()))
         try:
@@ -256,11 +261,11 @@ def fit(model, optimizers, dataset, n_epochs, batch_size, writer, schedulers=Non
     if plot_history:
         fig, axs = plt.subplots(1, len(loss_nms), figsize=(20, 5))
         for j, ax in enumerate(fig.axes):
-            
+
             nm = loss_nms[j]
             ax.plot(val_save[nm], label='Validation')
             ax.plot(train_save[nm], '--', label='Training')
-            step = n_epochs/5
+            step = n_epochs / 5
             xtick = np.arange(0, n_epochs, step)
             if best_step in xtick:
                 pass
@@ -269,13 +274,13 @@ def fit(model, optimizers, dataset, n_epochs, batch_size, writer, schedulers=Non
                 xtick.sort()
             ax.set_xticklabels(xtick, rotation=45, ha='right')
             ax.set_title(nm)
-            ind = np.where(xtick==best_step)[0][0]
+            ind = np.where(xtick == best_step)[0][0]
             ax.get_xticklabels()[ind].set_color("green")
             ax.legend(frameon=False)
             ax.set_ylabel("loss")
             ax.set_xlabel("epoch")
             np.save(f'{sv_dir}/loss_{nm}.npy', np.array([train_save[nm], val_save[nm]], dtype=object))
         fig.savefig(sv_dir + '/training_{}.png'.format(model.exp_name))
-        
+
     # print('\nFinished Training')
     print(f"\n Transformer finished training, with best valuation at step {best_step}")
