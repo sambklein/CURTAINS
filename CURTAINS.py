@@ -47,7 +47,7 @@ parser.add_argument("--quantiles", nargs="*", type=float, default=[1, 2, 3, 4])
 # parser.add_argument("--bins", nargs="*", type=float, default=[2300, 2700, 3300, 3700, 4900, 5000])
 parser.add_argument("--bins", nargs="*", type=float, default=[3000, 3200, 3400, 3600, 3800, 4000])
 # parser.add_argument("--bins", nargs="*", type=float, default=[2900, 3100, 3300, 3500, 3800, 4000])
-parser.add_argument("--doping", type=float, default=0.)
+parser.add_argument("--doping", type=float, default=0.1)
 parser.add_argument("--feature_type", type=int, default=3)
 
 ## Names for saving
