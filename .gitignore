@@ -11,6 +11,8 @@
 /data/downloads
 /data/saved_models
 /data/slims
+tbslurm/
+pplot/
 submit.txt
 settings.txt
   
@@ -90,3 +92,5 @@ submit.txt
 submit.sh
 repeat.txt
 notebook.sh
+tblogger.sh
+*.csv
