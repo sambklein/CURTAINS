@@ -76,9 +76,9 @@ def parallel_plot(df,cols,rank_attr,cmap='Spectral',spread=None,curved=False,cur
                 x_new = np.linspace(0, len(x), len(x)*20)
                 a_BSpline = make_interp_spline(x, valmat[:,idx],k=3,bc_type='clamped')
                 y_new = a_BSpline(x_new)
-                ax.plot(x_new,y_new,color=colmap(valmat[-1,idx]),alpha=0.8)
+                ax.plot(x_new,y_new,color=colmap(valmat[-1,idx]),alpha=0.3)
             else:
-                ax.plot(x,valmat[:,idx],color=colmap(valmat[-1,idx]),alpha=0.8)
+                ax.plot(x,valmat[:,idx],color=colmap(valmat[-1,idx]),alpha=0.3)
         ax.set_ylim(0-extendfrac,1+extendfrac)
         ax.set_xlim(i,i+1)
     
