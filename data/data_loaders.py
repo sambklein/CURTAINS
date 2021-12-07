@@ -51,25 +51,6 @@ def load_jets(sm='QCD', split=0.1, normalize=True, dtype='float32'):
     return trainset, testset
 
 
-# def load_curtains_pd():
-#     # TODO: make this a wrapper for loading generic pandas files
-#     data_dir = '/srv/beegfs/scratch/groups/dpnc/atlas/AnomalousJets'
-#     slim_dir = get_top_dir() + '/data/slims'
-#     filename = 'final_jj_1MEvents_substructure.h5'
-#     data_file = data_dir + '/' + filename
-#     slim_file = slim_dir + '/' + filename
-#     # If you aren't on the cluster load a local slim version for testing
-#     if on_cluster():
-#         df = pd.read_hdf(data_file)
-#         # If you are on the cluster and the slim file doesn't exist, make it
-#         if not os.path.isfile(slim_file):
-#             df_sv = df.take(list(range(5000)))
-#             os.makedirs(slim_dir)
-#             df_sv.to_csv(slim_file, index=False)
-#     else:
-#         df = pd.read_csv(slim_file)
-#     return df.dropna()
-
 # TODO: this is stupid code duplication from the pytorch-utils repo in the anomaly tools.
 def fill_array(to_fill, obj, dtype):
     arr = np.array(obj, dtype=dtype)
@@ -105,15 +86,6 @@ def get_dijet_features(df):
 
 def load_curtains_pd(sm='QCDjj_pT', dtype='float32', extraStats=False, feature_type=0):
     if on_cluster() and (feature_type < 2):
-
-        # directory = '/srv/beegfs/scratch/groups/rodem/anomalous_jets/data/'
-        # nchunks = 6 if sm[:3] == 'QCD' else 5
-        # lo_obs = np.empty((nchunks, 190000, 11))
-        # nlo_obs = np.empty((nchunks, 190000, 11))
-        # for i in range(nchunks):
-        #     with h5py.File(directory + f"20210430_{sm}_450_1200_nevents_1M/merged_selected_{i}.h5", 'r') as readfile:
-        #         fill_array(lo_obs[i], readfile["objects/jets/jet1_obs"][:], dtype)
-        #         fill_array(nlo_obs[i], readfile["objects/jets/jet2_obs"][:], dtype)
 
         directory = '/srv/beegfs/scratch/groups/rodem/anomalous_jets/data/'
 
@@ -261,40 +233,6 @@ def load_curtains_pd(sm='QCDjj_pT', dtype='float32', extraStats=False, feature_t
     return data
 
 
-# def load_curtains_pd(sm='QCDjj_pT', dtype='float32'):
-#     if on_cluster():
-#
-#         directory = '/srv/beegfs/scratch/groups/rodem/anomalous_jets/data/'
-#         nchunks = 6 if sm[:3] == 'QCD' else 5
-#         lo_obs = np.empty((nchunks, 190000, 11))
-#         nlo_obs = np.empty((nchunks, 190000, 11))
-#         for i in range(nchunks):
-#             with h5py.File(directory + f"20210430_{sm}_450_1200_nevents_1M/merged_selected_{i}.h5", 'r') as readfile:
-#                 fill_array(lo_obs[i], readfile["objects/jets/jet1_obs"][:], dtype)
-#                 fill_array(nlo_obs[i], readfile["objects/jets/jet2_obs"][:], dtype)
-#
-#         low_level_names = ['pt', 'eta', 'phi', 'mass', 'tau1', 'tau2', 'tau3', 'd12', 'd23', 'ECF2', 'ECF3']
-#         lo_obs = np.vstack(lo_obs)
-#         mx = lo_obs[:, 0] != 0
-#         df = pd.DataFrame(np.hstack((lo_obs[mx], np.vstack(nlo_obs)[mx])),
-#                           columns=low_level_names + ['nlo_' + nm for nm in low_level_names])
-#
-#         slim_file = get_top_dir() + f'/data/slims/{sm}.csv'
-#         if not os.path.isfile(slim_file):
-#             if not os.path.isfile(slim_file):
-#                 df_sv = df.take(list(range(10000)))
-#                 os.makedirs(get_top_dir() + '/data/slims/', exist_ok=True)
-#                 df_sv.to_csv(slim_file, index=False)
-#
-#         return df
-#
-#     else:
-#         slim_dir = get_top_dir() + '/data/slims'
-#         filename = f'{sm}.csv'
-#         slim_file = slim_dir + '/' + filename
-#         return pd.read_csv(slim_file)
-
-
 def load_curtains():
     df = load_curtains_pd()
     return Curtains(df)
@@ -323,12 +261,15 @@ def dope_dataframe(undoped, anomaly_data, doping):
     n = int(len(anomaly_data) * doping)
     if len(anomaly_data) < n:
         raise Exception('Not enough anomalies in this region for this level of doping.')
-    anomaly_data = anomaly_data.sample(frac=1)
-    mixing_anomalies = anomaly_data.iloc[:n]
-    anomaly_data = anomaly_data.iloc[n:]
-    df = pd.concat((mixing_anomalies, undoped), 0)
-    df = df.sample(frac=1)
-    return anomaly_data, mixing_anomalies, df
+    if len(anomaly_data) != 0:
+        anomaly_data = anomaly_data.sample(frac=1)
+        mixing_anomalies = anomaly_data.iloc[:n]
+        anomaly_data = anomaly_data.iloc[n:]
+        df = pd.concat((mixing_anomalies, undoped), 0)
+        df = df.sample(frac=1)
+        return anomaly_data, mixing_anomalies, df
+    else:
+        pass
 
 
 def mask_dataframe(df, context_feature, bins, indx, doping=0., anomaly_data=None):
@@ -344,9 +285,51 @@ def mask_dataframe(df, context_feature, bins, indx, doping=0., anomaly_data=None
 
     return remaining_anomalies, mixed_anomalies, df, len(mixed_anomalies)/len(undoped_df)
 
+def filter_mix_data(df_bg, df_anomaly, edges, context):
+
+    u_context_df = df_bg[context]
+    u_mx = ((u_context_df > edges[0]) & (u_context_df < edges[1]))
+
+    a_context_df = df_anomaly[context]
+    a_mx = ((a_context_df > edges[0]) & (a_context_df < edges[1]))
+
+    mix = pd.concat([df_bg.loc[u_mx], df_anomaly.loc[a_mx]])
+    mix = mix.sample(frac=1)
+    return mix, len(df_anomaly.loc[a_mx])/len(df_bg.loc[u_mx])
+
+
+def binwise_mixing(df, anomaly, context, bins):
+    
+    reg = ["OB1", "SB1", "SR", "SB2", "OB2"]
+    data = {}
+    for edge1, edge2, window in zip(bins, bins[1:], reg):
+        data[window] = filter_mix_data(df, anomaly, (edge1, edge2), context)
+    return data
+
+
+def dope_dataframe_new(undoped, anomaly_data, doping, bins, context):
+    '''
+    returns the mixed in anomalies, holdout anomalies, and doped dataframe and sig frac in OB1-SB1-SR-SB2-OB2
+    
+    args:
+        undoped -> pandas df for the bg spectra.
+        anomaly_data -> pandas df for the sig spectra.
+        doping -> integer for how many signal samples to take and mix in.
+        bins -> list for bin edge definition for ob1 through ob2.
+        context -> df key for the context feature, Usually mjj or mass.
+    '''
+
+    anomaly_data = anomaly_data.sample(frac=1)
+    mixed_in_anomaly = anomaly_data.iloc[:doping]
+    holdout_anomaly = anomaly_data.iloc[doping:]
+  
+    package_data = binwise_mixing(undoped, mixed_in_anomaly, context, bins)
+
+    return holdout_anomaly, mixed_in_anomaly, package_data
+
 
 def get_data(dataset, sv_nm, bins=None, normalize=True, mix_qs=False, flow=False,
-             anomaly_process='WZ_allhad_pT', doping=0., extraStats=True, feature_type=0):
+             anomaly_process='WZ_allhad_pT', doping=0, extraStats=True, feature_type=0):
     # Using bins and quantiles to separate semantics between separating base on self defined mass bins and quantiles
     if dataset == 'curtains':
         df = load_curtains_pd(extraStats=extraStats, feature_type=feature_type)
@@ -365,26 +348,20 @@ def get_data(dataset, sv_nm, bins=None, normalize=True, mix_qs=False, flow=False
 
         anomaly_data = load_curtains_pd(sm=anomaly_process, feature_type=feature_type)
 
-        # n_dope = int(len(anomaly_data)*doping)
-        # n_dope = 
-        anomaly_data = anomaly_data.sample(frac=1)
-        mixed_in_anomaly = anomaly_data.iloc[:doping]
-        holdout_anomaly = anomaly_data.iloc[doping:]
+        signal_anomalies, mixed, package = dope_dataframe_new(df, anomaly_data, doping, bins, context_feature)
 
-        # TODO: when doping is not zero you don't want the signal anomalies to contain duplicates!!
-        _, lm_mixed, lm, sigfrac_lm = mask_dataframe(df, context_feature, bins, [1, 2], 1., mixed_in_anomaly)
-        _, hm_mixed, hm, sigfrac_hm = mask_dataframe(df, context_feature, bins, [3, 4], 1., mixed_in_anomaly)
-        _, ob1_mixed, ob1, sigfrac_ob1 = mask_dataframe(df, context_feature, bins, [0, 1], 1., mixed_in_anomaly)
-        _, ob2_mixed, ob2, sigfrac_ob2 = mask_dataframe(df, context_feature, bins, [4, 5], 1., mixed_in_anomaly)
-        _, signal_mixed, signal, sigfrac_sr = mask_dataframe(df, context_feature, bins, [2, 3], 1., mixed_in_anomaly)
-        signal_anomalies, _, _, _ = mask_dataframe(df, context_feature, bins, [2, 3], 0., holdout_anomaly)
+        lm, sigfrac_lm = package["SB1"]
+        hm, sigfrac_hm = package["SB2"]
+        ob1, sigfrac_ob1 = package["OB1"]
+        ob2, sigfrac_ob2 = package["OB2"]
+        signal, sigfrac_sr = package["SR"]
 
         '''
         plotting the windows:
         df['mass'] will be the bg - mention region of interest ?
         lm_mixed, hm_mixed, ob1_mixed, ob2_mixed, signal_mixed are the ones that enter the whole bg.
         '''
-        mixed = pd.concat([lm_mixed, hm_mixed, ob1_mixed, ob2_mixed, signal_mixed])
+        # mixed = pd.concat([lm_mixed, hm_mixed, ob1_mixed, ob2_mixed, signal_mixed])
         anomaly_mixed_mass = mixed[context_feature]
         bg_mass = df[context_feature]
 
@@ -398,15 +375,7 @@ def get_data(dataset, sv_nm, bins=None, normalize=True, mix_qs=False, flow=False
         fig, axs = plt.subplots(1, nfeatures, figsize=(5 * nfeatures + 2, 5))
         hist_features(lm, hm, nfeatures, axs, axs_nms=lm.feature_nms, labels=['SB1', 'SB2'], legend=False)
         print(sv_nm + '_inital_features.png')
-        # for i in range(nfeatures):
-        #     # TODO: don't take this to 0.5! You can't always see everything!
-        #     axs[i].vlines(lm[:, i].max().item(), 0, 0.5, label='SB1', colors='r')
-        #     axs[i].vlines(hm[:, i].max().item(), 0, 0.5, label='SB2', colors='b')
-        #     axs[i].vlines(lm[:, i].min().item(), 0, 0.5, colors='r')
-        #     axs[i].vlines(hm[:, i].min().item(), 0, 0.5, colors='b')
-        # (lm[:, 1] > hm[:, 1].max()).sum(), 3 variables for our outlier!! TODO: implement this counting
-        # handles, labels = axs[i].get_legend_handles_labels()
-        # fig.legend(handles, labels, loc='upper right')
+
         fig.savefig(sv_nm + '_inital_features.png')
 
         training_data = CurtainsTrainSet(lm, hm, mix_qs=mix_qs, stack=flow)
@@ -426,33 +395,6 @@ def get_data(dataset, sv_nm, bins=None, normalize=True, mix_qs=False, flow=False
             tensor = shuffle_tensor(tensor)
             n = int(tensor.shape[0] * n_percent)
             return tensor[:n]
-
-        # d_for_plot = torch.cat(
-        #     (shuffle_tensor(validation_data_lm.data)[:ntake],
-        #      shuffle_tensor(lm.data)[:ntake],
-        #      shuffle_tensor(hm.data)[:ntake],
-        #      shuffle_tensor(signal_data.data)[:ntake],
-        #      shuffle_tensor(signal_data.data)[:ntake])
-        #     , 0)
-        d_for_plot = torch.cat(
-            (sample_tensor(lm.data),
-             sample_tensor(hm.data),
-             sample_tensor(signal_data.data))
-            , 0)
-        # nfeatures = 2
-        # mx = (df['mass'] > 65) & (df['mass'] < 95)
-        # ntake = 100000 if sum(mx) > 50000 else sum(mx)
-        # df2 = df[mx].sample(n=ntake)
-        # d_for_plot = np.zeros((ntake, nfeatures + 1))
-        # d_for_plot[:, 0] = df2['tau1']
-        # d_for_plot[:, 1] = df2['tau2']
-        # d_for_plot[:, -1] = df2['mass']
-        # d_for_plot = lm.data
-        # for i in range(nfeatures):
-        #     kde_plot(d_for_plot[:, -1], d_for_plot[:, i], axs[i], levels=20)
-        #     axs[i].set_ylabel(lm.feature_nms[i])
-        #     axs[i].set_xlabel(r'$m_{JJ}$')
-        # fig.savefig(sv_nm + '_feature_correlations.png', bbox_inches='tight')
 
         drape = WrappingCurtains(training_data, signal_data, validation_data, validation_data_lm, bins)
 
