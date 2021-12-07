@@ -313,7 +313,8 @@ def get_windows_plot(bgspectra, anomalyspectra, woi, windows, sv_dir, frac):
     ax.set_xlabel("Mass (Gev)")
     ax.set_ylabel("Count")
     ax.set_ylim(0, 1.5 * np.max(bgcount))
-    ax.text(4000, 1600, f"Doping fraction in SR {sig_frac}")
+    ax.set_xlim(woi[0], woi[1])
+    ax.text(4000, 1600, f"Signal fraction in SR {sig_frac}")
     ax.text(4000, 1200, f"Signal Fraction in\nOB1-SB1-SB2-OB2\n{frac}")
     fig.savefig(f'{sv_dir}_windows.png')
 

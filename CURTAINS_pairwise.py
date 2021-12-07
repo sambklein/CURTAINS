@@ -26,6 +26,7 @@ from utils.io import get_top_dir, register_experiment, get_timestamp
 from data.data_loaders import get_data, get_bin
 
 import argparse
+import sys
 
 parser = argparse.ArgumentParser()
 
@@ -38,16 +39,10 @@ parser.add_argument('--mix_sb', type=int, default=2, help='Mix sidebands while t
 ## Binning parameters
 parser.add_argument("--quantiles", nargs="*", type=float, default=[1, 2, 3, 4])
 # parser.add_argument("--bins", nargs="*", type=float, default=[55, 65, 75, 85, 95, 105])
-# parser.add_argument("--bins", nargs="*", type=float, default=[1000, 1200, 1800, 1900, 2000, 2100])
-# parser.add_argument("--bins", nargs="*", type=float, default=[1000, 1200, 1400, 1600, 1800, 2000])
-# parser.add_argument("--bins", nargs="*", type=float, default=[2000, 2500, 3000, 3500, 4000, 4500])
-# parser.add_argument("--bins", nargs="*", type=float, default=[3000, 3200, 3400, 3600, 3800, 4000])
-# parser.add_argument("--bins", nargs="*", type=float, default=[2700, 3000, 3300, 3600, 3900, 4100])
-# parser.add_argument("--bins", nargs="*", type=float, default=[2300, 2700, 3300, 3700, 4000, 4300])
-# parser.add_argument("--bins", nargs="*", type=float, default=[2300, 2700, 3300, 3700, 4900, 5000])
 parser.add_argument("--bins", nargs="*", type=float, default=[3000, 3200, 3400, 3600, 3800, 4000])
-# parser.add_argument("--bins", nargs="*", type=float, default=[2900, 3100, 3300, 3500, 3800, 4000])
-parser.add_argument("--doping", type=float, default=0.)
+# parser.add_argument("--bins", nargs="*", type=float, default=[3300, 3500, 3700, 3900, 4100, 4300])
+# parser.add_argument("--bins", nargs="*", type=float, default=[2700, 2900, 3100, 3300, 3500, 3700])
+parser.add_argument("--doping", type=int, default=0, help='Raw number of signal events to be added into the entire bg spectra.')
 parser.add_argument("--feature_type", type=int, default=3)
 
 ## Names for saving

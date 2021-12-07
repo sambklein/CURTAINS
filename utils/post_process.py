@@ -477,7 +477,7 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
         print('With anomalies injected')
         rates_sr_vs_transformed = {}
         rates_sr_qcd_vs_anomalies = {'Supervised': auc_super_info[1]}
-        for beta in [0.5, 1, 5, 15, 100]:
+        for beta in [0.5, 1, 5, 15, 100, 0.0]:
             auc_info = get_auc(samples, datasets.signalset.data, sv_dir, nm + f'{beta}%Anomalies',
                                anomaly_data=signal_anomalies.data.to(device), beta=beta / 100,
                                sup_title=f'QCD in SR doped with {beta:.3f}% anomalies',

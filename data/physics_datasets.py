@@ -239,12 +239,18 @@ class CurtainsTrainSet(Dataset):
                 d2 = self.data2[torch.randperm(self.s2, device='cpu')]
                 data = torch.cat((mix_side_bands(d1), mix_side_bands(d2)), 0)
                 self.mix_qs = 0
-            else:
+            elif self.mix_qs == 0:
                 # This method keeps the high mass and low mass regions separated
                 d1 = self.data1[torch.randperm(self.s1, device='cpu')]
                 d2 = self.data2[torch.randperm(self.s2, device='cpu')]
                 data = torch.cat((d1[:self.ndata].data, d2[:self.ndata].data), 1)
                 self.mix_qs = 2
+            
+            elif self.mix_qs == 3:
+                # This method keeps the high mass and low mass regions separated
+                d1 = self.data1[torch.randperm(self.s1, device='cpu')]
+                d2 = self.data2[torch.randperm(self.s2, device='cpu')]
+                data = torch.cat((d1[:self.ndata].data, d2[:self.ndata].data), 1)
             return data
 
     def set_norm_fact(self, scale):
