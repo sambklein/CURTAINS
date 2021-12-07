@@ -299,6 +299,11 @@ def load_curtains():
     df = load_curtains_pd()
     return Curtains(df)
 
+def drop_redundant_df(df, context_feature, cutoff):
+    
+    context_df = df[context_feature]
+    df = df.loc[(context_df > cutoff)]
+    return df
 
 def get_bin(process, bin, trainset=None, normalize=True):
     df = load_curtains_pd(sm=process)
@@ -315,7 +320,7 @@ def get_bin(process, bin, trainset=None, normalize=True):
 
 
 def dope_dataframe(undoped, anomaly_data, doping):
-    n = int(len(undoped) * doping)
+    n = int(len(anomaly_data) * doping)
     if len(anomaly_data) < n:
         raise Exception('Not enough anomalies in this region for this level of doping.')
     anomaly_data = anomaly_data.sample(frac=1)
@@ -337,7 +342,7 @@ def mask_dataframe(df, context_feature, bins, indx, doping=0., anomaly_data=None
 
     remaining_anomalies, mixed_anomalies, df = dope_dataframe(undoped_df, anomaly_data, doping)
 
-    return remaining_anomalies, mixed_anomalies, df
+    return remaining_anomalies, mixed_anomalies, df, len(mixed_anomalies)/len(undoped_df)
 
 
 def get_data(dataset, sv_nm, bins=None, normalize=True, mix_qs=False, flow=False,
@@ -348,6 +353,7 @@ def get_data(dataset, sv_nm, bins=None, normalize=True, mix_qs=False, flow=False
     else:
         raise NotImplementedError('The loader of this dataset has not been implemented yet.')
 
+    cutoff = 2700
     if bins:
         # Split the data into different datasets based on the binning
         if feature_type == 0:
@@ -355,16 +361,23 @@ def get_data(dataset, sv_nm, bins=None, normalize=True, mix_qs=False, flow=False
             woi = [40, 150]
         else:
             context_feature = 'mjj'
-            woi = [40, 5000]
+            woi = [cutoff, 5000]
 
         anomaly_data = load_curtains_pd(sm=anomaly_process, feature_type=feature_type)
 
+        # n_dope = int(len(anomaly_data)*doping)
+        # n_dope = 
+        anomaly_data = anomaly_data.sample(frac=1)
+        mixed_in_anomaly = anomaly_data.iloc[:doping]
+        holdout_anomaly = anomaly_data.iloc[doping:]
+
         # TODO: when doping is not zero you don't want the signal anomalies to contain duplicates!!
-        _, lm_mixed, lm = mask_dataframe(df, context_feature, bins, [1, 2], doping, anomaly_data)
-        _, hm_mixed, hm = mask_dataframe(df, context_feature, bins, [3, 4], doping, anomaly_data)
-        _, ob1_mixed, ob1 = mask_dataframe(df, context_feature, bins, [0, 1], doping, anomaly_data)
-        _, ob2_mixed, ob2 = mask_dataframe(df, context_feature, bins, [4, 5], doping, anomaly_data)
-        signal_anomalies, signal_mixed, signal = mask_dataframe(df, context_feature, bins, [2, 3], doping, anomaly_data)
+        _, lm_mixed, lm, sigfrac_lm = mask_dataframe(df, context_feature, bins, [1, 2], 1., mixed_in_anomaly)
+        _, hm_mixed, hm, sigfrac_hm = mask_dataframe(df, context_feature, bins, [3, 4], 1., mixed_in_anomaly)
+        _, ob1_mixed, ob1, sigfrac_ob1 = mask_dataframe(df, context_feature, bins, [0, 1], 1., mixed_in_anomaly)
+        _, ob2_mixed, ob2, sigfrac_ob2 = mask_dataframe(df, context_feature, bins, [4, 5], 1., mixed_in_anomaly)
+        _, signal_mixed, signal, sigfrac_sr = mask_dataframe(df, context_feature, bins, [2, 3], 1., mixed_in_anomaly)
+        signal_anomalies, _, _, _ = mask_dataframe(df, context_feature, bins, [2, 3], 0., holdout_anomaly)
 
         '''
         plotting the windows:
@@ -375,7 +388,7 @@ def get_data(dataset, sv_nm, bins=None, normalize=True, mix_qs=False, flow=False
         anomaly_mixed_mass = mixed[context_feature]
         bg_mass = df[context_feature]
 
-        get_windows_plot(bg_mass, anomaly_mixed_mass, woi, bins, sv_nm)
+        get_windows_plot(bg_mass, anomaly_mixed_mass, woi, bins, sv_nm, frac=[sigfrac_ob1, sigfrac_lm, sigfrac_sr, sigfrac_hm, sigfrac_ob2])
 
         lm = Curtains(lm)
         hm = Curtains(hm)
