@@ -118,7 +118,7 @@ def get_sinkhorn(sinkhorn_dist):
     return sinkhorn_divergence
 
 
-def get_measure(name):
+def get_measure(name, **kwargs):
     if name.casefold() == 'none':
         def dist(x, y):
             return torch.tensor(0)
@@ -144,7 +144,11 @@ def get_measure(name):
         dist = torch.nn.MSELoss()
 
     if name.casefold() == 'huber':
-        dist = torch.nn.SmoothL1Loss()  # Can update this once we update pytorch.
+        if 'beta' in kwargs:
+            beta = kwargs['beta']
+        else:
+            beta = 1.0
+        dist = torch.nn.SmoothL1Loss(beta=beta)  # Can update this once we update pytorch.
 
     def dist_measure(x, y):
         return dist(x, y)

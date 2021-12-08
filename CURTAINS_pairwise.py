@@ -34,7 +34,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', type=str, default='curtains', help='The dataset to train on.')
 # TODO: not currently implemented, NOT a priority
 parser.add_argument('--resonant_feature', type=str, default='mass', help='The resonant feature to use for binning.')
-parser.add_argument('--mix_sb', type=int, default=2, help='Mix sidebands while training?')
+parser.add_argument('--mix_sb', type=int, default=1, help='Mix sidebands while training?')
 
 ## Binning parameters
 parser.add_argument("--quantiles", nargs="*", type=float, default=[1, 2, 3, 4])
@@ -54,16 +54,17 @@ parser.add_argument('--load_classifiers', type=int, default=0, help='Whether or 
 parser.add_argument('--log_dir', type=str, default='no_scan', help='Whether or not to load a model.')
 
 ## Hyper parameters
-parser.add_argument('--pdistance', type=str, default='mse', help='Type of primary dist measure to use.')
-parser.add_argument('--sdistance', type=str, default='None', help='Type of secondary dist measure to use.')
+parser.add_argument('--pdistance', type=str, default='huber', help='Type of primary dist measure to use.')
+parser.add_argument('--sdistance', type=str, default='sinkhorn', help='Type of secondary dist measure to use.')
 parser.add_argument('--weight', type=float, default=1, help='Weight for the primary distance. Defaults to 1.')
+parser.add_argument('--huberbeta', type=float, default=1.0, help='Beta value for huber loss.')
 
 parser.add_argument('--coupling', type=int, default=1, help='One to use coupling layers, zero for autoregressive.')
-parser.add_argument('--spline', type=int, default=0, help='One to use spline transformations.')
+parser.add_argument('--spline', type=int, default=1, help='One to use spline transformations.')
 parser.add_argument('--two_way', type=int, default=1,
                     help='One to train mapping from high mass to low mass, and low mass to high mass.')
 parser.add_argument('--shuffle', type=int, default=1, help='Shuffle on epoch end.')
-parser.add_argument('--coupling_width', type=int, default=64,
+parser.add_argument('--coupling_width', type=int, default=128,
                     help='Width of network used to learn transformer parameters.')
 parser.add_argument('--coupling_depth', type=int, default=3,
                     help='Depth of network used to learn transformer parameters.')
@@ -71,7 +72,7 @@ parser.add_argument('--coupling_depth', type=int, default=3,
 parser.add_argument('--batch_size', type=int, default=100, help='Size of batch for training.')
 parser.add_argument('--epochs', type=int, default=10,
                     help='The number of epochs to train for.')
-parser.add_argument('--nstack', type=int, default=4,
+parser.add_argument('--nstack', type=int, default=2,
                     help='The number of spline transformations to stack in the inn.')
 parser.add_argument('--nblocks', type=int, default=2,
                     help='The number of layers in the networks in each spline transformation.')
@@ -90,9 +91,9 @@ parser.add_argument('--nbins', type=int, default=10,
 parser.add_argument('--ncond', type=int, default=1,
                     help='The number of features to condition on.')
 parser.add_argument('--load_best', type=int, default=0, help='Load the model that has the best validation score.')
-parser.add_argument('--det_beta', type=float, default=0.1, help='Factor to multiply determinant by in the loss.')
+parser.add_argument('--det_beta', type=float, default=0., help='Factor to multiply determinant by in the loss.')
 parser.add_argument('--sample_m_train', type=int, default=0, help='Use mass sampler during training?')
-parser.add_argument('--optim', type=str, default='Adam', help='Optimiser to use.')
+parser.add_argument('--optim', type=str, default='rmsprop', help='Optimiser to use.')
 
 ## Classifier training
 parser.add_argument('--beta_add_noise', type=float, default=0.,
@@ -127,7 +128,7 @@ pdistance = args.pdistance
 sdistance = args.sdistance
 
 # measure(x, y) returns distance from x to y (N, D) for N samples in D dimensions, or (B, N, D) with a batch index
-pmeasure = get_measure(pdistance)
+pmeasure = get_measure(pdistance, beta=args.huberbeta)
 smeasure = get_measure(sdistance)
 
 sv_dir = get_top_dir()
