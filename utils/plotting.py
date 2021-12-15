@@ -281,7 +281,7 @@ def plot_rates_dict(sv_dir, rates_dict, title):
     fig.savefig(sv_dir + f'/{title}_sic.png', bbox_extra_artists=(lgd,), bbox_inches='tight')
 
 
-def get_windows_plot(bgspectra, anomalyspectra, woi, windows, sv_dir):
+def get_windows_plot(bgspectra, anomalyspectra, woi, windows, sv_dir, frac):
     '''
         args: bgspectra: The background masses: np array.
               anomalyspectra: The anomaly masses: np array.
@@ -293,6 +293,9 @@ def get_windows_plot(bgspectra, anomalyspectra, woi, windows, sv_dir):
     anomalyspectra = anomalyspectra.values
     bgspectra = bgspectra.values
 
+    frac = [round(floater, 3) for floater in frac]
+    sig_frac = frac[2]
+    frac.pop(2)
     sigAnomaly = anomalyspectra[np.where(np.logical_and(anomalyspectra > windows[2], anomalyspectra < windows[3]))]
 
     bgcount, bins, _ = ax.hist(bgspectra, bins=np.arange(woi[0], woi[1], 2), label='QCD', histtype='step')
@@ -310,7 +313,9 @@ def get_windows_plot(bgspectra, anomalyspectra, woi, windows, sv_dir):
     ax.set_xlabel("Mass (Gev)")
     ax.set_ylabel("Count")
     ax.set_ylim(0, 1.5 * np.max(bgcount))
-
+    ax.set_xlim(woi[0], woi[1])
+    ax.text(4000, 1600, f"Signal fraction in SR {sig_frac}")
+    ax.text(4000, 1200, f"Signal Fraction in\nOB1-SB1-SB2-OB2\n{frac}")
     fig.savefig(f'{sv_dir}_windows.png')
 
 

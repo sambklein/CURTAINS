@@ -88,7 +88,7 @@ venv.bak/
 
 #things that shouldn't be VCd
 grid.py
-submit.txt
+*.txt
 submit.sh
 repeat.txt
 notebook.sh

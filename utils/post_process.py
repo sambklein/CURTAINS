@@ -324,8 +324,11 @@ def get_samples(input_dist, target_dist, model, r_mass=False):
 def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=None, load=False, use_mass_sampler=False,
                           n_sample_for_plot=-1, light_job=0, classifier_args=None, plot=True, mass_sampler=None,
                           cathode=False, summary_writer=None, args=None):
+    
     if classifier_args is None:
         classifier_args = {}
+
+    oversample = args.oversample
 
     summary_writer_passed = summary_writer is not None
     low_mass_training = datasets.trainset.data1
@@ -409,7 +412,7 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
         # AUC for OB2 vs T(SB2)
         print('SB2 from OB2')
         ob2_samples = get_transformed(high_mass_training, lm=datasets.mass_bins[4], hm=datasets.mass_bins[5],
-                                      target_dist=datasets.validationset)
+                                      target_dist=datasets.validationset, oversample = oversample)
         auc_ob2 = get_auc(ob2_samples, datasets.validationset.data, sv_dir, nm + 'OB2_vs_TSB2',
                           mscaler=low_mass_training.unnorm_mass, load=load, sup_title=f'T(SB2) vs OB2',
                           **classifier_args)
@@ -420,7 +423,7 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
         # AUC for OB1 vs T(SB1)
         print('SB1 from OB1')
         ob1_samples = get_transformed(low_mass_training, lm=datasets.mass_bins[0], hm=datasets.mass_bins[1],
-                                      target_dist=datasets.validationset_lm)
+                                      target_dist=datasets.validationset_lm, oversample=oversample)
         auc_ob1 = get_auc(ob1_samples, datasets.validationset_lm.data, sv_dir, nm + 'OB1_vs_TSB1',
                           mscaler=low_mass_training.unnorm_mass, load=load, sup_title=f'T(SB1) vs OB1',
                           **classifier_args)
@@ -429,9 +432,9 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
     if light_job <= 1 or (light_job == 3):
         # Map the combined side bands into the signal region
         sb2_samples = get_transformed(high_mass_sample, lm=datasets.mass_bins[2], hm=datasets.mass_bins[3],
-                                      target_dist=datasets.signalset)
+                                      target_dist=datasets.signalset, oversample=oversample)
         sb1_samples = get_transformed(low_mass_sample, lm=datasets.mass_bins[2], hm=datasets.mass_bins[3],
-                                      target_dist=datasets.signalset)
+                                      target_dist=datasets.signalset, oversample=oversample)
         samples = torch.cat((sb2_samples, sb1_samples))
 
         # For the feature plot we only want to look at as many samples as there are in SB1
@@ -477,7 +480,7 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
         print('With anomalies injected')
         rates_sr_vs_transformed = {}
         rates_sr_qcd_vs_anomalies = {'Supervised': auc_super_info[1]}
-        for beta in [0.5, 1, 5, 15, 100]:
+        for beta in [0.5, 1, 5, 15, 100, 0.0]:
             auc_info = get_auc(samples, datasets.signalset.data, sv_dir, nm + f'{beta}%Anomalies',
                                anomaly_data=signal_anomalies.data.to(device), beta=beta / 100,
                                sup_title=f'QCD in SR doped with {beta:.3f}% anomalies',
