@@ -10,7 +10,7 @@ import pandas as pd
 import numpy as np
 import h5py
 import matplotlib.pyplot as plt
-import glob
+import glob 
 
 # Taken from https://github.com/bayesiains/nsf/blob/master/data/base.py
 from utils.io import get_top_dir, on_cluster, make_slim
@@ -226,9 +226,9 @@ def load_curtains_pd(sm='QCDjj_pT', dtype='float32', extraStats=False, feature_t
         #     sns.kdeplot(data[feature][:10000], y=data['mjj'], ax=axs_[1], alpha=0.4, levels=10, color='red', fill=True)
         #     fig.savefig(feature)
 
-        if not on_cluster():
-            data = data.sample(frac=1)
-            data = data.sample(100000)
+        # if not on_cluster():
+        #     data = data.sample(frac=1)
+        #     data = data.sample(100000)
 
     return data
 
@@ -270,7 +270,6 @@ def dope_dataframe(undoped, anomaly_data, doping):
         return anomaly_data, mixing_anomalies, df
     else:
         pass
-
 
 def mask_dataframe(df, context_feature, bins, indx, doping=0., anomaly_data=None):
     def mx_data(data):
