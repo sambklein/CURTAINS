@@ -390,6 +390,7 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
                     axs[i].set_xlabel(f'{base_name} {f_nms[i]}')
                     axs[i].set_ylabel(f'{set} {f_nms[i]}')
                 fig.savefig(f'{sv_dir}/{set}_{base_name}_compare.png')
+                fig.clf() 
 
     # Map low mass samples to high mass
     high_mass_datasets = {'Signal Set': datasets.signalset, 'SB2': high_mass_training,

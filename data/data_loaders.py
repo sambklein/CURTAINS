@@ -10,7 +10,7 @@ import pandas as pd
 import numpy as np
 import h5py
 import matplotlib.pyplot as plt
-import glob 
+import glob
 
 # Taken from https://github.com/bayesiains/nsf/blob/master/data/base.py
 from utils.io import get_top_dir, on_cluster, make_slim
