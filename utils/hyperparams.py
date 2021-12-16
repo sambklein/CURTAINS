@@ -134,6 +134,14 @@ def get_measure(name, **kwargs):
         dist = SamplesLoss('sinkhorn', scaling=0.9, blur=0.05)
         # dist = get_sinkhorn(dist)
 
+    if name == 'sinkhorn_slower':
+        dist = SamplesLoss('sinkhorn', scaling=0.95, blur=0.05)
+        # dist = get_sinkhorn(dist)
+
+    if name == 'sinkhorn_slowest':
+        dist = SamplesLoss('sinkhorn', scaling=0.99, blur=0.05)
+        # dist = get_sinkhorn(dist)
+
     if name == 'energy':
         dist = SamplesLoss('energy', blur=0.05)
 

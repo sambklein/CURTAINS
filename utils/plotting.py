@@ -161,8 +161,8 @@ def getFeaturePlot(model, original, sampled, lm_sample, nm, savedir, region, fea
     fig.legend(handles, labels, loc='upper left', bbox_to_anchor=(0.32, 0.89), frameon=False)
     if summary_writer is not None:
         summary_writer.add_figure(tag=f'featurespread_{region}', figure=fig)
-    plt.savefig(savedir + '/featurespread_{}_{}_{}.png'.format(region, nm, 'transformed_data'), bbox_inches="tight")
-    plt.clf()
+    fig.savefig(savedir + '/featurespread_{}_{}_{}.png'.format(region, nm, 'transformed_data'), bbox_inches="tight")
+    fig.clf()
 
 
 def getCrossFeaturePlot(model, original, sampled, nm, savedir, mass, feature_names):

@@ -45,9 +45,11 @@ parser.add_argument("--quantiles", nargs="*", type=float, default=[1, 2, 3, 4])
 # parser.add_argument("--bins", nargs="*", type=float, default=[2700, 3000, 3300, 3600, 3900, 4100])
 # parser.add_argument("--bins", nargs="*", type=float, default=[2300, 2700, 3300, 3700, 4000, 4300])
 # parser.add_argument("--bins", nargs="*", type=float, default=[2300, 2700, 3300, 3700, 4900, 5000])
-parser.add_argument("--bins", nargs="*", type=float, default=[3000, 3200, 3400, 3600, 3800, 4000])
+# parser.add_argument("--bins", nargs="*", type=float, default=[3000, 3200, 3400, 3600, 3800, 4000])
+parser.add_argument("--bins", type=str, default='3000,3200,3400,3600,3800,4000')
 # parser.add_argument("--bins", nargs="*", type=float, default=[2900, 3100, 3300, 3500, 3800, 4000])
-parser.add_argument("--doping", type=float, default=0.1)
+parser.add_argument("--doping", type=int, default=0,
+                    help='Raw number of signal events to be added into the entire bg spectra.')
 parser.add_argument("--feature_type", type=int, default=3)
 
 ## Names for saving
@@ -94,6 +96,8 @@ parser.add_argument('--ncond', type=int, default=1,
 parser.add_argument('--load_best', type=int, default=0, help='Load the model that has the best validation score.')
 parser.add_argument('--det_beta', type=float, default=0.1, help='Factor to multiply determinant by in the loss.')
 parser.add_argument('--sample_m_train', type=int, default=0, help='Use mass sampler during training?')
+parser.add_argument('--oversample', type=int, default=4,
+                    help='How many times do we want to sample a point from the target distribution to transform to?')
 
 ## Classifier training
 parser.add_argument('--beta_add_noise', type=float, default=0.,
@@ -141,6 +145,9 @@ writer = SummaryWriter(log_dir=f'{log_dir}/{exp_name}_{timestamp}')
 # Save options used for running
 register_experiment(sv_dir, f'{args.d}/{exp_name}', args)
 
+curtains_bins = args.bins.split(",")
+curtains_bins = [int(b) for b in curtains_bins]
+args.bins = curtains_bins
 # Make datasets
 # If the distance measure is the sinkhorn distance then don't mix samples between quantiles
 # mix_qs = distance[:8] != 'sinkhorn'
