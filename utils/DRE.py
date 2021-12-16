@@ -256,6 +256,7 @@ def get_auc(interpolated, truth, directory, name,
 
     if beta_bool and anomaly_bool and dope_splits:
         X_test_pure = deepcopy(X_test)
+        y_test_pure = deepcopy(y_test)
         get_mask = lambda x: (x == 0).flatten()
         anomaly_data, X_train[get_mask(y_train)] = dope_data(X_train[get_mask(y_train)], anomaly_data, beta)
         anomaly_data, X_val[get_mask(y_val)] = dope_data(X_val[get_mask(y_val)], anomaly_data, beta)
@@ -342,8 +343,7 @@ def get_auc(interpolated, truth, directory, name,
     add_normed_hist(y_scores[mx], ax, 'Signal', bins)
     add_normed_hist(y_scores[~mx], ax, 'BG', bins)
     if anomaly_bool:
-        random_labels = np.random.choice([0, 1], size=(X_test_pure.shape[0], 1))
-        pure_test_data = SupervisedDataClass(X_test_pure, random_labels)
+        pure_test_data = SupervisedDataClass(X_test_pure, y_test_pure)
         with torch.no_grad():
             if mass_incl:
                 ad = anomaly_data.data[:, :-1]
@@ -356,7 +356,7 @@ def get_auc(interpolated, truth, directory, name,
         add_normed_hist(anomaly_scores, ax, 'Anomalies', bins)
         fpr1, tpr1, _ = roc_curve(np.concatenate((np.zeros(len(anomaly_scores)), np.ones(len(y_scores[~mx])))),
                                   np.concatenate((anomaly_scores[:, 0], y_scores[~mx])))
-        fpr2, tpr2, _ = roc_curve(random_labels, inlier_scores)
+        fpr2, tpr2, _ = roc_curve(y_test_pure, inlier_scores) 
         roc_auc_anomalies = auc(fpr1, tpr1)
     ax.set_xlabel('Classifier output')
     fig.suptitle(sup_title)
