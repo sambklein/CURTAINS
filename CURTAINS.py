@@ -118,7 +118,7 @@ parser.add_argument('--seed', type=int, default=1638128,
                     help='Random seed for PyTorch and NumPy.')
 
 args = parser.parse_args()
-# args.d += '_' + args.n
+args.d += '_' + args.n
 
 torch.manual_seed(args.seed)
 np.random.seed(args.seed)

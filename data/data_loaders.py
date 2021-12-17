@@ -154,7 +154,7 @@ def load_curtains_pd(sm='QCDjj_pT', dtype='float32', extraStats=False, feature_t
         data[r'$dR_{jj}$'] = ((df['eta'] - df['nlo_eta']) ** 2 + delPhi ** 2) ** (0.5)
         data[r'$m_{JJ}$'] = df['mjj']
 
-    elif feature_type in [2, 3]:
+    elif feature_type in [2, 3, 4]:
         if on_cluster():
             directory = '/srv/beegfs/scratch/groups/rodem/LHCO'
         else:
@@ -217,6 +217,14 @@ def load_curtains_pd(sm='QCDjj_pT', dtype='float32', extraStats=False, feature_t
                 return data
 
             data.iloc[:, :-1] = scale_features(data.iloc[:, :-1])
+
+        if feature_type == 4:
+            # Introduce some spurious correlations
+            mJJ = data.iloc[:, -1]
+            data.iloc[:, 0] = data.iloc[:, 0] * mJJ
+            data.iloc[:, 1] = data.iloc[:, 1] + mJJ / 10
+            data.iloc[:, 2] = data.iloc[:, 2] - mJJ / 10
+            data.iloc[:, 3] = data.iloc[:, 3] / mJJ
 
         # for feature in ['delPhi', 'delEta']:
         # # for feature in [r'$dR_{jj}$', 'delPhi', 'delEta']:
