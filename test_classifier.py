@@ -11,7 +11,7 @@ from utils.plotting import plot_rates_dict
 from utils.torch_utils import shuffle_tensor
 
 
-def parse_args():
+def parse_args(): 
     parser = argparse.ArgumentParser()
 
     # Saving
@@ -29,7 +29,8 @@ def parse_args():
     parser.add_argument("--bins", nargs="*", type=float, default=[2300, 2700, 3300, 3700, 4000, 4300])
     parser.add_argument("--feature_type", type=int, default=2)
     parser.add_argument("--split_data", type=int, default=0)
-    parser.add_argument("--sb_signal_frac", type=float, default=0.)
+    parser.add_argument("--sb_signal_frac", type=int, default=0,
+                        help='Raw number of signal events to be added into the entire bg spectra.')
 
     # Training parameters
     parser.add_argument('--batch_size', type=int, default=10, help='Size of batch for training.')

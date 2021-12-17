@@ -176,7 +176,7 @@ def fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, n_
     if save:
         classifier.save(sv_dir + 'classifier')
 
-    print('Finished Training')
+    # print('Finished Training')
 
 
 def dope_data(truth, anomaly_data, beta):
@@ -253,16 +253,16 @@ def get_auc(interpolated, truth, directory, name,
         (torch.ones(len(interpolated)), torch.zeros(len(truth))), 0).view(-1, 1).cpu().numpy()
 
     # TODO: kwargs
-    nfolds = 5
+    nfolds = 2
     kfold = StratifiedKFold(n_splits=nfolds, shuffle=True, random_state=1)
     split_inds = kfold.split(X, y)
 
-    fpr = []
-    tpr = []
-    fpr1 = []
-    tpr1 = []
-    fpr2 = []
-    tpr2 = []
+    y_scores_s = []
+    labels_test_s = []
+    y_labels_1 = []
+    y_scores_1 = []
+    y_labels_2 = []
+    y_scores_2 = []
 
     def add_fpr_tpr(labels, scores, fpr, tpr):
         fpr_t, tpr_t, _ = roc_curve(labels, scores)
@@ -319,7 +319,7 @@ def get_auc(interpolated, truth, directory, name,
             valid_data.normalize(facts)
 
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        print(f'Classifier device {device}.')
+        # print(f'Classifier device {device}.')
         net = get_net(batch_norm=batch_norm, layer_norm=layer_norm, width=width, depth=depth, dropout=drp)
         classifier = Classifier(net, train_data.nfeatures, 1, name, directory=directory,
                                 activation=torch.sigmoid).to(device)
@@ -345,20 +345,13 @@ def get_auc(interpolated, truth, directory, name,
         # TODO: from here need to accumulate stats over folds
         with torch.no_grad():
             y_scores = classifier.predict(valid_data.data.to(device)).cpu().numpy()
+        y_scores_s += [y_scores]
         labels_test = valid_data.targets.cpu().numpy()
-        add_fpr_tpr(labels_test, y_scores, fpr, tpr)
+        labels_test_s += [labels_test]
 
         # Plot the classifier distribution
         mx = labels_test == 0
-        fig, ax = plt.subplots(1, 1)
 
-        def add_normed_hist(data, ax, label, bins):
-            total = len(data)
-            ax.hist(data, bins=bins, weights=np.ones_like(data) / total, label=label, histtype='step')
-
-        bins = get_bins(y_scores[mx], nbins=50)
-        add_normed_hist(y_scores[mx], ax, 'Signal', bins)
-        add_normed_hist(y_scores[~mx], ax, 'BG', bins)
         if anomaly_bool:
             pure_test_data = SupervisedDataClass(X_test_pure, y_test_pure)
             with torch.no_grad():
@@ -370,22 +363,21 @@ def get_auc(interpolated, truth, directory, name,
                     td = pure_test_data.data
                 anomaly_scores = classifier.predict(ad.to(device)).cpu().numpy()
                 inlier_scores = classifier.predict(td.to(device)).cpu().numpy()
-            add_normed_hist(anomaly_scores, ax, 'Anomalies', bins)
-            add_fpr_tpr(np.concatenate((np.zeros(len(anomaly_scores)), np.ones(len(y_scores[~mx])))),
-                        np.concatenate((anomaly_scores[:, 0], y_scores[~mx])),
-                        fpr1, tpr1)
-            add_fpr_tpr(y_test_pure, inlier_scores, fpr2, tpr2)
-        ax.set_xlabel('Classifier output')
-        fig.suptitle(sup_title)
-        fig.legend()
-        fig.savefig(f'{sv_dir}_classifier_distribution_{name}.png')
+            y_labels_1 += [np.concatenate((np.zeros(len(anomaly_scores)), np.ones(len(y_scores[~mx]))))]
+            y_scores_1 += [np.concatenate((anomaly_scores[:, 0], y_scores[~mx]))]
+            y_labels_2 += [y_test_pure]
+            y_scores_2 += [inlier_scores[:, 0]]
 
-    fpr = np.concatenate((fpr))
-    tpr = np.concatenate((tpr))
-    fpr1 = np.concatenate((fpr1))
-    tpr1 = np.concatenate((tpr1))
-    fpr2 = np.concatenate((fpr2))
-    tpr2 = np.concatenate((tpr2))
+    y_scores = np.concatenate(y_scores_s)
+    labels_test = np.concatenate(labels_test_s)
+    y_labels_1 = np.concatenate(y_labels_1)
+    y_scores_1 = np.concatenate(y_scores_1)
+    y_labels_2 = np.concatenate(y_labels_2)
+    y_scores_2 = np.concatenate(y_scores_2)
+
+    fpr, tpr, _ = roc_curve(labels_test, y_scores)
+    fpr1, tpr1, _ = roc_curve(y_labels_1, y_scores_1)
+    fpr2, tpr2, _ = roc_curve(y_labels_2, y_scores_2)
 
     roc_auc = auc(fpr, tpr)
     roc_auc_anomalies = auc(fpr1, tpr1)
