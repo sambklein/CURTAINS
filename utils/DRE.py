@@ -4,7 +4,7 @@ import torch
 import numpy as np
 from sklearn.metrics import roc_curve, auc
 import matplotlib.pyplot as plt
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, StratifiedKFold
 
 from models.classifier import Classifier
 from models.nn.networks import dense_net
@@ -251,117 +251,144 @@ def get_auc(interpolated, truth, directory, name,
 
     X, y = torch.cat((interpolated, truth), 0).cpu().numpy(), torch.cat(
         (torch.ones(len(interpolated)), torch.zeros(len(truth))), 0).view(-1, 1).cpu().numpy()
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=split, random_state=1, stratify=y)
-    X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.1, random_state=1, stratify=y_train)
 
-    if beta_bool and anomaly_bool and dope_splits:
-        X_test_pure = deepcopy(X_test)
-        y_test_pure = deepcopy(y_test)
-        get_mask = lambda x: (x == 0).flatten()
-        anomaly_data, X_train[get_mask(y_train)] = dope_data(X_train[get_mask(y_train)], anomaly_data, beta)
-        anomaly_data, X_val[get_mask(y_val)] = dope_data(X_val[get_mask(y_val)], anomaly_data, beta)
-        anomaly_data, X_test[get_mask(y_test)] = dope_data(X_test[get_mask(y_test)], anomaly_data, beta)
+    # TODO: kwargs
+    nfolds = 5
+    kfold = StratifiedKFold(n_splits=nfolds, shuffle=True, random_state=1)
+    split_inds = kfold.split(X, y)
 
-    if mass_incl:
-        test_mass = X_test[:, -1]
-        if mscaler is not None:
-            test_mass = mscaler(test_mass)
-        X_train, X_val, X_test = X_train[:, :-1], X_val[:, :-1], X_test[:, :-1]
+    fpr = []
+    tpr = []
+    fpr1 = []
+    tpr1 = []
+    fpr2 = []
+    tpr2 = []
 
-    if false_signal > 0:
-        # Append a dummy noise sample to the
-        n_features = X_train.shape[1]
+    def add_fpr_tpr(labels, scores, fpr, tpr):
+        fpr_t, tpr_t, _ = roc_curve(labels, scores)
+        fpr += [fpr_t]
+        tpr += [tpr_t]
 
-        def add_noise(data, labels):
-            n_sample = int(data.shape[0] * beta_add_noise)
-            if false_signal == 1:
-                data = np.concatenate(
-                    (data, np.random.multivariate_normal([0] * n_features, np.eye(n_features), n_sample)))
-            else:
-                # l1 = data.min(0)
-                # l2 = data.max(0)
-                # The data is normalised, so we take this as the support for the 1+eps
-                l1 = -1
-                l2 = 1
-                data = np.concatenate(
-                    (data, ((l1 - l2) * np.random.rand(*data.shape) + l2)[:n_sample]))
-            labels = np.concatenate((labels, np.zeros((n_sample, 1))))
-            return data, labels
-    else:
-        add_noise = None
+    for fold, (train_index, test_index) in enumerate(split_inds):
+        X_train = X[train_index]
+        y_train = y[train_index]
+        X_val = X[test_index]
+        y_val = y[test_index]
 
-    weights = 'balance' if use_weights else None
-    train_data = SupervisedDataClass(X_train, y_train, weights=weights, noise_generator=add_noise)
-    valid_data = SupervisedDataClass(X_val, y_val, weights=weights, noise_generator=add_noise)
-    # Don't add noise to the test set
-    test_data = SupervisedDataClass(X_test, y_test, weights=weights)
+        if beta_bool and anomaly_bool and dope_splits:
+            X_test_pure = deepcopy(X_val)
+            y_test_pure = deepcopy(y_val)
+            get_mask = lambda x: (x == 0).flatten()
+            anomaly_data, X_train[get_mask(y_train)] = dope_data(X_train[get_mask(y_train)], anomaly_data, beta)
+            anomaly_data, X_val[get_mask(y_val)] = dope_data(X_val[get_mask(y_val)], anomaly_data, beta)
 
-    if normalize:
-        facts = train_data.get_and_set_norm_facts(normalize=True)
-        valid_data.normalize(facts)
-        test_data.normalize(facts)
+        if mass_incl:
+            test_mass = X_val[:, -1]
+            if mscaler is not None:
+                test_mass = mscaler(test_mass)
+            X_train, X_val = X_train[:, :-1], X_val[:, :-1]
 
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    print(f'Classifier device {device}.')
-    net = get_net(batch_norm=batch_norm, layer_norm=layer_norm, width=width, depth=depth, dropout=drp)
-    classifier = Classifier(net, train_data.nfeatures, 1, name, directory=directory,
-                            activation=torch.sigmoid).to(device)
+        if false_signal > 0:
+            # Append a dummy noise sample to the
+            n_features = X_train.shape[1]
 
-    # Make an optimizer object
-    if (wd is not None) or (wd == 0.):
-        optimizer = torch.optim.Adam(classifier.parameters(), lr=lr)
-    else:
-        optimizer = torch.optim.AdamW(classifier.parameters(), lr=lr, wd=wd)
-    if use_scheduler:
-        max_step = int(nepochs * np.ceil(len(X_train)))
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, max_step, 0)
-    else:
-        scheduler = None
+            def add_noise(data, labels):
+                n_sample = int(data.shape[0] * beta_add_noise)
+                if false_signal == 1:
+                    data = np.concatenate(
+                        (data, np.random.multivariate_normal([0] * n_features, np.eye(n_features), n_sample)))
+                else:
+                    # l1 = data.min(0)
+                    # l2 = data.max(0)
+                    # The data is normalised, so we take this as the support for the 1+eps
+                    l1 = -1
+                    l2 = 1
+                    data = np.concatenate(
+                        (data, ((l1 - l2) * np.random.rand(*data.shape) + l2)[:n_sample]))
+                labels = np.concatenate((labels, np.zeros((n_sample, 1))))
+                return data, labels
+        else:
+            add_noise = None
 
-    # Train
-    if load:
-        classifier.load(sv_dir + 'classifier')
-    else:
-        fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, nepochs, device, sv_dir,
-                       scheduler=scheduler, pure_noise=pure_noise)
+        weights = 'balance' if use_weights else None
+        train_data = SupervisedDataClass(X_train, y_train, weights=weights, noise_generator=add_noise)
+        valid_data = SupervisedDataClass(X_val, y_val, weights=weights, noise_generator=add_noise)
 
-    with torch.no_grad():
-        y_scores = classifier.predict(test_data.data.to(device)).cpu().numpy()
-    labels_test = test_data.targets.cpu().numpy()
-    fpr, tpr, _ = roc_curve(labels_test, y_scores)
-    roc_auc = auc(fpr, tpr)
+        if normalize:
+            facts = train_data.get_and_set_norm_facts(normalize=True)
+            valid_data.normalize(facts)
 
-    # Plot the classifier distribution
-    mx = labels_test == 0
-    fig, ax = plt.subplots(1, 1)
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        print(f'Classifier device {device}.')
+        net = get_net(batch_norm=batch_norm, layer_norm=layer_norm, width=width, depth=depth, dropout=drp)
+        classifier = Classifier(net, train_data.nfeatures, 1, name, directory=directory,
+                                activation=torch.sigmoid).to(device)
 
-    def add_normed_hist(data, ax, label, bins):
-        total = len(data)
-        ax.hist(data, bins=bins, weights=np.ones_like(data) / total, label=label, histtype='step')
+        # Make an optimizer object
+        if (wd is not None) or (wd == 0.):
+            optimizer = torch.optim.Adam(classifier.parameters(), lr=lr)
+        else:
+            optimizer = torch.optim.AdamW(classifier.parameters(), lr=lr, wd=wd)
+        if use_scheduler:
+            max_step = int(nepochs * np.ceil(len(X_train)))
+            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, max_step, 0)
+        else:
+            scheduler = None
 
-    bins = get_bins(y_scores[mx], nbins=50)
-    add_normed_hist(y_scores[mx], ax, 'Signal', bins)
-    add_normed_hist(y_scores[~mx], ax, 'BG', bins)
-    if anomaly_bool:
-        pure_test_data = SupervisedDataClass(X_test_pure, y_test_pure)
+        # Train
+        if load:
+            classifier.load(sv_dir + 'classifier')
+        else:
+            fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, nepochs, device, sv_dir,
+                           scheduler=scheduler, pure_noise=pure_noise)
+
+        # TODO: from here need to accumulate stats over folds
         with torch.no_grad():
-            if mass_incl:
-                ad = anomaly_data.data[:, :-1]
-                td = pure_test_data.data[:, :-1]
-            else:
-                ad = anomaly_data.data
-                td = pure_test_data.data
-            anomaly_scores = classifier.predict(ad.to(device)).cpu().numpy()
-            inlier_scores = classifier.predict(td.to(device)).cpu().numpy()
-        add_normed_hist(anomaly_scores, ax, 'Anomalies', bins)
-        fpr1, tpr1, _ = roc_curve(np.concatenate((np.zeros(len(anomaly_scores)), np.ones(len(y_scores[~mx])))),
-                                  np.concatenate((anomaly_scores[:, 0], y_scores[~mx])))
-        fpr2, tpr2, _ = roc_curve(y_test_pure, inlier_scores) 
-        roc_auc_anomalies = auc(fpr1, tpr1)
-    ax.set_xlabel('Classifier output')
-    fig.suptitle(sup_title)
-    fig.legend()
-    fig.savefig(f'{sv_dir}_classifier_distribution_{name}.png')
+            y_scores = classifier.predict(valid_data.data.to(device)).cpu().numpy()
+        labels_test = valid_data.targets.cpu().numpy()
+        add_fpr_tpr(labels_test, y_scores, fpr, tpr)
+
+        # Plot the classifier distribution
+        mx = labels_test == 0
+        fig, ax = plt.subplots(1, 1)
+
+        def add_normed_hist(data, ax, label, bins):
+            total = len(data)
+            ax.hist(data, bins=bins, weights=np.ones_like(data) / total, label=label, histtype='step')
+
+        bins = get_bins(y_scores[mx], nbins=50)
+        add_normed_hist(y_scores[mx], ax, 'Signal', bins)
+        add_normed_hist(y_scores[~mx], ax, 'BG', bins)
+        if anomaly_bool:
+            pure_test_data = SupervisedDataClass(X_test_pure, y_test_pure)
+            with torch.no_grad():
+                if mass_incl:
+                    ad = anomaly_data.data[:, :-1]
+                    td = pure_test_data.data[:, :-1]
+                else:
+                    ad = anomaly_data.data
+                    td = pure_test_data.data
+                anomaly_scores = classifier.predict(ad.to(device)).cpu().numpy()
+                inlier_scores = classifier.predict(td.to(device)).cpu().numpy()
+            add_normed_hist(anomaly_scores, ax, 'Anomalies', bins)
+            add_fpr_tpr(np.concatenate((np.zeros(len(anomaly_scores)), np.ones(len(y_scores[~mx])))),
+                        np.concatenate((anomaly_scores[:, 0], y_scores[~mx])),
+                        fpr1, tpr1)
+            add_fpr_tpr(y_test_pure, inlier_scores, fpr2, tpr2)
+        ax.set_xlabel('Classifier output')
+        fig.suptitle(sup_title)
+        fig.legend()
+        fig.savefig(f'{sv_dir}_classifier_distribution_{name}.png')
+
+    fpr = np.concatenate((fpr))
+    tpr = np.concatenate((tpr))
+    fpr1 = np.concatenate((fpr1))
+    tpr1 = np.concatenate((tpr1))
+    fpr2 = np.concatenate((fpr2))
+    tpr2 = np.concatenate((tpr2))
+
+    roc_auc = auc(fpr, tpr)
+    roc_auc_anomalies = auc(fpr1, tpr1)
 
     # Plot a roc curve
     fig, ax = plt.subplots(1, 1, figsize=(5, 5))
@@ -376,38 +403,39 @@ def get_auc(interpolated, truth, directory, name,
         ax.set_title(f'{sup_title} {roc_auc:.2f}')
     fig.savefig(sv_dir + 'roc.png')
 
-    if mass_incl and plot_mass_dists:
-        # Plot the mass distribution for different cuts on the classifier
-        fig, ax = plt.subplots(1, len(thresholds), figsize=(5 * len(thresholds) + 2, 5))
-        mx = labels_test == 0
-        bins = None
-        test_mass = test_mass[:, np.newaxis]
-        for i, at in enumerate(thresholds):
-            threshold = np.quantile(y_scores[~mx], 1 - at)
-            bg_mass = test_mass[~mx][y_scores[~mx] < threshold]
-            signal_mass = test_mass[mx][y_scores[mx] < threshold]
-            if bins is None:
-                bins = get_bins(bg_mass, nbins=10)
-                norm_bg = np.histogram(bg_mass, bins=bins)[0]
-                norm_signal = np.histogram(signal_mass, bins=bins)[0]
-            add_error_hist(ax[i], bg_mass, bins, 'blue', error_bars=True, label='Transformed jets', norm=norm_bg)
-            signal_label = 'Signal window jets'
-            add_error_hist(ax[i], signal_mass, bins, 'red', error_bars=True, label=signal_label, norm=norm_signal)
-            if i > 0:
-                ax[i].set_yscale('log')
-            ax[i].set_xlabel('Mass (GeV)')
-            N_sg = signal_mass.shape[0]
-            N_bg = bg_mass.shape[0]
-            gain = N_sg / N_bg
-            pm = '$\pm$'
-            if N_bg and N_sg:
-                ax[i].set_title(f'BG rejection {at:.2f} \n '
-                                f'Gain {gain:.2f} {pm} {gain * (N_sg ** (-0.5) + N_bg ** (-0.5)) ** (0.5) :.3f}')
-        handles, labels = ax[0].get_legend_handles_labels()
-        fig.legend(handles, labels, loc='upper right')
-        fig.suptitle(sup_title)
-        fig.tight_layout()
-        fig.savefig(f'{sv_dir}_mass_dist_{name}.png')
+    # # TODO: this needs to be wrapped into the nfolds, but as it's not being used will be avoided for now, slimming plots
+    # if mass_incl and plot_mass_dists:
+    #     # Plot the mass distribution for different cuts on the classifier
+    #     fig, ax = plt.subplots(1, len(thresholds), figsize=(5 * len(thresholds) + 2, 5))
+    #     mx = labels_test == 0
+    #     bins = None
+    #     test_mass = test_mass[:, np.newaxis]
+    #     for i, at in enumerate(thresholds):
+    #         threshold = np.quantile(y_scores[~mx], 1 - at)
+    #         bg_mass = test_mass[~mx][y_scores[~mx] < threshold]
+    #         signal_mass = test_mass[mx][y_scores[mx] < threshold]
+    #         if bins is None:
+    #             bins = get_bins(bg_mass, nbins=10)
+    #             norm_bg = np.histogram(bg_mass, bins=bins)[0]
+    #             norm_signal = np.histogram(signal_mass, bins=bins)[0]
+    #         add_error_hist(ax[i], bg_mass, bins, 'blue', error_bars=True, label='Transformed jets', norm=norm_bg)
+    #         signal_label = 'Signal window jets'
+    #         add_error_hist(ax[i], signal_mass, bins, 'red', error_bars=True, label=signal_label, norm=norm_signal)
+    #         if i > 0:
+    #             ax[i].set_yscale('log')
+    #         ax[i].set_xlabel('Mass (GeV)')
+    #         N_sg = signal_mass.shape[0]
+    #         N_bg = bg_mass.shape[0]
+    #         gain = N_sg / N_bg
+    #         pm = '$\pm$'
+    #         if N_bg and N_sg:
+    #             ax[i].set_title(f'BG rejection {at:.2f} \n '
+    #                             f'Gain {gain:.2f} {pm} {gain * (N_sg ** (-0.5) + N_bg ** (-0.5)) ** (0.5) :.3f}')
+    #     handles, labels = ax[0].get_legend_handles_labels()
+    #     fig.legend(handles, labels, loc='upper right')
+    #     fig.suptitle(sup_title)
+    #     fig.tight_layout()
+    #     fig.savefig(f'{sv_dir}_mass_dist_{name}.png')
 
     print(f'ROC AUC {roc_auc}')
 

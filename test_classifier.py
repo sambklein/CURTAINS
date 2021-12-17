@@ -33,7 +33,7 @@ def parse_args():
 
     # Training parameters
     parser.add_argument('--batch_size', type=int, default=10, help='Size of batch for training.')
-    parser.add_argument('--nepochs', type=int, default=100, help='Number of epochs.')
+    parser.add_argument('--nepochs', type=int, default=1, help='Number of epochs.')
     parser.add_argument('--lr', type=float, default=0.0001, help='Classifier learning rate.')
     parser.add_argument('--wd', type=float, default=0., help='Weight Decay, set to None for ADAM.')
     parser.add_argument('--drp', type=float, default=0.5, help='Dropout to apply.')
@@ -63,7 +63,7 @@ def test_classifier():
     register_experiment(top_dir, f'{args.outputdir}_{args.outputname}/{args.outputname}', args)
 
     datasets, signal_anomalies = get_data(args.dataset, sv_dir + nm, bins=args.bins, doping=args.sb_signal_frac,
-                                          feature_type=args.feature_type)
+                                          feature_type=args.feature_type) 
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
