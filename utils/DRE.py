@@ -224,7 +224,8 @@ def get_auc(interpolated, truth, directory, name,
             thresholds=[0, 0.5, 0.8, 0.95, 0.99],
             plot_mass_dists=True,
             beta_add_noise=0.1,
-            pure_noise=False
+            pure_noise=False,
+            nfolds=5
             ):
     interpolated = interpolated.detach().cpu()
     truth = truth.detach().cpu()
@@ -252,8 +253,6 @@ def get_auc(interpolated, truth, directory, name,
     X, y = torch.cat((interpolated, truth), 0).cpu().numpy(), torch.cat(
         (torch.ones(len(interpolated)), torch.zeros(len(truth))), 0).view(-1, 1).cpu().numpy()
 
-    # TODO: kwargs
-    nfolds = 2
     kfold = StratifiedKFold(n_splits=nfolds, shuffle=True, random_state=1)
     split_inds = kfold.split(X, y)
 
