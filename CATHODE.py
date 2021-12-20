@@ -42,9 +42,11 @@ parser.add_argument("--quantiles", nargs="*", type=float, default=[1, 2, 3, 4])
 # parser.add_argument("--bins", nargs="*", type=float, default=[2000, 2500, 3000, 3500, 4000, 4500])
 # parser.add_argument("--bins", nargs="*", type=float, default=[3000, 3200, 3400, 3600, 3800, 4000])
 # parser.add_argument("--bins", nargs="*", type=float, default=[2300, 2700, 3300, 3700, 4900, 5000])
-parser.add_argument("--bins", nargs="*", type=float, default=[3000, 3200, 3400, 3600, 3800, 4000])
-parser.add_argument("--doping", type=float, default=0.)
-parser.add_argument("--feature_type", type=int, default=2)
+parser.add_argument("--bins", type=str, default='3000,3200,3400,3600,3800,4000')
+# parser.add_argument("--bins", nargs="*", type=float, default=[2900, 3100, 3300, 3500, 3800, 4000])
+parser.add_argument("--doping", type=int, default=0,
+                    help='Raw number of signal events to be added into the entire bg spectra.')
+parser.add_argument("--feature_type", type=int, default=3)
 
 ## Names for saving
 parser.add_argument('-n', type=str, default='cathode', help='The name with which to tag saved outputs.')
@@ -133,6 +135,9 @@ writer = SummaryWriter(log_dir=log_dir)
 register_experiment(sv_dir, f'{args.d}/{exp_name}', args)
 
 # Make datasets
+curtains_bins = args.bins.split(",")
+curtains_bins = [int(b) for b in curtains_bins]
+args.bins = curtains_bins
 mix_qs = True
 datasets, signal_anomalies = get_data(args.dataset, image_dir + exp_name, bins=args.bins, doping=args.doping,
                                       mix_qs=mix_qs, feature_type=args.feature_type)

@@ -482,7 +482,7 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
         print('With anomalies injected')
         rates_sr_vs_transformed = {}
         rates_sr_qcd_vs_anomalies = {'Supervised': auc_super_info[1]}
-        for beta in [0.5, 1, 5, 15]:
+        for beta in [0.0, 0.5, 1, 5, 15]:
             auc_info = get_auc(samples, datasets.signalset.data, sv_dir, nm + f'{beta}%Anomalies',
                                anomaly_data=signal_anomalies.data.to(device), beta=beta / 100,
                                sup_title=f'QCD in SR doped with {beta:.3f}% anomalies',
@@ -502,6 +502,9 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
     if summary_writer_passed:
         # summary_writer.add_hparams(vars(args), dict(auc_dict, **rates_sr_qcd_vs_anomalies))
         summary_writer.add_hparams(vars(args), auc_dict)
+
+    with open(f'{sv_dir}/aucs.pkl', 'wb') as f:
+        pickle.dump(auc_dict, f)
 
 
 def post_process_flows_for_flows(model, datasets, sup_title='NSF'):

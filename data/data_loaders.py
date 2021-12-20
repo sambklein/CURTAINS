@@ -196,35 +196,41 @@ def load_curtains_pd(sm='QCDjj_pT', dtype='float32', extraStats=False, feature_t
         delPhi = np.arctan2(np.sin(phi_1 - phi_2), np.cos(phi_1 - phi_2))
         data[r'$dR_{jj}$'] = ((df['etaj1'] - df['etaj2']) ** 2 + delPhi ** 2) ** (0.5)
 
-        # data['delPhi'] = abs(delPhi)
-        # data['delEta'] = abs(df['etaj1'] - df['etaj2'])
+        data['delPhi'] = abs(delPhi)
+        data['delEta'] = abs(df['etaj1'] - df['etaj2'])
 
         data['mjj'] = calculate_mass(
             np.sum([df[[f'ej{i}', f'pxj{i}', f'pyj{i}', f'pzj{i}']].to_numpy() for i in range(1, 3)], 0))
 
+        def scale_features(data):
+            eps = 1e-6
+            mn = data.min() - eps
+            mx = data.max() + eps
+            data = (data - mn) / (mx - mn)
+            data = np.log(data) - np.log(1 - data)
+            return data
+
+        data.iloc[:, :-1] = scale_features(data.iloc[:, :-1])
+
         if feature_type == 2:
             data = data[['mj1', 'mj2', r'$dR_{jj}$', 'mjj']]
 
-        if feature_type == 3:
-            data = data[['mj1', 'mj2-mj1', r'$\tau_{21}^{j_1}$', r'$\tau_{21}^{j_2}$', r'$dR_{jj}$', 'mjj']]
-
-            def scale_features(data):
-                eps = 1e-6
-                mn = data.min() - eps
-                mx = data.max() + eps
-                data = (data - mn) / (mx - mn)
-                data = np.log(data) - np.log(1 - data)
-                return data
-
-            data.iloc[:, :-1] = scale_features(data.iloc[:, :-1])
-
-        if feature_type == 4:
-            # Introduce some spurious correlations
+        if 3 <= feature_type <= 8:
+            # Introduce successive spurious correlations
             mJJ = data.iloc[:, -1]
-            data.iloc[:, 0] = data.iloc[:, 0] * mJJ
-            data.iloc[:, 1] = data.iloc[:, 1] + mJJ / 10
-            data.iloc[:, 2] = data.iloc[:, 2] - mJJ / 10
-            data.iloc[:, 3] = data.iloc[:, 3] / mJJ
+            if 4 <= feature_type:
+                data.iloc[:, 0] = data.iloc[:, 0] * mJJ
+            if 5 <= feature_type:
+                data.iloc[:, 1] = data.iloc[:, 1] / mJJ
+            if 6 <= feature_type:
+                data.iloc[:, 2] = data.iloc[:, 2] + mJJ / 10
+            if 7 <= feature_type:
+                data.iloc[:, 3] = data.iloc[:, 3] - mJJ / 10
+
+            if feature_type <= 7:
+                data = data[['mj1', 'mj2-mj1', r'$\tau_{21}^{j_1}$', r'$\tau_{21}^{j_2}$', r'$dR_{jj}$', 'mjj']]
+
+        # Defines features 3-9
 
         # for feature in ['delPhi', 'delEta']:
         # # for feature in [r'$dR_{jj}$', 'delPhi', 'delEta']:
