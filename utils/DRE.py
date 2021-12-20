@@ -353,6 +353,8 @@ def get_auc(interpolated, truth, directory, name,
 
         if anomaly_bool:
             pure_test_data = SupervisedDataClass(X_test_pure, y_test_pure)
+            if normalize:
+                pure_test_data.normalize(facts)
             with torch.no_grad():
                 if mass_incl:
                     ad = anomaly_data.data[:, :-1]
@@ -369,17 +371,18 @@ def get_auc(interpolated, truth, directory, name,
 
     y_scores = np.concatenate(y_scores_s)
     labels_test = np.concatenate(labels_test_s)
-    y_labels_1 = np.concatenate(y_labels_1)
-    y_scores_1 = np.concatenate(y_scores_1)
-    y_labels_2 = np.concatenate(y_labels_2)
-    y_scores_2 = np.concatenate(y_scores_2)
 
     fpr, tpr, _ = roc_curve(labels_test, y_scores)
-    fpr1, tpr1, _ = roc_curve(y_labels_1, y_scores_1)
-    fpr2, tpr2, _ = roc_curve(y_labels_2, y_scores_2)
-
     roc_auc = auc(fpr, tpr)
-    roc_auc_anomalies = auc(fpr1, tpr1)
+
+    if anomaly_bool:
+        y_labels_1 = np.concatenate(y_labels_1)
+        y_scores_1 = np.concatenate(y_scores_1)
+        y_labels_2 = np.concatenate(y_labels_2)
+        y_scores_2 = np.concatenate(y_scores_2)
+        fpr1, tpr1, _ = roc_curve(y_labels_1, y_scores_1)
+        fpr2, tpr2, _ = roc_curve(y_labels_2, y_scores_2)
+        roc_auc_anomalies = auc(fpr1, tpr1)
 
     # Plot a roc curve
     fig, ax = plt.subplots(1, 1, figsize=(5, 5))
