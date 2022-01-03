@@ -27,9 +27,9 @@ class SupervisedDataClass(Dataset):
         self.nfeatures = self.data.shape[1]
         self.noise_generator = noise_generator
         self.normed = False
+        self.base_data = data
+        self.base_labels = labels
         if noise_generator is not None:
-            self.base_data = data
-            self.base_labels = labels
             self.update_data()
         self.weights = torch.ones_like(self.targets)
         if weights == 'balance':
@@ -100,7 +100,7 @@ def get_net(batch_norm=False, layer_norm=False, width=32, depth=2, dropout=0):
 
 
 def fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, n_epochs, device, sv_dir, plot=True,
-                   save=True, scheduler=None, pure_noise=False):
+                   save=True, scheduler=None, pure_noise=False, fold=0):
     # Initialize timer class, this is useful on the cluster as it will say if you have enough time to run the job
     timer = Timer('irrelevant', 'irrelevant', print_text=False)
 
@@ -171,10 +171,10 @@ def fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, n_
         plt.legend()
         plt.title('Classifier Training')
         plt.tight_layout()
-        plt.savefig(sv_dir + 'Training.png')
+        plt.savefig(sv_dir + f'Training_{fold}.png')
 
     if save:
-        classifier.save(sv_dir + 'classifier')
+        classifier.save(sv_dir + f'classifier_{fold}')
 
     # print('Finished Training')
 
@@ -221,7 +221,7 @@ def get_auc(interpolated, truth, directory, name,
             layer_norm=False,
             use_scheduler=True,
             use_weights=True,
-            thresholds=[0, 0.5, 0.8, 0.95, 0.99],
+            thresholds=[0, 0.5, 0.8, 0.9, 0.95, 0.99],
             plot_mass_dists=True,
             beta_add_noise=0.1,
             pure_noise=False,
@@ -262,11 +262,7 @@ def get_auc(interpolated, truth, directory, name,
     y_scores_1 = []
     y_labels_2 = []
     y_scores_2 = []
-
-    def add_fpr_tpr(labels, scores, fpr, tpr):
-        fpr_t, tpr_t, _ = roc_curve(labels, scores)
-        fpr += [fpr_t]
-        tpr += [tpr_t]
+    counts = []
 
     for fold, (train_index, test_index) in enumerate(split_inds):
         X_train = X[train_index]
@@ -282,9 +278,6 @@ def get_auc(interpolated, truth, directory, name,
             anomaly_data, X_val[get_mask(y_val)] = dope_data(X_val[get_mask(y_val)], anomaly_data, beta)
 
         if mass_incl:
-            test_mass = X_val[:, -1]
-            if mscaler is not None:
-                test_mass = mscaler(test_mass)
             X_train, X_val = X_train[:, :-1], X_val[:, :-1]
 
         if false_signal > 0:
@@ -335,17 +328,25 @@ def get_auc(interpolated, truth, directory, name,
             scheduler = None
 
         # Train
-        if load:
-            classifier.load(sv_dir + 'classifier')
+        if load == 1:
+            classifier.load(sv_dir + f'classifier_{fold}')
+        elif load == 2:
+            try:
+                classifier.load(sv_dir + f'classifier_{fold}')
+            except:
+                fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, nepochs, device, sv_dir,
+                               scheduler=scheduler, pure_noise=pure_noise, fold=fold)
         else:
             fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, nepochs, device, sv_dir,
-                           scheduler=scheduler, pure_noise=pure_noise)
+                           scheduler=scheduler, pure_noise=pure_noise, fold=fold)
 
-        # TODO: from here need to accumulate stats over folds
         with torch.no_grad():
-            y_scores = classifier.predict(valid_data.data.to(device)).cpu().numpy()
+            # y_scores = classifier.predict(valid_data.data.to(device)).cpu().numpy()
+            y_scores = classifier.predict(
+                torch.tensor(valid_data.base_data, dtype=valid_data.dtype).to(device)).cpu().numpy()
         y_scores_s += [y_scores]
-        labels_test = valid_data.targets.cpu().numpy()
+        # labels_test = valid_data.targets.cpu().numpy()
+        labels_test = valid_data.base_labels
         labels_test_s += [labels_test]
 
         # Plot the classifier distribution
@@ -369,6 +370,16 @@ def get_auc(interpolated, truth, directory, name,
             y_labels_2 += [y_test_pure]
             y_scores_2 += [inlier_scores[:, 0]]
 
+        if return_rates:
+            # Count the number of events that are left in the signal region after a certain cut on the background
+            # template
+            count = []
+            mx = y_val == 0
+            for i, at in enumerate(thresholds):
+                threshold = np.quantile(y_scores[~mx], 1 - at)
+                count += [sum(y_scores[mx] <= threshold)]
+            counts += [np.array(count)]
+
     y_scores = np.concatenate(y_scores_s)
     labels_test = np.concatenate(labels_test_s)
 
@@ -384,6 +395,9 @@ def get_auc(interpolated, truth, directory, name,
         fpr2, tpr2, _ = roc_curve(y_labels_2, y_scores_2)
         roc_auc_anomalies = auc(fpr1, tpr1)
 
+    if return_rates:
+        counts = np.array(counts)
+
     # Plot a roc curve
     fig, ax = plt.subplots(1, 1, figsize=(5, 5))
     ax.plot(fpr, tpr, linewidth=2)
@@ -397,45 +411,11 @@ def get_auc(interpolated, truth, directory, name,
         ax.set_title(f'{sup_title} {roc_auc:.2f}')
     fig.savefig(sv_dir + 'roc.png')
 
-    # # TODO: this needs to be wrapped into the nfolds, but as it's not being used will be avoided for now, slimming plots
-    # if mass_incl and plot_mass_dists:
-    #     # Plot the mass distribution for different cuts on the classifier
-    #     fig, ax = plt.subplots(1, len(thresholds), figsize=(5 * len(thresholds) + 2, 5))
-    #     mx = labels_test == 0
-    #     bins = None
-    #     test_mass = test_mass[:, np.newaxis]
-    #     for i, at in enumerate(thresholds):
-    #         threshold = np.quantile(y_scores[~mx], 1 - at)
-    #         bg_mass = test_mass[~mx][y_scores[~mx] < threshold]
-    #         signal_mass = test_mass[mx][y_scores[mx] < threshold]
-    #         if bins is None:
-    #             bins = get_bins(bg_mass, nbins=10)
-    #             norm_bg = np.histogram(bg_mass, bins=bins)[0]
-    #             norm_signal = np.histogram(signal_mass, bins=bins)[0]
-    #         add_error_hist(ax[i], bg_mass, bins, 'blue', error_bars=True, label='Transformed jets', norm=norm_bg)
-    #         signal_label = 'Signal window jets'
-    #         add_error_hist(ax[i], signal_mass, bins, 'red', error_bars=True, label=signal_label, norm=norm_signal)
-    #         if i > 0:
-    #             ax[i].set_yscale('log')
-    #         ax[i].set_xlabel('Mass (GeV)')
-    #         N_sg = signal_mass.shape[0]
-    #         N_bg = bg_mass.shape[0]
-    #         gain = N_sg / N_bg
-    #         pm = '$\pm$'
-    #         if N_bg and N_sg:
-    #             ax[i].set_title(f'BG rejection {at:.2f} \n '
-    #                             f'Gain {gain:.2f} {pm} {gain * (N_sg ** (-0.5) + N_bg ** (-0.5)) ** (0.5) :.3f}')
-    #     handles, labels = ax[0].get_legend_handles_labels()
-    #     fig.legend(handles, labels, loc='upper right')
-    #     fig.suptitle(sup_title)
-    #     fig.tight_layout()
-    #     fig.savefig(f'{sv_dir}_mass_dist_{name}.png')
-
     print(f'ROC AUC {roc_auc}')
 
     if return_rates:
         if anomaly_bool:
-            return roc_auc, [fpr, tpr], [fpr1, tpr1], [fpr2, tpr2]
+            return roc_auc, [fpr, tpr], [fpr1, tpr1], [fpr2, tpr2], counts
         else:
             return roc_auc, [fpr, tpr]
     else:

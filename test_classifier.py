@@ -19,7 +19,7 @@ def parse_args():
                         help='Choose the base output directory')
     parser.add_argument('-n', '--outputname', type=str, default='local',
                         help='Set the output name directory')
-    parser.add_argument('--load', type=int, default=0,
+    parser.add_argument('--load', type=int, default=2,
                         help='Load a model?')
 
     # Classifier set up
@@ -28,12 +28,12 @@ def parse_args():
     parser.add_argument('--dataset', type=str, default='curtains', help='The dataset to train on.')
     parser.add_argument("--bins", nargs="*", type=float, default=[2300, 2700, 3300, 3700, 4000, 4300])
     parser.add_argument("--feature_type", type=int, default=2)
-    parser.add_argument("--split_data", type=int, default=0)
+    parser.add_argument("--split_data", type=int, default=1)
     parser.add_argument("--sb_signal_frac", type=int, default=0,
                         help='Raw number of signal events to be added into the entire bg spectra.')
 
     # Training parameters
-    parser.add_argument('--batch_size', type=int, default=10, help='Size of batch for training.')
+    parser.add_argument('--batch_size', type=int, default=100, help='Size of batch for training.')
     parser.add_argument('--nepochs', type=int, default=1, help='Number of epochs.')
     parser.add_argument('--lr', type=float, default=0.0001, help='Classifier learning rate.')
     parser.add_argument('--wd', type=float, default=0., help='Weight Decay, set to None for ADAM.')

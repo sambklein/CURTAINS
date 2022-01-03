@@ -257,20 +257,21 @@ def plot_rates_dict(sv_dir, rates_dict, title):
     fig, ax = plt.subplots(1, 1, figsize=(7, 5))
     rates_dict['random'] = [np.linspace(0, 1, 50), np.linspace(0, 1, 50)]
     for nm, rates in rates_dict.items():
-        fpr, tpr = rates
-        fpr_nz = fpr[fpr != 0]
-        tpr_nz = tpr[fpr != 0]
-        if ('Supervised' in nm) or (nm == 'random'):
-            label = nm
-        else:
-            label = f'Doping {nm}%'
-        if nm == 'random':
-            line = '--'
-            color = 'k'
-        else:
-            line = '-'
-            color = None
-        ax.plot(tpr_nz, tpr_nz / (fpr_nz ** 0.5), linewidth=2, label=label, linestyle=line, color=color)
+        if nm != 'Supervised':
+            fpr, tpr = rates
+            fpr_nz = fpr[fpr != 0.]
+            tpr_nz = tpr[fpr != 0.]
+            if ('Supervised' in nm) or (nm == 'random'):
+                label = nm
+            else:
+                label = f'Doping {nm}%'
+            if nm == 'random':
+                line = '--'
+                color = 'k'
+            else:
+                line = '-'
+                color = None
+            ax.plot(tpr_nz, tpr_nz / (fpr_nz ** 0.5), linewidth=2, label=label, linestyle=line, color=color)
     # ax.set_xticks(np.arange(0, 1.1, 0.1))
     ax.set_ylabel('Significance improvement')
     ax.set_xlabel('Signal efficiency (true positive rate)')

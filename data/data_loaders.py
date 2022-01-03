@@ -218,14 +218,19 @@ def load_curtains_pd(sm='QCDjj_pT', dtype='float32', extraStats=False, feature_t
         if 3 <= feature_type <= 8:
             # Introduce successive spurious correlations
             mJJ = data.iloc[:, -1]
+            mJJ_normed = (mJJ - min(mJJ)) / (max(mJJ) - min(mJJ))
             if 4 <= feature_type:
                 data.iloc[:, 0] = data.iloc[:, 0] * mJJ
             if 5 <= feature_type:
                 data.iloc[:, 1] = data.iloc[:, 1] / mJJ
+
+            def scale_mJJ(feature):
+                return mJJ_normed * (max(feature) - min(feature)) + min(feature)
+
             if 6 <= feature_type:
-                data.iloc[:, 2] = data.iloc[:, 2] + mJJ / 10
+                data.iloc[:, 3] = data.iloc[:, 3] + scale_mJJ(data.iloc[:, 3]) / 2
             if 7 <= feature_type:
-                data.iloc[:, 3] = data.iloc[:, 3] - mJJ / 10
+                data.iloc[:, 4] = data.iloc[:, 4] - scale_mJJ(data.iloc[:, 4])
 
             if feature_type <= 7:
                 data = data[['mj1', 'mj2-mj1', r'$\tau_{21}^{j_1}$', r'$\tau_{21}^{j_2}$', r'$dR_{jj}$', 'mjj']]
