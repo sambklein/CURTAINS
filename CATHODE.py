@@ -42,17 +42,20 @@ parser.add_argument("--quantiles", nargs="*", type=float, default=[1, 2, 3, 4])
 # parser.add_argument("--bins", nargs="*", type=float, default=[2000, 2500, 3000, 3500, 4000, 4500])
 # parser.add_argument("--bins", nargs="*", type=float, default=[3000, 3200, 3400, 3600, 3800, 4000])
 # parser.add_argument("--bins", nargs="*", type=float, default=[2300, 2700, 3300, 3700, 4900, 5000])
-parser.add_argument("--bins", nargs="*", type=float, default=[3000, 3200, 3400, 3600, 3800, 4000])
-parser.add_argument("--doping", type=float, default=0.)
-parser.add_argument("--feature_type", type=int, default=2)
+parser.add_argument("--bins", type=str, default='3000,3200,3400,3600,3800,4000')
+# parser.add_argument("--bins", nargs="*", type=float, default=[2900, 3100, 3300, 3500, 3800, 4000])
+parser.add_argument("--doping", type=int, default=0,
+                    help='Raw number of signal events to be added into the entire bg spectra.')
+parser.add_argument("--feature_type", type=int, default=3)
 
 ## Names for saving
 parser.add_argument('-n', type=str, default='cathode', help='The name with which to tag saved outputs.')
 parser.add_argument('-d', type=str, default='NSF_CATHODE', help='Directory to save contents into.')
-parser.add_argument('--load', type=int, default=0, help='Whether or not to load a model.')
+parser.add_argument('--load', type=int, default=1, help='Whether or not to load a model.')
 parser.add_argument('--model_name', type=str, default=None, help='Saved name of model to load.')
 parser.add_argument('--load_classifiers', type=int, default=0, help='Whether or not to load a model.')
 parser.add_argument('--use_mass_sampler', type=int, default=1, help='Whether or not to sample the mass.')
+parser.add_argument('--log_dir', type=str, default='no_scan', help='Whether or not to load a model.')
 
 ## Hyper parameters
 parser.add_argument('--coupling', type=int, default=1, help='One to use coupling layers, zero for autoregressive.')
@@ -86,6 +89,9 @@ parser.add_argument('--nbins', type=int, default=10,
                     help='The number of bins to use in each spline transformation.')
 parser.add_argument('--load_best', type=int, default=0, help='Load the model that has the best validation score.')
 parser.add_argument('--det_beta', type=float, default=0.1, help='Factor to multiply determinant by in the loss.')
+parser.add_argument('--sample_m_train', type=int, default=0, help='Use mass sampler during training?')
+parser.add_argument('--oversample', type=int, default=4,
+                    help='How many times do we want to sample a point from the target distribution to transform to?')
 
 ## Classifier training
 parser.add_argument('--beta_add_noise', type=float, default=0.01,
@@ -113,6 +119,7 @@ parser.add_argument('--seed', type=int, default=1638128,
                     help='Random seed for PyTorch and NumPy.')
 
 args = parser.parse_args()
+args.d += '_' + args.n
 
 torch.manual_seed(args.seed)
 np.random.seed(args.seed)
@@ -133,6 +140,9 @@ writer = SummaryWriter(log_dir=log_dir)
 register_experiment(sv_dir, f'{args.d}/{exp_name}', args)
 
 # Make datasets
+curtains_bins = args.bins.split(",")
+curtains_bins = [int(b) for b in curtains_bins]
+args.bins = curtains_bins
 mix_qs = True
 datasets, signal_anomalies = get_data(args.dataset, image_dir + exp_name, bins=args.bins, doping=args.doping,
                                       mix_qs=mix_qs, feature_type=args.feature_type)
@@ -212,4 +222,4 @@ classifier_args = {'false_signal': 2, 'batch_size': 1000, 'nepochs': args.classi
 post_process_curtains(cathode, datasets, sup_title='NSF', signal_anomalies=signal_anomalies,
                       load=args.load_classifiers, use_mass_sampler=args.use_mass_sampler,
                       n_sample_for_plot=args.n_sample, light_job=args.light, classifier_args=classifier_args,
-                      plot=args.plot, cathode=True)
+                      plot=args.plot, cathode=True, summary_writer=writer, args=args)

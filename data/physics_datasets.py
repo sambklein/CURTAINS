@@ -197,6 +197,7 @@ class CurtainsTrainSet(Dataset):
         self.data2 = data2
         self.s1 = self.data1.shape[0]
         self.s2 = self.data2.shape[0]
+        self.total_data = self.s1 + self.s2
         self.ndata = min(self.s1, self.s2)
         self.mix_qs = mix_qs
         self.stack = stack

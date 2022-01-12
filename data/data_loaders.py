@@ -154,7 +154,7 @@ def load_curtains_pd(sm='QCDjj_pT', dtype='float32', extraStats=False, feature_t
         data[r'$dR_{jj}$'] = ((df['eta'] - df['nlo_eta']) ** 2 + delPhi ** 2) ** (0.5)
         data[r'$m_{JJ}$'] = df['mjj']
 
-    elif feature_type in [2, 3, 4]:
+    elif feature_type >= 2:
         if on_cluster():
             directory = '/srv/beegfs/scratch/groups/rodem/LHCO'
         else:
@@ -196,35 +196,54 @@ def load_curtains_pd(sm='QCDjj_pT', dtype='float32', extraStats=False, feature_t
         delPhi = np.arctan2(np.sin(phi_1 - phi_2), np.cos(phi_1 - phi_2))
         data[r'$dR_{jj}$'] = ((df['etaj1'] - df['etaj2']) ** 2 + delPhi ** 2) ** (0.5)
 
-        # data['delPhi'] = abs(delPhi)
-        # data['delEta'] = abs(df['etaj1'] - df['etaj2'])
+        data['delPhi'] = abs(delPhi)
+        data['delEta'] = abs(df['etaj1'] - df['etaj2'])
 
         data['mjj'] = calculate_mass(
             np.sum([df[[f'ej{i}', f'pxj{i}', f'pyj{i}', f'pzj{i}']].to_numpy() for i in range(1, 3)], 0))
 
+        def scale_features(data):
+            eps = 1e-6
+            mn = data.min() - eps
+            mx = data.max() + eps
+            data = (data - mn) / (mx - mn)
+            data = np.log(data) - np.log(1 - data)
+            return data
+
+        data.iloc[:, :-1] = scale_features(data.iloc[:, :-1])
+
         if feature_type == 2:
             data = data[['mj1', 'mj2', r'$dR_{jj}$', 'mjj']]
 
-        if feature_type == 3:
-            data = data[['mj1', 'mj2-mj1', r'$\tau_{21}^{j_1}$', r'$\tau_{21}^{j_2}$', r'$dR_{jj}$', 'mjj']]
+        if feature_type == 10:
+            data = data[['mj1', 'mj2-mj1', r'$\tau_{21}^{j_1}$', r'$\tau_{21}^{j_2}$', r'$dR_{jj}$', r'$p_t^{j_1}$',
+                         r'$p_t^{j_2}$', 'mjj']]
 
-            def scale_features(data):
-                eps = 1e-6
-                mn = data.min() - eps
-                mx = data.max() + eps
-                data = (data - mn) / (mx - mn)
-                data = np.log(data) - np.log(1 - data)
-                return data
+        if feature_type == 11:
+            data = data[['mj1', 'mj2-mj1', r'$\tau_{21}^{j_1}$', r'$\tau_{21}^{j_2}$', r'$dR_{jj}$', r'$p_t^{j_1}$',
+                         r'$p_t^{j_2}$', 'delEta', 'mjj']]
 
-            data.iloc[:, :-1] = scale_features(data.iloc[:, :-1])
-
-        if feature_type == 4:
-            # Introduce some spurious correlations
+        if 3 <= feature_type <= 8:
+            # Introduce successive spurious correlations
             mJJ = data.iloc[:, -1]
-            data.iloc[:, 0] = data.iloc[:, 0] * mJJ
-            data.iloc[:, 1] = data.iloc[:, 1] + mJJ / 10
-            data.iloc[:, 2] = data.iloc[:, 2] - mJJ / 10
-            data.iloc[:, 3] = data.iloc[:, 3] / mJJ
+            mJJ_normed = (mJJ - min(mJJ)) / (max(mJJ) - min(mJJ))
+            if 4 <= feature_type:
+                data.iloc[:, 0] = data.iloc[:, 0] * mJJ
+            if 5 <= feature_type:
+                data.iloc[:, 1] = data.iloc[:, 1] / mJJ
+
+            def scale_mJJ(feature):
+                return mJJ_normed * (max(feature) - min(feature)) + min(feature)
+
+            if 6 <= feature_type:
+                data.iloc[:, 3] = data.iloc[:, 3] + scale_mJJ(data.iloc[:, 3]) / 2
+            if 7 <= feature_type:
+                data.iloc[:, 4] = data.iloc[:, 4] - scale_mJJ(data.iloc[:, 4])
+
+            if feature_type <= 7:
+                data = data[['mj1', 'mj2-mj1', r'$\tau_{21}^{j_1}$', r'$\tau_{21}^{j_2}$', r'$dR_{jj}$', 'mjj']]
+
+        # Defines features 3-9
 
         # for feature in ['delPhi', 'delEta']:
         # # for feature in [r'$dR_{jj}$', 'delPhi', 'delEta']:
@@ -245,11 +264,12 @@ def load_curtains():
     df = load_curtains_pd()
     return Curtains(df)
 
+
 def drop_redundant_df(df, context_feature, cutoff):
-    
     context_df = df[context_feature]
     df = df.loc[(context_df > cutoff)]
     return df
+
 
 def get_bin(process, bin, trainset=None, normalize=True):
     df = load_curtains_pd(sm=process)
@@ -279,6 +299,7 @@ def dope_dataframe(undoped, anomaly_data, doping):
     else:
         pass
 
+
 def mask_dataframe(df, context_feature, bins, indx, doping=0., anomaly_data=None):
     def mx_data(data):
         context_df = data[context_feature]
@@ -290,10 +311,10 @@ def mask_dataframe(df, context_feature, bins, indx, doping=0., anomaly_data=None
 
     remaining_anomalies, mixed_anomalies, df = dope_dataframe(undoped_df, anomaly_data, doping)
 
-    return remaining_anomalies, mixed_anomalies, df, len(mixed_anomalies)/len(undoped_df)
+    return remaining_anomalies, mixed_anomalies, df, len(mixed_anomalies) / len(undoped_df)
+
 
 def filter_mix_data(df_bg, df_anomaly, edges, context):
-
     u_context_df = df_bg[context]
     u_mx = ((u_context_df > edges[0]) & (u_context_df < edges[1]))
 
@@ -302,11 +323,10 @@ def filter_mix_data(df_bg, df_anomaly, edges, context):
 
     mix = pd.concat([df_bg.loc[u_mx], df_anomaly.loc[a_mx]])
     mix = mix.sample(frac=1)
-    return mix, len(df_anomaly.loc[a_mx])/len(df_bg.loc[u_mx])
+    return mix, len(df_anomaly.loc[a_mx]) / len(df_bg.loc[u_mx])
 
 
 def binwise_mixing(df, anomaly, context, bins):
-    
     reg = ["OB1", "SB1", "SR", "SB2", "OB2"]
     data = {}
     for edge1, edge2, window in zip(bins, bins[1:], reg):
@@ -329,7 +349,7 @@ def dope_dataframe_new(undoped, anomaly_data, doping, bins, context):
     anomaly_data = anomaly_data.sample(frac=1)
     mixed_in_anomaly = anomaly_data.iloc[:doping]
     holdout_anomaly = anomaly_data.iloc[doping:]
-  
+
     package_data = binwise_mixing(undoped, mixed_in_anomaly, context, bins)
 
     return holdout_anomaly, mixed_in_anomaly, package_data
@@ -372,7 +392,8 @@ def get_data(dataset, sv_nm, bins=None, normalize=True, mix_qs=False, flow=False
         anomaly_mixed_mass = mixed[context_feature]
         bg_mass = df[context_feature]
 
-        get_windows_plot(bg_mass, anomaly_mixed_mass, woi, bins, sv_nm, frac=[sigfrac_ob1, sigfrac_lm, sigfrac_sr, sigfrac_hm, sigfrac_ob2])
+        get_windows_plot(bg_mass, anomaly_mixed_mass, woi, bins, sv_nm,
+                         frac=[sigfrac_ob1, sigfrac_lm, sigfrac_sr, sigfrac_hm, sigfrac_ob2])
 
         lm = Curtains(lm)
         hm = Curtains(hm)

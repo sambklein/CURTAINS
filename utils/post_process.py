@@ -1,6 +1,7 @@
 import json
 import os
 import pickle
+from copy import deepcopy
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -324,7 +325,6 @@ def get_samples(input_dist, target_dist, model, r_mass=False):
 def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=None, load=False, use_mass_sampler=False,
                           n_sample_for_plot=-1, light_job=0, classifier_args=None, plot=True, mass_sampler=None,
                           cathode=False, summary_writer=None, args=None):
-    
     if classifier_args is None:
         classifier_args = {}
 
@@ -379,19 +379,19 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
                                datasets.signalset.feature_nms, n_sample_for_plot=n_sample_for_plot,
                                summary_writer=summary_writer)
 
-                samples = get_samples(input_dataset, target_sample, model, r_mass=True)
-                f_nms = input_dataset.feature_nms
-                fig, axs = plt.subplots(1, len(f_nms), figsize=(8 * len(f_nms), 5))
-                for i in range(len(f_nms)):
-                    # axs[i].scatter(tensor2numpy(input_dataset[:len(samples), i]),
-                    #                tensor2numpy(samples[:, i]))
-                    axs[i].hist2d(tensor2numpy(input_dataset[:len(samples), i]),
-                                  tensor2numpy(samples[:, i]), bins=50)
-                    axs[i].set_xlabel(f'{base_name} {f_nms[i]}')
-                    axs[i].set_ylabel(f'{set} {f_nms[i]}')
-                fig.savefig(f'{sv_dir}/{set}_{base_name}_compare.png')
-
-                fig.clf()
+                # samples = get_samples(input_dataset, target_sample, model, r_mass=True)
+                # f_nms = input_dataset.feature_nms
+                # fig, axs = plt.subplots(1, len(f_nms), figsize=(8 * len(f_nms), 5))
+                # for i in range(len(f_nms)):
+                #     # axs[i].scatter(tensor2numpy(input_dataset[:len(samples), i]),
+                #     #                tensor2numpy(samples[:, i]))
+                #     axs[i].hist2d(tensor2numpy(input_dataset[:len(samples), i]),
+                #                   tensor2numpy(samples[:, i]), bins=50)
+                #     axs[i].set_xlabel(f'{base_name} {f_nms[i]}')
+                #     axs[i].set_ylabel(f'{set} {f_nms[i]}')
+                # fig.savefig(f'{sv_dir}/{set}_{base_name}_compare.png')
+                #
+                # fig.clf()
 
     # Map low mass samples to high mass
     high_mass_datasets = {'Signal Set': datasets.signalset, 'SB2': high_mass_training,
@@ -414,7 +414,7 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
         # AUC for OB2 vs T(SB2)
         print('SB2 from OB2')
         ob2_samples = get_transformed(high_mass_training, lm=datasets.mass_bins[4], hm=datasets.mass_bins[5],
-                                      target_dist=datasets.validationset, oversample = oversample)
+                                      target_dist=datasets.validationset, oversample=oversample)
         auc_ob2 = get_auc(ob2_samples, datasets.validationset.data, sv_dir, nm + 'OB2_vs_TSB2',
                           mscaler=low_mass_training.unnorm_mass, load=load, sup_title=f'T(SB2) vs OB2',
                           **classifier_args)
@@ -446,7 +446,7 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
 
         print('Without anomalies injected')
         auc = get_auc(samples, datasets.signalset.data, sv_dir, nm + 'SB12', mscaler=low_mass_training.unnorm_mass,
-                      load=False, sup_title=f'T(SB1) U T(SB2) vs SR',
+                      load=load, sup_title=f'T(SB1) U T(SB2) vs SR',
                       **classifier_args)
         auc_dict['SB12/SR'] = auc
         if summary_writer_passed:
@@ -482,7 +482,7 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
         print('With anomalies injected')
         rates_sr_vs_transformed = {}
         rates_sr_qcd_vs_anomalies = {'Supervised': auc_super_info[1]}
-        for beta in [0.5, 1, 5, 15]:
+        for beta in [0.0, 0.5, 1, 5, 15]:
             auc_info = get_auc(samples, datasets.signalset.data, sv_dir, nm + f'{beta}%Anomalies',
                                anomaly_data=signal_anomalies.data.to(device), beta=beta / 100,
                                sup_title=f'QCD in SR doped with {beta:.3f}% anomalies',
@@ -492,6 +492,22 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
             auc_anomalies = auc_info[0]
             rates_sr_vs_transformed[f'{beta}'] = auc_info[3]
             rates_sr_qcd_vs_anomalies[f'{beta}'] = auc_info[2]
+            if beta == 0.0:
+                with open(f'{sv_dir}/counts.pkl', 'wb') as f:
+                    pickle.dump(auc_info[-1], f)
+
+                ca = deepcopy(classifier_args)
+                ca['false_signal'] = 0
+                auc_info = get_auc(samples, datasets.signalset.data, sv_dir, nm + f'{beta}%Anomalies_no_eps',
+                                   anomaly_data=signal_anomalies.data.to(device), beta=beta / 100,
+                                   sup_title=f'QCD in SR doped with {beta:.3f}% anomalies and no eps',
+                                   mscaler=low_mass_training.unnorm_mass,
+                                   load=load, return_rates=True, **ca)
+                rates_sr_vs_transformed[f'{beta}_no_eps'] = auc_info[3]
+                rates_sr_qcd_vs_anomalies[f'{beta}_no_eps'] = auc_info[2]
+
+                with open(f'{sv_dir}/counts_no_eps.pkl', 'wb') as f:
+                    pickle.dump(auc_info[-1], f)
 
         plot_rates_dict(sv_dir, rates_sr_qcd_vs_anomalies, 'SR QCD vs SR Anomalies')
         plot_rates_dict(sv_dir, rates_sr_vs_transformed, 'T(SB12) vs SR')
@@ -502,6 +518,9 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
     if summary_writer_passed:
         # summary_writer.add_hparams(vars(args), dict(auc_dict, **rates_sr_qcd_vs_anomalies))
         summary_writer.add_hparams(vars(args), auc_dict)
+
+    with open(f'{sv_dir}/aucs.pkl', 'wb') as f:
+        pickle.dump(auc_dict, f)
 
 
 def post_process_flows_for_flows(model, datasets, sup_title='NSF'):
