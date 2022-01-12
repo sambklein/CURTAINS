@@ -1,6 +1,7 @@
 import json
 import os
 import pickle
+from copy import deepcopy
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -493,6 +494,19 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
             rates_sr_qcd_vs_anomalies[f'{beta}'] = auc_info[2]
             if beta == 0.0:
                 with open(f'{sv_dir}/counts.pkl', 'wb') as f:
+                    pickle.dump(auc_info[-1], f)
+
+                ca = deepcopy(classifier_args)
+                ca['false_signal'] = 0
+                auc_info = get_auc(samples, datasets.signalset.data, sv_dir, nm + f'{beta}%Anomalies_no_eps',
+                                   anomaly_data=signal_anomalies.data.to(device), beta=beta / 100,
+                                   sup_title=f'QCD in SR doped with {beta:.3f}% anomalies and no eps',
+                                   mscaler=low_mass_training.unnorm_mass,
+                                   load=load, return_rates=True, **ca)
+                rates_sr_vs_transformed[f'{beta}_no_eps'] = auc_info[3]
+                rates_sr_qcd_vs_anomalies[f'{beta}_no_eps'] = auc_info[2]
+
+                with open(f'{sv_dir}/counts_no_eps.pkl', 'wb') as f:
                     pickle.dump(auc_info[-1], f)
 
         plot_rates_dict(sv_dir, rates_sr_qcd_vs_anomalies, 'SR QCD vs SR Anomalies')

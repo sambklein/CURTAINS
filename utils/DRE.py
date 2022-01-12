@@ -263,6 +263,8 @@ def get_auc(interpolated, truth, directory, name,
     y_labels_2 = []
     y_scores_2 = []
     counts = []
+    expected_counts = []
+    pass_rates = []
 
     for fold, (train_index, test_index) in enumerate(split_inds):
         X_train = X[train_index]
@@ -374,11 +376,18 @@ def get_auc(interpolated, truth, directory, name,
             # Count the number of events that are left in the signal region after a certain cut on the background
             # template
             count = []
+            expected_count = []
             mx = y_val == 0
             for i, at in enumerate(thresholds):
                 threshold = np.quantile(y_scores[~mx], 1 - at)
+                expected_count += [sum(y_scores[~mx] <= threshold)]
                 count += [sum(y_scores[mx] <= threshold)]
+                if anomaly_bool:
+                    signal_pass_rate = sum(anomaly_scores <= threshold) / len(anomaly_scores)
+                    bg_pass_rate = sum(inlier_scores <= threshold) / len(inlier_scores)
+                    pass_rates += [np.concatenate((signal_pass_rate, bg_pass_rate))]
             counts += [np.array(count)]
+            expected_counts += [np.array(expected_count)]
 
     y_scores = np.concatenate(y_scores_s)
     labels_test = np.concatenate(labels_test_s)
@@ -397,6 +406,9 @@ def get_auc(interpolated, truth, directory, name,
 
     if return_rates:
         counts = np.array(counts)
+        if anomaly_bool:
+            pass_rates = np.array(pass_rates)
+        counts = {'counts': counts, 'expected_counts': expected_counts, 'pass_rates': pass_rates}
 
     # Plot a roc curve
     fig, ax = plt.subplots(1, 1, figsize=(5, 5))

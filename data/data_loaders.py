@@ -215,6 +215,14 @@ def load_curtains_pd(sm='QCDjj_pT', dtype='float32', extraStats=False, feature_t
         if feature_type == 2:
             data = data[['mj1', 'mj2', r'$dR_{jj}$', 'mjj']]
 
+        if feature_type == 10:
+            data = data[['mj1', 'mj2-mj1', r'$\tau_{21}^{j_1}$', r'$\tau_{21}^{j_2}$', r'$dR_{jj}$', r'$p_t^{j_1}$',
+                         r'$p_t^{j_2}$', 'mjj']]
+
+        if feature_type == 11:
+            data = data[['mj1', 'mj2-mj1', r'$\tau_{21}^{j_1}$', r'$\tau_{21}^{j_2}$', r'$dR_{jj}$', r'$p_t^{j_1}$',
+                         r'$p_t^{j_2}$', 'delEta', 'mjj']]
+
         if 3 <= feature_type <= 8:
             # Introduce successive spurious correlations
             mJJ = data.iloc[:, -1]
