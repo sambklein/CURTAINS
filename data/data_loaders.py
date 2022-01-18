@@ -175,6 +175,7 @@ def load_curtains_pd(sm='QCDjj_pT', dtype='float32', extraStats=False, feature_t
             df[f'p{jet}'] = np.sqrt(df[f'pz{jet}'] ** 2 + df[f'pt{jet}'] ** 2)
             df[f'e{jet}'] = np.sqrt(df[f'm{jet}'] ** 2 + df[f'p{jet}'] ** 2)
 
+        # TODO: remove this?
         fig, axs_ = plt.subplots(2, 4, figsize=(22, 12))
         tplot = df[['ptj1', 'etaj1', 'phij1', 'ej1', 'ptj2', 'etaj2', 'phij2', 'ej2']]
         for i, ax in enumerate(fig.axes):
@@ -202,12 +203,15 @@ def load_curtains_pd(sm='QCDjj_pT', dtype='float32', extraStats=False, feature_t
         data['mjj'] = calculate_mass(
             np.sum([df[[f'ej{i}', f'pxj{i}', f'pyj{i}', f'pzj{i}']].to_numpy() for i in range(1, 3)], 0))
 
+        # TODO: This needs to be handled by the data class!! It needs to be undone for classification!!
+        # def scale_features(data):
+        #     eps = 1e-6
+        #     mn = data.min() - eps
+        #     mx = data.max() + eps
+        #     data = (data - mn) / (mx - mn)
+        #     data = np.log(data) - np.log(1 - data)
+        #     return data
         def scale_features(data):
-            eps = 1e-6
-            mn = data.min() - eps
-            mx = data.max() + eps
-            data = (data - mn) / (mx - mn)
-            data = np.log(data) - np.log(1 - data)
             return data
 
         data.iloc[:, :-1] = scale_features(data.iloc[:, :-1])

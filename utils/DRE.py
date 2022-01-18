@@ -1,10 +1,13 @@
+import os
+import pdb
 from copy import deepcopy
 
 import torch
 import numpy as np
-from sklearn.metrics import roc_curve, auc
+from sklearn.metrics import roc_curve, auc, roc_auc_score
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split, StratifiedKFold
+from sklearn.utils import class_weight
 
 from models.classifier import Classifier
 from models.nn.networks import dense_net
@@ -33,12 +36,13 @@ class SupervisedDataClass(Dataset):
             self.update_data()
         self.weights = torch.ones_like(self.targets)
         if weights == 'balance':
-            n_ones = self.targets.sum()
-            n_zeros = self.targets.shape[0] - n_ones
-            if n_ones < n_zeros:
-                self.weights[self.targets == 1] = n_zeros / n_ones
-            elif n_ones > n_zeros:
-                self.weights[self.targets == 0] = n_ones / n_zeros
+            self.weights = class_weight.compute_sample_weight('balanced', y=labels.reshape(-1)).reshape(-1, 1)
+            # n_ones = self.targets.sum()
+            # n_zeros = self.targets.shape[0] - n_ones
+            # if n_ones < n_zeros:
+            #     self.weights[self.targets == 1] = n_zeros / n_ones
+            # elif n_ones > n_zeros:
+            #     self.weights[self.targets == 0] = n_ones / n_zeros
         elif weights is not None:
             self.weights = weights
 
@@ -100,7 +104,7 @@ def get_net(batch_norm=False, layer_norm=False, width=32, depth=2, dropout=0):
 
 
 def fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, n_epochs, device, sv_dir, plot=True,
-                   save=True, scheduler=None, pure_noise=False, fold=0):
+                   load_best=True, scheduler=None, pure_noise=False, fold=0):
     # Initialize timer class, this is useful on the cluster as it will say if you have enough time to run the job
     timer = Timer('irrelevant', 'irrelevant', print_text=False)
 
@@ -118,6 +122,8 @@ def fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, n_
     train_loss = np.zeros(n_epochs)
     valid_loss = np.zeros(n_epochs)
     scheduler_bool = scheduler is not None
+    classifier_dir = os.path.join(sv_dir, f'classifier_{fold}')
+    os.makedirs(classifier_dir, exist_ok=True)
     for epoch in range(n_epochs):  # loop over the dataset multiple times
         # Start the timer
         timer.start()
@@ -160,6 +166,7 @@ def fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, n_
                 loss = classifier.compute_loss(data)
                 running_loss[i] = loss.item()
         valid_loss[epoch] = np.mean(running_loss)
+        classifier.save(f'{classifier_dir}/{epoch}')
 
         # Stop the timer
         timer.stop()
@@ -173,10 +180,16 @@ def fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, n_
         plt.tight_layout()
         plt.savefig(sv_dir + f'Training_{fold}.png')
 
-    if save:
-        classifier.save(sv_dir + f'classifier_{fold}')
+    if load_best:
+        def moving_average(x, kernel=5):
+            return np.convolve(x, np.ones(kernel), 'valid') / kernel
+        # TODO: should really add some kind of smoothing to the val for this selection to remove noise
+        best_epoch = np.argmin(valid_loss)
+        # Index is counted from zero so add one to get the best epoch
+        print(f'Best epoch: {best_epoch + 1} loaded')
+        classifier.load(f'{classifier_dir}/{best_epoch}')
 
-    # print('Finished Training')
+    return classifier_dir
 
 
 def dope_data(truth, anomaly_data, beta):
@@ -201,7 +214,6 @@ def get_auc(interpolated, truth, directory, name,
             split=0.5,
             anomaly_data=None,
             mass_incl=True,
-            balance=True,
             beta=None,
             sup_title='',
             mscaler=None,
@@ -233,12 +245,7 @@ def get_auc(interpolated, truth, directory, name,
     if drp > 0:
         width = int(width / drp)
 
-    if balance:
-        n = min((len(interpolated), len(truth)))
-        interpolated = sample_data(interpolated, n)
-        truth = sample_data(truth, n)
-
-    sv_dir = directory + f'/{name}'
+    sv_dir = os.path.join(directory, name)
     anomaly_bool = anomaly_data is not None
     beta_bool = beta is not None
 
@@ -313,7 +320,6 @@ def get_auc(interpolated, truth, directory, name,
             valid_data.normalize(facts)
 
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        # print(f'Classifier device {device}.')
         net = get_net(batch_norm=batch_norm, layer_norm=layer_norm, width=width, depth=depth, dropout=drp)
         classifier = Classifier(net, train_data.nfeatures, 1, name, directory=directory,
                                 activation=torch.sigmoid).to(device)
@@ -330,17 +336,21 @@ def get_auc(interpolated, truth, directory, name,
             scheduler = None
 
         # Train
+        def load_classifier():
+            # TODO: load best or load last?
+            classifier.load(os.path.join(sv_dir, f'classifier_{fold}', f'{nepochs - 1}'))
+        def fit_the_classifier():
+            fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, nepochs,
+                           device, sv_dir, scheduler=scheduler, pure_noise=pure_noise, fold=fold)
         if load == 1:
-            classifier.load(sv_dir + f'classifier_{fold}')
+            load_classifier()
         elif load == 2:
             try:
-                classifier.load(sv_dir + f'classifier_{fold}')
+                load_classifier()
             except:
-                fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, nepochs, device, sv_dir,
-                               scheduler=scheduler, pure_noise=pure_noise, fold=fold)
+                fit_the_classifier()
         else:
-            fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, nepochs, device, sv_dir,
-                           scheduler=scheduler, pure_noise=pure_noise, fold=fold)
+            fit_the_classifier()
 
         with torch.no_grad():
             # y_scores = classifier.predict(valid_data.data.to(device)).cpu().numpy()
@@ -349,16 +359,15 @@ def get_auc(interpolated, truth, directory, name,
         y_scores_s += [y_scores]
         # labels_test = valid_data.targets.cpu().numpy()
         labels_test = valid_data.base_labels
-        labels_test_s += [labels_test]
+        labels_test_s += [labels_test] 
 
         # Plot the classifier distribution
-        mx = labels_test == 0
-
         if anomaly_bool:
             pure_test_data = SupervisedDataClass(X_test_pure, y_test_pure)
             if normalize:
                 pure_test_data.normalize(facts)
             with torch.no_grad():
+                # TODO: the anomaly_data is not normalized...
                 if mass_incl:
                     ad = anomaly_data.data[:, :-1]
                     td = pure_test_data.data[:, :-1]
@@ -367,21 +376,33 @@ def get_auc(interpolated, truth, directory, name,
                     td = pure_test_data.data
                 anomaly_scores = classifier.predict(ad.to(device)).cpu().numpy()
                 inlier_scores = classifier.predict(td.to(device)).cpu().numpy()
-            y_labels_1 += [np.concatenate((np.zeros(len(anomaly_scores)), np.ones(len(y_scores[~mx]))))]
-            y_scores_1 += [np.concatenate((anomaly_scores[:, 0], y_scores[~mx]))]
-            y_labels_2 += [y_test_pure]
+            bg_scores = y_scores[y_test_pure == 1]
+            y_labels_1 += [np.concatenate((np.zeros(len(anomaly_scores)), np.ones(len(bg_scores))))]
+            y_scores_1 += [np.concatenate((anomaly_scores[:, 0], bg_scores))]
+            y_labels_2 += [pure_test_data.targets]
             y_scores_2 += [inlier_scores[:, 0]]
 
+            fpr, tpr, _ = roc_curve(y_labels_1[-1], y_scores_1[-1])
+
+            roc_auc_1 = roc_auc_score(y_labels_1[-1], y_scores_1[-1])
+            roc_auc_2 = roc_auc_score(y_labels_2[-1], y_scores_2[-1])
+            roc_auc_3 = roc_auc_score(labels_test, y_scores)
+            with open(os.path.join(sv_dir, f'classifier_info_{fold}.txt'), 'w') as f:
+                f.write(f'SR vs transformed {roc_auc_2} \n')
+                f.write(f'SR QCD vs SR anomalies {roc_auc_1} \n')
+                f.write(f'Classification on training {roc_auc_3} \n')
+
+        # Calculate the expected and real counts that pass a certain threshold of the classifier
         if return_rates:
             # Count the number of events that are left in the signal region after a certain cut on the background
             # template
             count = []
             expected_count = []
-            mx = y_val == 0
+            mx = y_val == 1
             for i, at in enumerate(thresholds):
-                threshold = np.quantile(y_scores[~mx], 1 - at)
-                expected_count += [sum(y_scores[~mx] <= threshold)]
-                count += [sum(y_scores[mx] <= threshold)]
+                threshold = np.quantile(y_scores[mx], 1 - at)
+                expected_count += [sum(y_scores[mx] <= threshold)]
+                count += [sum(y_scores[~mx] <= threshold)]
                 if anomaly_bool:
                     signal_pass_rate = sum(anomaly_scores <= threshold) / len(anomaly_scores)
                     bg_pass_rate = sum(inlier_scores <= threshold) / len(inlier_scores)
@@ -400,8 +421,10 @@ def get_auc(interpolated, truth, directory, name,
         y_scores_1 = np.concatenate(y_scores_1)
         y_labels_2 = np.concatenate(y_labels_2)
         y_scores_2 = np.concatenate(y_scores_2)
-        fpr1, tpr1, _ = roc_curve(y_labels_1, y_scores_1)
-        fpr2, tpr2, _ = roc_curve(y_labels_2, y_scores_2)
+        lmx = np.isfinite(y_scores_1)
+        fpr1, tpr1, _ = roc_curve(y_labels_1[lmx], y_scores_1[lmx])
+        lmx = np.isfinite(y_scores_2)
+        fpr2, tpr2, _ = roc_curve(y_labels_2[lmx], y_scores_2[lmx])
         roc_auc_anomalies = auc(fpr1, tpr1)
 
     if return_rates:

@@ -7,6 +7,34 @@ import numpy as np
 from utils.io import on_cluster
 
 
+class ClassifierData(Dataset):
+
+    def __init__(self, data, labels, dtype=torch.float32):
+        self.data = torch.tensor(data.to_numpy()).type(dtype)
+        self.labels = labels
+        self.preprocessed = False
+
+    def get_preprocess_info(self):
+        if not self.preprocessed:
+            self.max_vals, self.min_vals = list(torch.std_mean(self.data, dim=0))
+        return self.max_vals, self.min_vals
+
+    def preprocess(self, info=None):
+        if info is not None:
+            self.max_vals, self.min_vals = info
+        else:
+            self.get_preprocess_info()
+        if not self.preprocessed:
+            self.data = (self.data - self.min_vals) / (self.max_vals + 1e-8)
+            self.preprocessed = True
+
+    def unpreprocess(self):
+        if self.preprocessed:
+            stds, means = self.max_vals, self.min_vals
+            self.data = self.data * (stds + 1e-8) + means
+            self.preprocessed = False
+
+
 class BaseData(Dataset):
     def deal_with_nans(self):
         nan_mask = self.data.isnan().any(1)
@@ -18,11 +46,17 @@ class BaseData(Dataset):
         self.shape = self.data.shape
 
     def normalize(self):
-        for i, train_feature in enumerate(self.data.t()):
-            min_val = self.min_vals[i]
-            max_val = self.max_vals[i]
-            zo = (train_feature - min_val) / (max_val - min_val)
-            self.data.t()[i] = (zo - 0.5) * 2
+        # TODO: this needs to be cleaned up!
+        # for i, train_feature in enumerate(self.data.t()):
+        #     min_val = self.min_vals[i]
+        #     max_val = self.max_vals[i]
+        #     zo = (train_feature - min_val) / (max_val - min_val)
+        #     self.data.t()[i] = (zo - 0.5) * 2
+        # self.normed = True
+        # self.deal_with_nans()
+        # TODO: need to fix this!! Seperate training for the classifier if it works...
+        stds, means = self.max_vals, self.min_vals
+        self.data = (self.data - means) / (stds + 1e-8)
         self.normed = True
         self.deal_with_nans()
 
@@ -31,13 +65,15 @@ class BaseData(Dataset):
         data = self.unscale(data_in)
 
         if self.normed or (data_in is not None):
-            temp = torch.empty_like(data)
-            for i, train_feature in enumerate(data.t()):
-                min_val = self.min_vals[i]
-                max_val = self.max_vals[i]
-                zo = train_feature / 2 + 0.5
-                temp.t()[i] = zo * (max_val - min_val) + min_val
-            data = temp
+            # temp = torch.empty_like(data)
+            # for i, train_feature in enumerate(data.t()):
+            #     min_val = self.min_vals[i]
+            #     max_val = self.max_vals[i]
+            #     zo = train_feature / 2 + 0.5
+            #     temp.t()[i] = zo * (max_val - min_val) + min_val
+            # data = temp
+            stds, means = self.max_vals, self.min_vals
+            data = data * (stds + 1e-8) + means
             if data_in is None:
                 self.normed = False
         return data
@@ -57,8 +93,9 @@ class BasePhysics(BaseData):
     def set_scale(self, scale):
         if scale is None:
             # If no scaling variable is passed then this is the train set, so find the scaling vars
-            self.max_vals = self.data.quantile(0.99, 0)
-            self.min_vals = self.data.quantile(0.01, 0)
+            # self.max_vals = self.data.quantile(0.99, 0)
+            # self.min_vals = self.data.quantile(0.01, 0)
+            self.max_vals, self.min_vals = list(torch.std_mean(self.data, dim=0))
             # self.max_vals = []
             # self.min_vals = []
             # for train_feature in self.data.t():
@@ -246,7 +283,7 @@ class CurtainsTrainSet(Dataset):
                 d2 = self.data2[torch.randperm(self.s2, device='cpu')]
                 data = torch.cat((d1[:self.ndata].data, d2[:self.ndata].data), 1)
                 self.mix_qs = 2
-            
+
             elif self.mix_qs == 3:
                 # This method keeps the high mass and low mass regions separated
                 d1 = self.data1[torch.randperm(self.s1, device='cpu')]

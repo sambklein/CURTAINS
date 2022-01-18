@@ -143,7 +143,6 @@ def get_counts():
                 # counts = true_counts / expected_counts  # + 4 * (1 - np.array(thresholds))
                 counts = true_counts - expected_counts  # + 4 * (1 - np.array(thresholds))
                 error = counts * (np.sqrt(expected_counts) / expected_counts + np.sqrt(true_counts) / true_counts)
-                # pdb.set_trace()
                 # counts = true_counts - expected_counts / 4
                 rate = info_dict['pass_rates']
                 signal_pass_rate = rate[:, 0].reshape(nfolds, len(thresholds)).mean(0)
@@ -231,13 +230,11 @@ def get_counts():
 
                 rt = np.array(rt)
                 bins, bg_counts, ad_counts = get_mass_spectrum(int(label))
-                # pdb.set_trace()
                 mx = np.digitize(xy[:, 0], bins=bins) - 1
                 axes2[j, 0].bar(bins[mx], rt[:, 0, i] * ad_counts[mx], width=100, color='None', edgecolor='r')
                 axes2[j, 1].bar(bins[mx], rt[:, 1, i] * bg_counts[mx], width=100, color='None', edgecolor='b')
                 axes2[j, 2].bar(bins[mx], rt[:, 0, i] * ad_counts[mx], width=100, color='None', edgecolor='r')
                 axes2[j, 2].bar(bins[mx], rt[:, 1, i] * bg_counts[mx], width=100, color='None', edgecolor='b')
-                # pdb.set_trace()
                 axes2[j, 3].bar(bins[mx], rt[:, 0, i] * ad_counts[mx] / (rt[:, 1, i] * bg_counts[mx]), width=100,
                                 label=f'Cut = {thresholds[i]}', color='None', edgecolor=clr)
                 axes2[j, 4].bar(bins[mx], rt[:, 0, i] * ad_counts[mx] / np.sqrt(rt[:, 1, i] * bg_counts[mx]),
@@ -281,6 +278,113 @@ def get_counts():
     fig2.clf()
 
 
+def get_sics():
+    sv_dir = get_top_dir()
+    # directories = [f'fixed_widths_cathode_OT_{i}' for i in range(0, 9)] + \
+    #               [f'fixed_widths_curtains_OT_{i}' for i in range(0, 9)] + \
+    #               [f'classifier_test_fixed_classifier_{i}' for i in range(0, 9)] + \
+    # directories = [f'no_eps_classifier_no_eps_{i}' for i in range(0, 9)] + \
+    #               [f'no_eps_no_dope_classifier_no_eps_no_dope_{i}' for i in range(0, 9)] + \
+    #               [f'idealised_cathode_idealised_cathode_{i}' for i in range(0, 9)] + \
+    #               [f'supervised_cathode_super_cathode_{i}' for i in range(0, 9)] + \
+    #               [f'no_adam_no_adam_{i}' for i in range(0, 9)] + \
+    #               [f'no_adam_no_scheduler_no_adam_ns_{i}' for i in range(0, 9)] + \
+    #               [f'supervised_no_eps_supervised_no_eps_{i}' for i in range(0, 9)]
+    directories = [f'test_test_imbal_{i}' for i in range(0, 9)] + \
+                  [f'super_cathode_cathy_new_weights_{i}' for i in range(0, 9)] + \
+                  [f'super_slim_super_{i}' for i in range(0, 9)]
+    # names = ['cathode' for i in range(0, 9)] + \
+    #         [f'curtains' for i in range(0, 9)] + \
+    #         [f'idealized' for i in range(0, 9)] + \
+    # names = [f'idealized_no_eps' for i in range(0, 9)] + \
+    #         [f'idealized_no_eps_or_dope' for i in range(0, 9)] + \
+    #         [f'idealised_cathode' for i in range(0, 9)] + \
+    #         [f'supervised_cathode' for i in range(0, 9)] + \
+    #         [f'no_adam' for i in range(0, 9)] + \
+    #         [f'no_adam_no_scheduler' for i in range(0, 9)] + \
+    #         [f'supervised_no_eps' for i in range(0, 9)]
+    names = ['SUPER'] * 9 + ['SUPER_schedule_wd'] * 9 + ['SUPER_slim'] * 9
+
+    # Gather saved quantities
+    vals = {}
+    super_saver = []
+    for i, directory in enumerate(directories):
+        try:
+            with open(f'{sv_dir}/images/{directory}/rates.pkl', 'rb') as f:
+                loaded = pickle.load(f)[0]
+                # info = loaded['0.0_no_eps']
+                info = loaded['0.0']
+                if 'Supervised' in loaded.keys():
+                    super = loaded['Supervised']
+            passed = 1
+        except Exception as e:
+            print(e)
+            passed = 0
+        if passed:
+            args = get_args(f'{sv_dir}/images/{directory}')
+            label = f'{args["feature_type"]}__{args["bins"]}'
+            store = [names[i], info]
+            if label in vals:
+                vals[label] += [store]
+            else:
+                vals[label] = [store]
+            if 'Supervised' in loaded.keys():
+                if label not in super_saver:
+                    super_saver += [label]
+                    vals[label] += [['Supervised', super]]
+
+    # Start plotting different quantities
+    runs = sorted(set(vals.keys()))
+    n_runs = len(runs)
+    unique_names = list(set(names)) + ['Supervised']
+    n_versions = len(unique_names)
+    fig, axes = plt.subplots(n_runs, 2, figsize=(14, 5 * n_runs + 2))
+
+    # clist = sorted(plt.rcParams['axes.prop_cycle'].by_key()['color'])
+    clist = [u'#1f77b4', u'#ff7f0e', u'#2ca02c', u'#d62728', u'#9467bd', u'#8c564b', u'#e377c2', u'#7f7f7f', u'#bcbd22',
+             u'#17becf']
+    clrs = {unique_names[i]: clist[i] for i in range(n_versions)}
+    max_sic = 20
+
+    for j in range(n_runs):
+        label = runs[j]
+        lst = vals[label]
+        lst += [['random', [np.linspace(0, 1, 50), np.linspace(0, 1, 50)]]]
+        for values in lst:
+            nm = values[0]
+            fpr = values[1][0]
+            tpr = values[1][1]
+            ax = axes[j, 1]
+            ax1 = axes[j, 0]
+            # pdb.set_trace()
+            fpr_mx = fpr != 0.
+            fpr_nz = fpr[fpr_mx]
+            tpr_nz = tpr[fpr_mx]
+            if nm == 'random':
+                line = '--'
+                color = 'k'
+            else:
+                line = '-'
+                color = clrs[nm]
+            ax.plot(tpr_nz, tpr_nz / fpr_nz ** 0.5, linewidth=2, label=nm, linestyle=line, color=color)
+            ax1.plot(tpr_nz, 1 / fpr_nz, linewidth=2, label=nm, linestyle=line, color=color)
+            ax.set_ylim(0, max_sic)
+
+        ax.set_xlabel('Signal efficiency')
+        ax.set_ylabel('Significance improvement')
+        ax1.set_xlabel('Signal efficiency')
+        ax1.set_ylabel('Rejection (1 / false positive rate)')
+        ax1.set_yscale('log')
+        feature_type, bins = label.split('__')
+        ax.set_title(f'Feature type{feature_type}, Bins {bins}')
+
+    handles, labels = ax.get_legend_handles_labels()
+    fig.legend(handles, labels, loc='upper left', bbox_to_anchor=(0.9, 0.89), frameon=False)
+    fig.savefig(f'{sv_dir}/images/sics.png', bbox_inches='tight')
+    fig.clf()
+
+
 if __name__ == '__main__':
-    get_counts()
+    # get_counts()
+    get_sics()
     # get_max_sic()
