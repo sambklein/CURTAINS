@@ -76,16 +76,6 @@ def unpreprocess_method(data, info):
     data = torch.hstack((data, mass.view(-1, 1)))
     return data
 
-def minimum_validation_loss_models(prediction_dir, n_epochs=10):
-    validation_loss_matrix = np.load(os.path.join(prediction_dir, 'val_loss_matris.npy'))
-    model_paths = []
-    for i in range(validation_loss_matrix.shape[0]):
-        min_val_loss_epochs = np.argpartition(validation_loss_matrix[i, :],
-                                              n_epochs - 1)[:n_epochs]
-        print("minimum validation loss epochs:", min_val_loss_epochs)
-        model_paths.append([os.path.join(prediction_dir, f"model_run{i}_ep{x}") for x in min_val_loss_epochs])
-    return model_paths
-
 
 # TODO: should use this for the supervised dataset
 class ClassifierData(Dataset):

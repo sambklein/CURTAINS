@@ -1,10 +1,13 @@
 import os
+import pickle
+import re
 
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import cm
 from scipy.interpolate import interp1d
 from sklearn.metrics import roc_curve
+from sklearn.model_selection import train_test_split
 from sklearn.utils import class_weight
 
 import torch
@@ -12,6 +15,8 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import yaml
+
+from data.physics_datasets import ClassifierData
 
 
 class Classifier(nn.Module):
@@ -261,6 +266,47 @@ def preds_from_models(model_path_list, X_test, save_dir, predict_on_samples=Fals
     if take_mean:
         preds_matrix = np.mean(preds_matrix, axis=1, keepdims=True)
     np.save(os.path.join(save_dir, "preds_matris.npy"), preds_matrix)
+    return preds_matrix.squeeze()
+
+
+def counts_from_models(model_path_list, X_val, save_dir, anomaly_scores, thresholds=None):
+    if thresholds is None:
+        thresholds = [0, 0.5, 0.8, 0.9, 0.95, 0.99]
+    use_cuda = torch.cuda.is_available()
+    device = torch.device("cuda:0" if use_cuda else "cpu")
+
+    run_predictions = []
+    for i, model_paths in enumerate(model_path_list):  ## looping over runs
+        model_list = [torch.load(model_path, map_location=device) for model_path in model_paths]
+        for model in model_list:
+            model.eval()
+        epoch_predictions = []
+        for model in model_list:  ## looping over epochs
+            epoch_predictions.append(model.predict(X_val[:, 1:-2]).flatten())
+        run_predictions.append(np.stack(epoch_predictions))
+
+    preds_matrix = np.stack(run_predictions)
+    y_scores = np.mean(preds_matrix, axis=1, keepdims=True).squeeze()
+
+    count = []
+    expected_count = []
+    pass_rates = []
+    mx = X_val[:, -2] == 0
+    for i, at in enumerate(thresholds):
+        threshold = np.quantile(y_scores[mx], at)
+        expected_count += [sum(y_scores[mx] >= threshold)]
+        count += [sum(y_scores[X_val[:, -2] == 1] >= threshold)]
+        signal_pass_rate = sum(anomaly_scores >= threshold) / len(anomaly_scores)
+        # TODO this is a poor proxy for the BG rejection rate
+        bg_pass_rate = sum(y_scores[mx] >= threshold) / len(y_scores)
+        pass_rates += [np.array((signal_pass_rate, bg_pass_rate))]
+    counts = np.array(count)
+    expected_counts = np.array(expected_count)
+    pass_rates = np.array(pass_rates)
+    print(f'Expected {expected_counts}.\n Measured {counts}.')
+    counts = {'counts': counts, 'expected_counts': expected_counts, 'pass_rates': pass_rates}
+    with open(f'{save_dir}/counts_cathode.pkl', 'wb') as f:
+        pickle.dump(counts, f)
     return preds_matrix
 
 
@@ -449,3 +495,93 @@ def full_single_evaluation(prediction_dir, X_test, n_ensemble_epochs=10,
         [tprs], [fprs], [np.zeros(min_val_loss_predictions.shape[0])], [""],
         sic_lim=sic_range, savefig=savefig, only_median=False, continuous_colors=False,
         reduced_legend=False, suppress_show=suppress_show, return_all=return_all)
+
+
+def minimum_validation_loss_models(prediction_dir, n_epochs=10):
+    validation_loss_matrix = np.load(os.path.join(prediction_dir, 'val_loss_matris.npy'))
+    model_paths = []
+    for i in range(validation_loss_matrix.shape[0]):
+        min_val_loss_epochs = np.argpartition(validation_loss_matrix[i, :],
+                                              n_epochs - 1)[:n_epochs]
+        print("minimum validation loss epochs:", min_val_loss_epochs)
+        model_paths.append([os.path.join(prediction_dir, f"model_run{i}_ep{x}") for x in min_val_loss_epochs])
+    return model_paths
+
+
+def get_auc(bg_template, sr_samples, sv_dir, name, anomaly_data=None, bg_truth_labels=None, mass_incl=True,
+            sup_title='', load=False, normalize=True, batch_size=1000, nepochs=100,
+            lr=0.0001, wd=0.001, drp=0.0, width=32, depth=3, batch_norm=False, layer_norm=False, use_scheduler=True,
+            use_weights=True, thresholds=None, beta_add_noise=0.1, pure_noise=False, nfolds=5, data_unscaler=None):
+    def prepare_data(data):
+        data = data.detach().cpu()
+        if data_unscaler is not None:
+            data = data_unscaler(data)
+        if mass_incl:
+            data = data[:, :-1]
+        return data
+
+    bg_template = prepare_data(bg_template)
+    sr_samples = prepare_data(sr_samples)
+    anomaly_bool = anomaly_data is not None
+    if anomaly_bool:
+        anomaly_data = prepare_data(anomaly_data)
+
+    stack = torch.cat((bg_template, sr_samples, anomaly_data), 0)
+    if normalize:
+        # TODO: make this a proper class that can do things just based on the training data to get the scaling info
+        stack = ClassifierData(stack, 1)
+        stack.preprocess()
+        bg_template = stack.data[:len(bg_template)]
+        sr_samples = stack.data[len(bg_template):len(bg_template) + len(sr_samples)]
+        anomaly_data = stack.data[len(bg_template) + len(sr_samples):]
+
+    if bg_truth_labels is None:
+        # These are used to label training data, and so shouldn't be used TODO: pass these around with all data
+        bg_truth_labels = torch.zeros(len(bg_template) + len(sr_samples))
+
+    # First thing you need to do is put the mass first
+    feature_filter = [-1, 0, 1, 2, 3]
+    X_train = torch.cat((bg_template.roll(1, 1), sr_samples.roll(1, 1)), 0)
+    # Treat the BG templates as label zero
+    y_train = torch.cat((torch.zeros(len(bg_template)), torch.ones(len(sr_samples))), 0)
+    bg_labls = 1 - bg_truth_labels
+    X_train = torch.cat((X_train, y_train.view(-1, 1), bg_labls.view(-1, 1)), 1)
+    X_train[:, 0] /= 1000
+
+    # Append additional signal
+    # lbs = torch.ones(len(anomaly_data)).view(-1, 1)
+    lbs = torch.ones(len(anomaly_data)).view(-1, 1)
+    add_anomalies = torch.cat((anomaly_data.roll(1, 1), lbs, lbs), 1)
+    X_test = torch.cat((X_train[y_train == 0], add_anomalies), 0).numpy()
+    # Making this all ones means that they will all be treated as data, not trying to separate samples from data here...
+    y_test = torch.cat((torch.ones(sum(y_train == 0)).view(-1, 1), lbs)).numpy()[:, 0]
+    X_test[:, -2] = y_test
+
+    X_train = X_train.numpy()
+    y_train = y_train.numpy()
+
+    X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.33)
+
+    model_dir = os.path.join(sv_dir, f'models_{name}')
+    os.makedirs(model_dir, exist_ok=True)
+    if load not in [1, 2]:
+        loss_matris, val_loss_matris = train_n_models(
+            1, 'utils/classifier.yml', nepochs, X_train, y_train, X_test, y_test,
+            batch_size=batch_size,
+            supervised=False, verbose=False,
+            savedir=model_dir, save_model=os.path.join(model_dir, 'model'))
+
+    model_paths = minimum_validation_loss_models(model_dir, n_epochs=10)
+    preds_matrix = preds_from_models(model_paths, X_test, model_dir)
+    _ = counts_from_models(model_paths, X_val, model_dir, preds_matrix, thresholds=thresholds)
+
+    match = re.match(r"([a-z]+)([0-9]+)", name, re.I)
+    if match:
+        nm = match.groups()[0]
+    else:
+        nm = name
+    try:
+        _ = full_single_evaluation(model_dir, X_test, n_ensemble_epochs=10, sic_range=(0, 20),
+                                   savefig=os.path.join(sv_dir, f'result_SIC_{nm}'))
+    except Exception as e:
+        print(e)

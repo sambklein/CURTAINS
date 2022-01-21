@@ -57,7 +57,7 @@ parser.add_argument('-n', type=str, default='Transformer', help='The name with w
 parser.add_argument('-d', type=str, default='NSF_CURT', help='Directory to save contents into.')
 parser.add_argument('--load', type=int, default=1, help='Whether or not to load a model.')
 parser.add_argument('--model_name', type=str, default=None, help='Saved name of model to load.')
-parser.add_argument('--load_classifiers', type=int, default=0, help='Whether or not to load a model.')
+parser.add_argument('--load_classifiers', type=int, default=2, help='Whether or not to load a model.')
 parser.add_argument('--log_dir', type=str, default='no_scan', help='Whether or not to load a model.')
 
 ## Hyper parameters
@@ -102,7 +102,7 @@ parser.add_argument('--oversample', type=int, default=4,
 ## Classifier training
 parser.add_argument('--beta_add_noise', type=float, default=0.,
                     help='The value of epsilon to use in the 1-e training.')
-parser.add_argument('--classifier_epochs', type=int, default=1,
+parser.add_argument('--classifier_epochs', type=int, default=10,
                     help='The value of epsilon to use in the 1-e training.')
 parser.add_argument('--use_mass_sampler', type=int, default=0, help='Whether or not to sample the mass.')
 

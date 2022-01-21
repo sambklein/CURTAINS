@@ -16,6 +16,7 @@ from models.nn.networks import dense_net
 from torch.utils.data import Dataset
 import torch
 
+from utils import CATHODE_classifier
 from utils.plotting import add_error_hist, get_bins, hist_features
 from utils.torch_utils import sample_data
 from utils.training import Timer
@@ -298,6 +299,11 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
     """
     if thresholds is None:
         thresholds = [0, 0.5, 0.8, 0.9, 0.95, 0.99]
+
+    if anomaly_data is not None:
+        CATHODE_classifier.get_auc(bg_template, sr_samples, directory, name, anomaly_data=anomaly_data,
+                               data_unscaler=data_unscaler, mass_incl=mass_incl, bg_truth_labels=bg_truth_labels,
+                               batch_size=batch_size, normalize=normalize, nepochs=nepochs, load=load)
 
     def prepare_data(data):
         data = data.detach().cpu()
