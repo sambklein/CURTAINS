@@ -162,6 +162,16 @@ def load_curtains_pd(sm='QCDjj_pT', dtype='float32', extraStats=False, feature_t
         lhco_filename = 'events_anomalydetection_v2.features.h5'
         df = pd.read_hdf(f'{directory}/{lhco_filename}')
         # make_slim(df, directory, lhco_filename)
+
+        # Reorder the features such that the jets are ordered according to their invariant masses
+        jet_order_mask = df['mj1'] < df['mj2']
+        inverted_keys = ['pxj2', 'pyj2', 'pzj2', 'mj2', 'tau1j2', 'tau2j2', 'tau3j2', 'pxj1', 'pyj1', 'pzj1', 'mj1',
+                         'tau1j1', 'tau2j1', 'tau3j1', 'label']
+        proper_order = df.loc[jet_order_mask]
+        improper_order = df.loc[~jet_order_mask]
+        improper_order.columns = inverted_keys
+        df = pd.concat((proper_order, improper_order))
+
         if sm == 'QCDjj_pT':
             # TODO: is background labelled 0?
             df = df.loc[df['label'] == 0]
@@ -184,9 +194,11 @@ def load_curtains_pd(sm='QCDjj_pT', dtype='float32', extraStats=False, feature_t
         fig.savefig('test')
 
         data = df[['mj1', 'mj2']].copy()
-        data['mj2-mj1'] = df['mj2'] - df['mj1']
+        # data['mj2-mj1'] = abs(df['mj2'] - df['mj1'])
+        # data = pd.DataFrame(np.sort(df[['mj1', 'mj2']].to_numpy(), 1), columns=['mj1', 'mj2'], index=df.index)
+        data['mj2-mj1'] = data['mj2'] - data['mj1']
         data[r'$\tau_{21}^{j_1}$'] = df['tau2j1'] / df['tau1j1']
-        # data[r'$\tau_{32}$'] = df['tau3j1'] / df['tau2j1']
+        data[r'$\tau_{32}^{j_1}$'] = df['tau3j1'] / df['tau2j1']
         data[r'$\tau_{21}^{j_2}$'] = df['tau2j2'] / df['tau1j2']
         data[r'$\tau_{32}^{j_2}$'] = df['tau3j2'] / df['tau2j2']
         # data = pd.DataFrame()
@@ -406,8 +418,6 @@ def get_data(dataset, sv_nm, bins=None, normalize=True, mix_qs=False, flow=False
         nfeatures = len(lm.feature_nms) - 1
         fig, axs = plt.subplots(1, nfeatures, figsize=(5 * nfeatures + 2, 5))
         hist_features(lm, hm, nfeatures, axs, axs_nms=lm.feature_nms, labels=['SB1', 'SB2'], legend=False)
-        print(sv_nm + '_inital_features.png')
-
         fig.savefig(sv_nm + '_inital_features.png')
 
         training_data = CurtainsTrainSet(lm, hm, mix_qs=mix_qs, stack=flow)
@@ -436,6 +446,12 @@ def get_data(dataset, sv_nm, bins=None, normalize=True, mix_qs=False, flow=False
     if normalize:
         drape.normalize()
         signal_anomalies.normalize()
+
+        # And prior to being scaled
+        nfeatures = len(lm.feature_nms) - 1
+        fig, axs = plt.subplots(1, nfeatures, figsize=(5 * nfeatures + 2, 5))
+        hist_features(lm, hm, nfeatures, axs, axs_nms=lm.feature_nms, labels=['SB1', 'SB2'], legend=False)
+        fig.savefig(sv_nm + '_scaled_features.png')
 
     ntake = min(len(lm), len(signal_data))
     # TODO: saving in experiment name

@@ -53,15 +53,24 @@ class dense_net(base_network):
         if batch_norm and layer_norm:
             norm_exception()
 
+        # self.norm = 0
+        # self.norm_func = nn.LayerNorm
+        # if batch_norm:
+        #     self.norm = 1
+        #     self.norm_func = nn.BatchNorm1d
+        # if layer_norm:
+        #     self.norm = 1
+        #     self.norm_func = nn.LayerNorm
+        # self.norm_funcs = nn.ModuleList([self.norm_func(layers[i]) for i in range(len(layers) - 1)])
         self.norm = 0
-        self.norm_func = nn.LayerNorm
         if batch_norm:
             self.norm = 1
             self.norm_func = nn.BatchNorm1d
         if layer_norm:
             self.norm = 1
             self.norm_func = nn.LayerNorm
-        self.norm_funcs = nn.ModuleList([self.norm_func(layers[i]) for i in range(len(layers) - 1)])
+        if self.norm:
+            self.norm_funcs = nn.ModuleList([self.norm_func(layers[i]) for i in range(len(layers) - 1)])
 
     def forward(self, x, context=None):
         for i, function in enumerate(self.functions[:-1]):

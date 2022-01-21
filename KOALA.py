@@ -101,9 +101,8 @@ rates_sr_qcd_vs_anomalies = {}
 # TODO: to be fair to curtains, when normalizing, you should use the thresholding technique you are using for Curtains proper.
 for beta in [0.5, 1, 5, 10]:
     auc_info = get_auc(background, signal, image_dir, f'{args.n}_{beta}', anomaly_data=signal_region_anomalies,
-                       thresholds=[0, 0.5, 0.8, 0.95], beta=beta / 100,
-                       sup_title=f'QCD in SR doped with {beta:.3f}% anomalies',
-                       return_rates=True, plot_mass_dists=False, normalize=True)
+                       sup_title=f'QCD in SR doped with {beta:.3f}% anomalies', return_rates=True, normalize=True,
+                       thresholds=[0, 0.5, 0.8, 0.95])
     auc_anomalies = auc_info[0]
     rates_sr_vs_transformed[f'{beta}'] = auc_info[1]
     rates_sr_qcd_vs_anomalies[f'{beta}'] = auc_info[2]

@@ -1,3 +1,4 @@
+import os
 import warnings
 
 from torch.utils.data import Dataset
@@ -7,10 +8,93 @@ import numpy as np
 from utils.io import on_cluster
 
 
+def preprocess_method(data, info=None):
+    mass = data[:, -1]
+    data = data[:, :-1]
+    info_not_passed = info is None
+    eps = 1e-6
+    rel_eps = 0.001
+    n_features = data.shape[1]
+    if info_not_passed:
+        mx = data.max(0)[0]
+        mn = data.min(0)[0]
+        info = torch.hstack([mx + abs(mx * rel_eps + eps), mn - abs(mn * rel_eps + eps)])
+    mx = info[:n_features]
+    mn = info[n_features:2 * n_features]
+    data = (data - mn) / (mx - mn)
+    cnt = 2 * n_features
+    if info_not_passed:
+        # As the data is to be log scaled we will need to clamp some values
+        clamps = [data.min(), data.max()]
+        info = torch.hstack((info, torch.tensor(clamps)))
+    data.clamp(*info[cnt:cnt + 2])
+    cnt += 2
+    data = data.log() - (1 - data).log()
+    if info_not_passed:
+        # Here we can do quantiles as we aren't worried about getting into [0, 1]
+        info = torch.hstack((info, data.quantile(0.99, 0), data.quantile(0.01, 0)))
+    mx = info[cnt:cnt + n_features]
+    mn = info[cnt + n_features:cnt + 2 * n_features]
+    data = (data - mn) / (mx - mn)
+    if info_not_passed:
+        info = torch.hstack((info, mass.max(), mass.min()))
+    # Scale the mass
+    mx = info[-2]
+    mn = info[-1]
+    mass = (mass - mn) / (mx - mn)
+    # This declares whether each value is used as a max value or a minimum value
+    min_max_mask = np.array([1] * n_features + [0] * n_features +
+                            [0, 1] +
+                            [1] * n_features + [0] * n_features
+                            + [1, 0])
+    data = torch.hstack((data, mass.view(-1, 1)))
+    data = (data - 0.5) * 2
+    return data, info, min_max_mask
+
+def unpreprocess_method(data, info):
+    data = data / 2 + 0.5
+    mass = data[:, -1]
+    data = data[:, :-1]
+    n_features = data.shape[1]
+
+    # Unscale the mass
+    mx = info[-2]
+    mn = info[-1]
+    mass = mass * (mx - mn) + mn
+
+    # Unscale the data
+    cnt = 2 * n_features + 2
+    mx = info[cnt:cnt + n_features]
+    mn = info[cnt + n_features:cnt + 2 * n_features]
+    data = data * (mx - mn) + mn
+    data = data.exp() / (data.exp() + 1)
+    # The only issue you get here is .exp return inf, which will result in an inf here that can be reset
+    data[data.isnan()] = 1.
+    mx = info[:n_features]
+    mn = info[n_features:2 * n_features]
+    data = data * (mx - mn) + mn
+    data = torch.hstack((data, mass.view(-1, 1)))
+    return data
+
+def minimum_validation_loss_models(prediction_dir, n_epochs=10):
+    validation_loss_matrix = np.load(os.path.join(prediction_dir, 'val_loss_matris.npy'))
+    model_paths = []
+    for i in range(validation_loss_matrix.shape[0]):
+        min_val_loss_epochs = np.argpartition(validation_loss_matrix[i, :],
+                                              n_epochs - 1)[:n_epochs]
+        print("minimum validation loss epochs:", min_val_loss_epochs)
+        model_paths.append([os.path.join(prediction_dir, f"model_run{i}_ep{x}") for x in min_val_loss_epochs])
+    return model_paths
+
+
+# TODO: should use this for the supervised dataset
 class ClassifierData(Dataset):
 
     def __init__(self, data, labels, dtype=torch.float32):
-        self.data = torch.tensor(data.to_numpy()).type(dtype)
+        if not isinstance(data, torch.Tensor):
+            self.data = torch.tensor(data.to_numpy()).type(dtype)
+        else:
+            self.data = data
         self.labels = labels
         self.preprocessed = False
 
@@ -45,37 +129,22 @@ class BaseData(Dataset):
         # This isn't dynamic, so if you want to modify the size of the dataset this must be updated as well
         self.shape = self.data.shape
 
+    def unscale(self, data_in):
+        return data_in
+
     def normalize(self):
-        # TODO: this needs to be cleaned up!
-        # for i, train_feature in enumerate(self.data.t()):
-        #     min_val = self.min_vals[i]
-        #     max_val = self.max_vals[i]
-        #     zo = (train_feature - min_val) / (max_val - min_val)
-        #     self.data.t()[i] = (zo - 0.5) * 2
-        # self.normed = True
-        # self.deal_with_nans()
-        # TODO: need to fix this!! Seperate training for the classifier if it works...
-        stds, means = self.max_vals, self.min_vals
-        self.data = (self.data - means) / (stds + 1e-8)
+        self.data, _, _ = preprocess_method(self.data, self.scale)
         self.normed = True
         self.deal_with_nans()
 
     def unnormalize(self, data_in=None):
-
-        data = self.unscale(data_in)
-
+        data_not_passed = data_in is None
+        if data_not_passed:
+            data_in = self.data
         if self.normed or (data_in is not None):
-            # temp = torch.empty_like(data)
-            # for i, train_feature in enumerate(data.t()):
-            #     min_val = self.min_vals[i]
-            #     max_val = self.max_vals[i]
-            #     zo = train_feature / 2 + 0.5
-            #     temp.t()[i] = zo * (max_val - min_val) + min_val
-            # data = temp
-            stds, means = self.max_vals, self.min_vals
-            data = data * (stds + 1e-8) + means
-            if data_in is None:
-                self.normed = False
+            data = unpreprocess_method(data_in, self.scale)
+        if data_not_passed:
+            self.data = data
         return data
 
 
@@ -95,33 +164,26 @@ class BasePhysics(BaseData):
             # If no scaling variable is passed then this is the train set, so find the scaling vars
             # self.max_vals = self.data.quantile(0.99, 0)
             # self.min_vals = self.data.quantile(0.01, 0)
-            self.max_vals, self.min_vals = list(torch.std_mean(self.data, dim=0))
-            # self.max_vals = []
-            # self.min_vals = []
-            # for train_feature in self.data.t():
-            #     # self.max_vals += [train_feature.max()]
-            #     # self.min_vals += [train_feature.min()]
-            #     self.max_vals += [train_feature.quantile(0.9999)]
-            #     self.min_vals += [train_feature.quantile(0.0001)]
+            self.scale = list(torch.std_mean(self.data, dim=0))
         else:
-            self.max_vals = scale[0]
-            self.min_vals = scale[1]
+            self.scale = scale
 
-    def scale(self, scale_fact):
-        # This will keep track of multiple scalings
-        self.scale_norm *= scale_fact
-        self.data *= scale_fact
-        self.scaled = True
-
-    def unscale(self, data_in=None):
-        if data_in is None:
-            data = self.data
-        else:
-            data = data_in
-        data /= self.scale_norm
-        if data_in is None:
-            self.scale_norm = 1
-        return data
+    # TODO: these are poorly named and unused in any of our scripts at the moment, rewrite/name if needed
+    # def scale(self, scale_fact):
+    #     # This will keep track of multiple scalings
+    #     self.scale_norm *= scale_fact
+    #     self.data *= scale_fact
+    #     self.scaled = True
+    #
+    # def unscale(self, data_in=None):
+    #     if data_in is None:
+    #         data = self.data
+    #     else:
+    #         data = data_in
+    #     data /= self.scale_norm
+    #     if data_in is None:
+    #         self.scale_norm = 1
+    #     return data
 
     def __len__(self):
         return self.data.shape[0]
@@ -140,55 +202,6 @@ class Curtains(BasePhysics):
     @staticmethod
     def get_features(df):
         return df.to_numpy(), list(df.keys())
-        # if features == 0:
-        #     # TODO: better handling of this for outputting names and selecting features in one place - list of lists?
-        #     nfeatures = 4
-        #     data = np.zeros((df.shape[0], nfeatures + 1))
-        #     # The last data feature is always the context
-        #     # 'pt', 'eta', 'phi', 'mass', 'tau1', 'tau2', 'tau3', 'd12', 'd23', 'ECF2', 'ECF3'
-        #     data[:, 0] = df['tau2'] / df['tau1']
-        #     data[:, 1] = df['tau3'] / df['tau2']
-        #     data[:, 2] = np.log(df['d23'] + 1)
-        #     data[:, 3] = np.log(df['d12'] + 1)
-        #     data[:, 4] = df['mass']
-        #     return data, [r'$\tau_{21}$', r'$\tau_{32}$', r'$d_{23}$', r'$d_{12}$', 'mass']
-        #
-        # else:
-        #     # nfeatures = 9
-        #     # data = np.zeros((df.shape[0], nfeatures + 1))
-        #     # # The last data feature is always the context
-        #     # # 'pt', 'eta', 'phi', 'mass', 'tau1', 'tau2', 'tau3', 'd12', 'd23', 'ECF2', 'ECF3'
-        #     # data[:, 0] = df['pt'] + df['nlo_pt']
-        #     # data[:, 1] = df['mass'] + df['nlo_mass']
-        #     # data[:, 2] = df['pt']
-        #     # data[:, 3] = df['nlo_pt']
-        #     # data[:, 4] = df['mass']
-        #     # data[:, 5] = df['nlo_mass']
-        #     # phi_1 = df['phi']
-        #     # phi_2 = df['nlo_phi']
-        #     # delPhi = np.arctan2(np.sin(phi_1 - phi_2), np.cos(phi_1 - phi_2))
-        #     # data[:, 6] = ((df['eta'] - df['nlo_eta']) ** 2 + delPhi ** 2) ** (0.5)
-        #     # data[:, 7] = df['ptjj']
-        #     # data[:, 8] = df['ptjj'] * data[:, 6]
-        #     # # data[:, 2] = np.log(df['d23'] + 1)
-        #     # # data[:, 3] = np.log(df['d12'] + 1)
-        #     # data[:, 9] = df['mjj']
-        #     # return data, [r'$p_t + p_t$', r'$m + m$', r'$p_t$', r'$nlo p_t$', 'mass', 'nlo mass',
-        #     #                r'$dR_{jj}$', r'$p_{t, jj}$', r'$p_{t, jj} * dR_{jj}$', r'$m_{JJ}$']
-        #     nfeatures = 4
-        #     data = np.zeros((df.shape[0], nfeatures + 1))
-        #     # The last data feature is always the context
-        #     # 'pt', 'eta', 'phi', 'mass', 'tau1', 'tau2', 'tau3', 'd12', 'd23', 'ECF2', 'ECF3'
-        #     data[:, 0] = df['pt'] + df['nlo_pt']
-        #     data[:, 1] = df['pt']
-        #     data[:, 2] = df['nlo_pt']
-        #     phi_1 = df['phi']
-        #     phi_2 = df['nlo_phi']
-        #     delPhi = np.arctan2(np.sin(phi_1 - phi_2), np.cos(phi_1 - phi_2))
-        #     data[:, 3] = ((df['eta'] - df['nlo_eta']) ** 2 + delPhi ** 2) ** (0.5)
-        #     data[:, 4] = df['mjj']
-        #     return data, [r'$p_t + p_t$', r'$p_t$', r'$nlo p_t$',
-        #                   r'$dR_{jj}$',  r'$m_{JJ}$']
 
     def get_quantile(self, quantile):
         # Returns a numpy array of the training features, plus the context feature on the end
@@ -205,8 +218,8 @@ class Curtains(BasePhysics):
         if not_tensor:
             mass = torch.tensor(mass)
         # mass = torch.tensor(mass)
-        min_val = self.min_vals[-1]
-        max_val = self.max_vals[-1]
+        min_val = self.scale[-1]
+        max_val = self.scale[-2]
         zo = mass / 2 + 0.5
         mass = zo * (max_val - min_val) + min_val
         if not_tensor:
@@ -218,8 +231,8 @@ class Curtains(BasePhysics):
         if not_tensor:
             dtype = type(mass)
             mass = torch.tensor(mass)
-        min_val = self.min_vals[-1]
-        max_val = self.max_vals[-1]
+        min_val = self.scale[-1]
+        max_val = self.scale[-2]
         zo = (mass - min_val) / (max_val - min_val)
         mass = (zo - 0.5) * 2
         if not_tensor:
@@ -298,15 +311,12 @@ class CurtainsTrainSet(Dataset):
 
     def set_and_get_norm_facts(self):
         # Set the scale for each feature using the combined datasets
-        scale = [self.data1.max_vals, self.data1.min_vals]
-        scale1 = [self.data2.max_vals, self.data2.min_vals]
-        upperbound = np.where([s[0] < s[1] for s in zip(scale[0], scale1[0])], scale1[0], scale[0])
-        lowerbound = np.where([s[0] < s[1] for s in zip(scale[1], scale1[1])], scale[1], scale1[1])
-
-        def glist(array):
-            return [torch.tensor(i) for i in array]
-
-        s = [glist(upperbound), glist(lowerbound)]
+        _, scale1, min_max_mask = preprocess_method(self.data1.data)
+        _, scale2, _ = preprocess_method(self.data2.data)
+        s = torch.zeros_like(scale2)
+        joint = torch.vstack((scale1, scale2))
+        s[min_max_mask == 1] = joint.max(0)[0][min_max_mask == 1]
+        s[min_max_mask == 0] = joint.min(0)[0][min_max_mask == 0]
         self.set_norm_fact(s)
         return s
 
@@ -318,6 +328,11 @@ class CurtainsTrainSet(Dataset):
     def normalize(self):
         self.data1.normalize()
         self.data2.normalize()
+        self.data = self.get_data()
+
+    def unnormalize(self):
+        self.data1.unnormalize()
+        self.data2.unnormalize()
         self.data = self.get_data()
 
     def shuffle(self):

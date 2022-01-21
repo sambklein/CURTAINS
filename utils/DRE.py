@@ -16,33 +16,34 @@ from models.nn.networks import dense_net
 from torch.utils.data import Dataset
 import torch
 
-from utils.plotting import add_error_hist, get_bins
+from utils.plotting import add_error_hist, get_bins, hist_features
 from utils.torch_utils import sample_data
 from utils.training import Timer
 
 
 class SupervisedDataClass(Dataset):
-    def __init__(self, data, labels, weights=None, dtype=torch.float32, noise_generator=None):
+    def __init__(self, data, labels, weights=None, dtype=torch.float32, noise_generator=None, bg_labels=None):
         super(SupervisedDataClass, self).__init__()
         self.dtype = dtype
-        self.data = torch.tensor(data, dtype=dtype)
+        if isinstance(data, torch.Tensor):
+            self.data = data.type(dtype)
+        else:
+            self.data = torch.tensor(data, dtype=dtype)
         self.targets = torch.tensor(labels, dtype=dtype)
+        self.bg_labels = bg_labels
+
         self.nfeatures = self.data.shape[1]
         self.noise_generator = noise_generator
         self.normed = False
         self.base_data = data
         self.base_labels = labels
+        self.weights = torch.ones_like(self.targets)
+        self.update_weights = False
         if noise_generator is not None:
             self.update_data()
-        self.weights = torch.ones_like(self.targets)
         if weights == 'balance':
-            self.weights = class_weight.compute_sample_weight('balanced', y=labels.reshape(-1)).reshape(-1, 1)
-            # n_ones = self.targets.sum()
-            # n_zeros = self.targets.shape[0] - n_ones
-            # if n_ones < n_zeros:
-            #     self.weights[self.targets == 1] = n_zeros / n_ones
-            # elif n_ones > n_zeros:
-            #     self.weights[self.targets == 0] = n_ones / n_zeros
+            self.update_weights = True
+            self.weights = class_weight.compute_sample_weight('balanced', y=self.targets.reshape(-1)).reshape(-1, 1)
         elif weights is not None:
             self.weights = weights
 
@@ -53,8 +54,9 @@ class SupervisedDataClass(Dataset):
         return self.data.shape[0]
 
     def get_and_set_norm_facts(self, normalize=False):
-        self.max_vals = self.data.max(0)[0]
-        self.min_vals = self.data.min(0)[0]
+        # self.max_vals = self.data.max(0)[0]
+        # self.min_vals = self.data.min(0)[0]
+        self.max_vals, self.min_vals = list(torch.std_mean(self.data, dim=0))
         if normalize:
             self.normalize()
         return self.max_vals, self.min_vals
@@ -69,15 +71,29 @@ class SupervisedDataClass(Dataset):
             if self.normed:
                 self.normed = False
                 self.normalize()
+            if self.update_weights:
+                self.weights = class_weight.compute_sample_weight('balanced', y=self.targets.reshape(-1)).reshape(-1, 1)
+
+    def _normalize(self, data_in):
+        # return (data_in - self.min_vals) / (self.max_vals - self.min_vals)
+        return (data_in - self.min_vals) / (self.max_vals + 1e-8)
+
+    def _unnormalize(self, data_in):
+        # return (data_in - self.min_vals) / (self.max_vals - self.min_vals)
+        stds, means = self.max_vals, self.min_vals
+        return data_in * (stds + 1e-8) + means
 
     def normalize(self, data_in=None, facts=None):
         data_passed = data_in is not None
-        if data_passed:
+        if not data_passed:
             data_in = self.data
         if facts is not None:
             self.set_norm_facts(facts)
-        if not self.normed:
-            data_out = (data_in - self.min_vals) / (self.max_vals - self.min_vals)
+        if self.normed:
+            data_out = data_in
+        else:
+            # data_out = (data_in - self.min_vals) / (self.max_vals - self.min_vals)
+            data_out = self._normalize(data_in)
             self.normed = True
         if data_passed:
             return data_out
@@ -89,22 +105,23 @@ class SupervisedDataClass(Dataset):
         if self.normed or data_passed:
             if not data_passed:
                 data_in = self.data
-            data_in = data_in * (self.max_vals - self.min_vals) + self.min_vals
+            # data_in = data_in * (self.max_vals - self.min_vals) + self.min_vals
+            data_in = self._unnormalize(data_in)
             if not data_passed:
                 self.data = data_in
         return data_in
 
 
-def get_net(batch_norm=False, layer_norm=False, width=32, depth=2, dropout=0):
+def get_net(batch_norm=False, layer_norm=False, width=32, depth=2, dropout=0.0):
     def net_maker(nfeatures, nclasses):
         return dense_net(nfeatures, nclasses, layers=[width] * depth, batch_norm=batch_norm, layer_norm=layer_norm,
-                         drp=dropout)
+                         drp=dropout, context_features=None)
 
     return net_maker
 
 
 def fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, n_epochs, device, sv_dir, plot=True,
-                   load_best=True, scheduler=None, pure_noise=False, fold=0):
+                   load_best=False, scheduler=None, pure_noise=False, fold=0):
     # Initialize timer class, this is useful on the cluster as it will say if you have enough time to run the job
     timer = Timer('irrelevant', 'irrelevant', print_text=False)
 
@@ -121,6 +138,8 @@ def fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, n_
 
     train_loss = np.zeros(n_epochs)
     valid_loss = np.zeros(n_epochs)
+    max_sic_tpr = np.zeros(n_epochs)
+    max_sic = np.zeros(n_epochs)
     scheduler_bool = scheduler is not None
     classifier_dir = os.path.join(sv_dir, f'classifier_{fold}')
     os.makedirs(classifier_dir, exist_ok=True)
@@ -160,36 +179,57 @@ def fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, n_
 
         # Validate
         running_loss = np.zeros(n_valid)
+        classifier.eval()
+        store = []
         with torch.no_grad():
             for i, data in enumerate(data_valid, 0):
                 # Get the model loss
-                loss = classifier.compute_loss(data)
+                loss, pred = classifier.compute_loss(data, return_pred=True)
                 running_loss[i] = loss.item()
+                store += [np.concatenate([data[1].cpu(), pred.cpu()], 1)]
+        lbls = np.concatenate(store)
+        fpr, tpr, _ = roc_curve(lbls[:, 0], lbls[:, 1])
+        fpr_mx = fpr != 0
+        sic = tpr[fpr_mx] / fpr[fpr_mx] ** 0.5
+        max_ind = np.argmax(sic)
+        max_sic[epoch] = sic[max_ind]
+        max_sic_tpr[epoch] = tpr[fpr_mx][max_ind]
         valid_loss[epoch] = np.mean(running_loss)
         classifier.save(f'{classifier_dir}/{epoch}')
 
         # Stop the timer
+        classifier.train()
         timer.stop()
 
+    # Save the validation and training loss metrics
+    np.save(f'{classifier_dir}/valid_loss.npy', valid_loss)
+    np.save(f'{classifier_dir}/train_loss.npy', train_loss)
+    np.save(f'{classifier_dir}/max_sic.npy', max_sic)
+    np.save(f'{classifier_dir}/max_sic_tpr.npy', max_sic_tpr)
+
     if plot:
-        plt.figure()
-        plt.plot(train_loss, label='Train')
-        plt.plot(valid_loss, label='Validation')
-        plt.legend()
-        plt.title('Classifier Training')
-        plt.tight_layout()
-        plt.savefig(sv_dir + f'Training_{fold}.png')
+        # Plot loss development and sic development
+        fig, ax = plt.subplots(1, 3, figsize=(3 * 5 + 2, 5))
+        ax[0].plot(train_loss, label='Train')
+        ax[0].plot(valid_loss, label='Validation')
+        ax[0].legend()
+        ax[0].set_title('Classifier Training')
+        ax[1].plot(max_sic, label='Max SIC')
+        ax[1].legend()
+        ax[2].plot(max_sic_tpr, label='Max SIC tpr')
+        ax[2].legend()
+        [ax[i].set_xlabel('epochs') for i in range(3)]
+        fig.savefig(sv_dir + f'Training_{fold}.png')
 
     if load_best:
-        def moving_average(x, kernel=5):
-            return np.convolve(x, np.ones(kernel), 'valid') / kernel
-        # TODO: should really add some kind of smoothing to the val for this selection to remove noise
         best_epoch = np.argmin(valid_loss)
         # Index is counted from zero so add one to get the best epoch
         print(f'Best epoch: {best_epoch + 1} loaded')
         classifier.load(f'{classifier_dir}/{best_epoch}')
 
-    return classifier_dir
+    classifier.eval()
+
+    return train_loss, valid_loss
 
 
 def dope_data(truth, anomaly_data, beta):
@@ -210,57 +250,148 @@ def dope_data(truth, anomaly_data, beta):
     return anomaly_data, truth
 
 
-def get_auc(interpolated, truth, directory, name,
-            split=0.5,
-            anomaly_data=None,
-            mass_incl=True,
-            beta=None,
-            sup_title='',
-            mscaler=None,
-            load=False,
-            return_rates=False,
-            dope_splits=True,
-            false_signal=1,
-            normalize=False,
-            batch_size=1000,
-            nepochs=100,
-            lr=0.0001,
-            wd=0.001,
-            drp=0.5,
-            width=32,
-            depth=3,
-            batch_norm=False,
-            layer_norm=False,
-            use_scheduler=True,
-            use_weights=True,
-            thresholds=[0, 0.5, 0.8, 0.9, 0.95, 0.99],
-            plot_mass_dists=True,
-            beta_add_noise=0.1,
-            pure_noise=False,
-            nfolds=5
-            ):
-    interpolated = interpolated.detach().cpu()
-    truth = truth.detach().cpu()
+def get_datasets(train_index, test_index, false_signal, X, y, beta_add_noise, use_weights, bg_truth_labels):
+    X_train = X[train_index]
+    y_train = y[train_index]
+    X_val = X[test_index]
+    y_val = y[test_index]
+    # These will only be used at evaluation
+    if bg_truth_labels is not None:
+        bg_truth_labels = bg_truth_labels[test_index]
+
+    if false_signal > 0:
+        # Append a dummy noise sample to the
+        n_features = X_train.shape[1]
+
+        def add_noise(data, labels):
+            n_sample = int(data.shape[0] * beta_add_noise)
+            if false_signal == 1:
+                data = np.concatenate(
+                    (data, np.random.multivariate_normal([0] * n_features, np.eye(n_features), n_sample)))
+            else:
+                # l1 = data.min(0)
+                # l2 = data.max(0)
+                # The data is normalised, so we take this as the support for the 1+eps
+                l1 = -1
+                l2 = 1
+                data = np.concatenate(
+                    (data, ((l1 - l2) * np.random.rand(*data.shape) + l2)[:n_sample]))
+            labels = np.concatenate((labels, np.zeros((n_sample, 1))))
+            return data, labels
+    else:
+        add_noise = None
+
+    weights = 'balance' if use_weights else None
+    train_data = SupervisedDataClass(X_train, y_train, weights=weights, noise_generator=add_noise)
+    valid_data = SupervisedDataClass(X_val, y_val, weights=weights, noise_generator=add_noise,
+                                     bg_labels=bg_truth_labels)
+
+    return train_data, valid_data
+
+
+def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_truth_labels=None, mass_incl=True,
+            sup_title='', load=False, return_rates=False, false_signal=1, normalize=True, batch_size=1000, nepochs=100,
+            lr=0.0001, wd=0.001, drp=0.0, width=32, depth=3, batch_norm=False, layer_norm=False, use_scheduler=True,
+            use_weights=True, thresholds=None, beta_add_noise=0.1, pure_noise=False, nfolds=5, data_unscaler=None):
+    """
+    bg_truth_labels 0 = known anomaly, 1 = known background, -1 = unknown/sampled/transformed sample
+    """
+    if thresholds is None:
+        thresholds = [0, 0.5, 0.8, 0.9, 0.95, 0.99]
+
+    def prepare_data(data):
+        data = data.detach().cpu()
+        if data_unscaler is not None:
+            data = data_unscaler(data)
+        if mass_incl:
+            data = data[:, :-1]
+        return data
+
+    bg_template = prepare_data(bg_template)
+    sr_samples = prepare_data(sr_samples)
+
     # Classifier hyperparameters
     if drp > 0:
         width = int(width / drp)
 
     sv_dir = os.path.join(directory, name)
     anomaly_bool = anomaly_data is not None
-    beta_bool = beta is not None
+    if anomaly_bool:
+        anomaly_data = prepare_data(anomaly_data)
 
-    if beta_bool and anomaly_bool and (not dope_splits):
-        if not anomaly_bool:
-            print('No anomalies passed to DRE.')
-        else:
-            anomaly_data, truth = dope_data(truth, anomaly_data, beta)
-    elif anomaly_bool and (not beta_bool):
-        truth = torch.cat((anomaly_data, truth), 0)
+    X, y = torch.cat((bg_template, sr_samples), 0).cpu().numpy(), torch.cat(
+        (torch.ones(len(bg_template)), torch.zeros(len(sr_samples))), 0).view(-1, 1).cpu().numpy()
 
-    X, y = torch.cat((interpolated, truth), 0).cpu().numpy(), torch.cat(
-        (torch.ones(len(interpolated)), torch.zeros(len(truth))), 0).view(-1, 1).cpu().numpy()
-
+    # Setting random_state to an integer means repeated calls yield the same result
     kfold = StratifiedKFold(n_splits=nfolds, shuffle=True, random_state=1)
+    # Cast to a list to iterate over object twice, safer than recalculating and not memory intensive
+    split_inds = kfold.split(X, y)
+
+    store_losses = []
+
+    # Train the model
+    for fold, (train_index, test_index) in enumerate(split_inds):
+
+        train_data, valid_data = get_datasets(train_index, test_index, false_signal, X, y, beta_add_noise, use_weights,
+                                              bg_truth_labels)
+
+        if normalize:
+            facts = train_data.get_and_set_norm_facts(normalize=True)
+            valid_data.normalize(facts=facts)
+
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        net = get_net(batch_norm=batch_norm, layer_norm=layer_norm, width=width, depth=depth, dropout=drp)
+        classifier = Classifier(net, train_data.nfeatures, 1, name, directory=directory,
+                                activation=torch.sigmoid).to(device)
+
+        # Make an optimizer object
+        if (wd is None) or (wd == 0.):
+            optimizer = torch.optim.Adam(classifier.parameters(), lr=lr)
+        else:
+            optimizer = torch.optim.AdamW(classifier.parameters(), lr=lr, weight_decay=wd)
+        if use_scheduler:
+            max_step = int(nepochs * np.ceil(len(train_data.data) / batch_size))
+            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, max_step, 0)
+        else:
+            scheduler = None
+
+        # Train or load a classifier
+        def load_classifier():
+            classifier.load(os.path.join(sv_dir, f'classifier_{fold}', f'{nepochs - 1}'))
+            classifier_dir = os.path.join(sv_dir, f'classifier_{fold}')
+            valid_loss = np.load(f'{classifier_dir}/valid_loss.npy')
+            train_loss = np.load(f'{classifier_dir}/train_loss.npy')
+            return train_loss, valid_loss
+
+        def fit_the_classifier():
+            losses = fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, nepochs,
+                                    device, sv_dir, scheduler=scheduler, pure_noise=pure_noise, fold=fold,
+                                    load_best=False)
+            return losses
+
+        if load == 1:
+            losses = load_classifier()
+        # Load a classifier if it has been run, otherwise train one
+        elif load == 2:
+            try:
+                losses = load_classifier()
+            except:
+                losses = fit_the_classifier()
+        else:
+            losses = fit_the_classifier()
+
+        # store the losses from the training
+        store_losses += [losses]
+
+    # From the saved losses pick the best epoch
+    # TODO: number of epochs to take
+    n_av = 5
+    # Take every second because the first is the training loss
+    losses = np.concatenate(store_losses)[1::2]
+    eval_epoch = np.argsort(losses.mean(0))[:n_av]
+    # eval_epoch = [nepochs - 1]
+    print(f'Best epoch: {eval_epoch}. \nLoading and evaluating now.')
+    models_to_load = [os.path.join(sv_dir, f'classifier_{fold}', f'{e}') for e in eval_epoch]
     split_inds = kfold.split(X, y)
 
     y_scores_s = []
@@ -272,118 +403,47 @@ def get_auc(interpolated, truth, directory, name,
     counts = []
     expected_counts = []
     pass_rates = []
-
+    # Evaluate each model at the selected epoch
     for fold, (train_index, test_index) in enumerate(split_inds):
-        X_train = X[train_index]
-        y_train = y[train_index]
-        X_val = X[test_index]
-        y_val = y[test_index]
 
-        if beta_bool and anomaly_bool and dope_splits:
-            X_test_pure = deepcopy(X_val)
-            y_test_pure = deepcopy(y_val)
-            get_mask = lambda x: (x == 0).flatten()
-            anomaly_data, X_train[get_mask(y_train)] = dope_data(X_train[get_mask(y_train)], anomaly_data, beta)
-            anomaly_data, X_val[get_mask(y_val)] = dope_data(X_val[get_mask(y_val)], anomaly_data, beta)
+        # The classifier object does not need to be reinitialised here, only loaded
+        classifier.load(models_to_load)
 
-        if mass_incl:
-            X_train, X_val = X_train[:, :-1], X_val[:, :-1]
-
-        if false_signal > 0:
-            # Append a dummy noise sample to the
-            n_features = X_train.shape[1]
-
-            def add_noise(data, labels):
-                n_sample = int(data.shape[0] * beta_add_noise)
-                if false_signal == 1:
-                    data = np.concatenate(
-                        (data, np.random.multivariate_normal([0] * n_features, np.eye(n_features), n_sample)))
-                else:
-                    # l1 = data.min(0)
-                    # l2 = data.max(0)
-                    # The data is normalised, so we take this as the support for the 1+eps
-                    l1 = -1
-                    l2 = 1
-                    data = np.concatenate(
-                        (data, ((l1 - l2) * np.random.rand(*data.shape) + l2)[:n_sample]))
-                labels = np.concatenate((labels, np.zeros((n_sample, 1))))
-                return data, labels
-        else:
-            add_noise = None
-
-        weights = 'balance' if use_weights else None
-        train_data = SupervisedDataClass(X_train, y_train, weights=weights, noise_generator=add_noise)
-        valid_data = SupervisedDataClass(X_val, y_val, weights=weights, noise_generator=add_noise)
+        train_data, valid_data = get_datasets(train_index, test_index, 0, X, y, 0.0, use_weights, bg_truth_labels)
 
         if normalize:
             facts = train_data.get_and_set_norm_facts(normalize=True)
-            valid_data.normalize(facts)
-
-        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        net = get_net(batch_norm=batch_norm, layer_norm=layer_norm, width=width, depth=depth, dropout=drp)
-        classifier = Classifier(net, train_data.nfeatures, 1, name, directory=directory,
-                                activation=torch.sigmoid).to(device)
-
-        # Make an optimizer object
-        if (wd is not None) or (wd == 0.):
-            optimizer = torch.optim.Adam(classifier.parameters(), lr=lr)
-        else:
-            optimizer = torch.optim.AdamW(classifier.parameters(), lr=lr, wd=wd)
-        if use_scheduler:
-            max_step = int(nepochs * np.ceil(len(X_train)))
-            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, max_step, 0)
-        else:
-            scheduler = None
-
-        # Train
-        def load_classifier():
-            # TODO: load best or load last?
-            classifier.load(os.path.join(sv_dir, f'classifier_{fold}', f'{nepochs - 1}'))
-        def fit_the_classifier():
-            fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, nepochs,
-                           device, sv_dir, scheduler=scheduler, pure_noise=pure_noise, fold=fold)
-        if load == 1:
-            load_classifier()
-        elif load == 2:
-            try:
-                load_classifier()
-            except:
-                fit_the_classifier()
-        else:
-            fit_the_classifier()
+            valid_data.normalize(facts=facts)
 
         with torch.no_grad():
-            # y_scores = classifier.predict(valid_data.data.to(device)).cpu().numpy()
-            y_scores = classifier.predict(
-                torch.tensor(valid_data.base_data, dtype=valid_data.dtype).to(device)).cpu().numpy()
+            y_scores = classifier.predict(valid_data.data.to(device)).cpu().numpy()
         y_scores_s += [y_scores]
-        # labels_test = valid_data.targets.cpu().numpy()
-        labels_test = valid_data.base_labels
-        labels_test_s += [labels_test] 
+        labels_test = valid_data.targets
+        labels_test_s += [labels_test]
 
         # Plot the classifier distribution
         if anomaly_bool:
-            pure_test_data = SupervisedDataClass(X_test_pure, y_test_pure)
-            if normalize:
-                pure_test_data.normalize(facts)
             with torch.no_grad():
-                # TODO: the anomaly_data is not normalized...
-                if mass_incl:
-                    ad = anomaly_data.data[:, :-1]
-                    td = pure_test_data.data[:, :-1]
-                else:
-                    ad = anomaly_data.data
-                    td = pure_test_data.data
+                ad = SupervisedDataClass(anomaly_data, np.ones(len(anomaly_data)))
+                if normalize:
+                    ad.normalize(facts=facts)
+                ad = ad.data
                 anomaly_scores = classifier.predict(ad.to(device)).cpu().numpy()
-                inlier_scores = classifier.predict(td.to(device)).cpu().numpy()
-            bg_scores = y_scores[y_test_pure == 1]
-            y_labels_1 += [np.concatenate((np.zeros(len(anomaly_scores)), np.ones(len(bg_scores))))]
-            y_scores_1 += [np.concatenate((anomaly_scores[:, 0], bg_scores))]
-            y_labels_2 += [pure_test_data.targets]
-            y_scores_2 += [inlier_scores[:, 0]]
+            if valid_data.bg_labels is not None:
+                lbls = valid_data.bg_labels
+                bg_scores = y_scores
+            else:
+                bg_scores = y_scores[valid_data.targets == 1]
+                lbls = np.ones(len(bg_scores))
+            # Get the background vs signal AUC if that is available
+            y_labels_1 += [np.concatenate((np.zeros(len(anomaly_scores)), lbls))]
+            y_scores_1 += [np.concatenate((anomaly_scores, bg_scores))]
+            # Get the background only AUC if that information is available
+            y_labels_2 += [valid_data.targets[lbls == 1]]
+            y_scores_2 += [y_scores[lbls == 1]]
 
+            # Calculate and plot some AUCs for the epoch
             fpr, tpr, _ = roc_curve(y_labels_1[-1], y_scores_1[-1])
-
             roc_auc_1 = roc_auc_score(y_labels_1[-1], y_scores_1[-1])
             roc_auc_2 = roc_auc_score(y_labels_2[-1], y_scores_2[-1])
             roc_auc_3 = roc_auc_score(labels_test, y_scores)
@@ -398,14 +458,14 @@ def get_auc(interpolated, truth, directory, name,
             # template
             count = []
             expected_count = []
-            mx = y_val == 1
+            mx = valid_data.targets == 1
             for i, at in enumerate(thresholds):
                 threshold = np.quantile(y_scores[mx], 1 - at)
                 expected_count += [sum(y_scores[mx] <= threshold)]
-                count += [sum(y_scores[~mx] <= threshold)]
+                count += [sum(y_scores[valid_data.targets == 0] <= threshold)]
                 if anomaly_bool:
                     signal_pass_rate = sum(anomaly_scores <= threshold) / len(anomaly_scores)
-                    bg_pass_rate = sum(inlier_scores <= threshold) / len(inlier_scores)
+                    bg_pass_rate = sum(bg_scores[lbls == 1] <= threshold) / len(y_scores)
                     pass_rates += [np.concatenate((signal_pass_rate, bg_pass_rate))]
             counts += [np.array(count)]
             expected_counts += [np.array(expected_count)]
@@ -422,7 +482,7 @@ def get_auc(interpolated, truth, directory, name,
         y_labels_2 = np.concatenate(y_labels_2)
         y_scores_2 = np.concatenate(y_scores_2)
         lmx = np.isfinite(y_scores_1)
-        fpr1, tpr1, _ = roc_curve(y_labels_1[lmx], y_scores_1[lmx])
+        fpr1, tpr1, _ = roc_curve(y_labels_1[lmx[:, 0]], y_scores_1[lmx])
         lmx = np.isfinite(y_scores_2)
         fpr2, tpr2, _ = roc_curve(y_labels_2[lmx], y_scores_2[lmx])
         roc_auc_anomalies = auc(fpr1, tpr1)

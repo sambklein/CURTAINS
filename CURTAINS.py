@@ -111,7 +111,7 @@ parser.add_argument('--n_sample', type=int, default=1000,
                     help='The number of features to use when calculating contours in the feature plots.')
 parser.add_argument('--light', type=int, default=3,
                     help='We do not always want to plot everything and calculate all of the ROC plots.')
-parser.add_argument('--plot', type=int, default=1, help='Plot all feature dists?')
+parser.add_argument('--plot', type=int, default=0, help='Plot all feature dists?')
 
 ## reproducibility
 parser.add_argument('--seed', type=int, default=1638128,
@@ -246,8 +246,10 @@ else:
         schedulers_epoch_end=reduce_lr_inn, gclip=args.gclip, shuffle_epoch_end=args.shuffle, load_best=args.load_best)
 
 # TODO: check the LR in particular!!
+# TODO: pass this as a .yml file
 classifier_args = {'false_signal': 2, 'batch_size': 1000, 'nepochs': args.classifier_epochs,
-                   'lr': 0.001, 'balance': 0, 'pure_noise': 0, 'beta_add_noise': args.beta_add_noise}
+                   'lr': 0.001, 'pure_noise': 0, 'beta_add_noise': args.beta_add_noise, 'drp': 0.0,
+                   'normalize': True, 'data_unscaler': datasets.signalset.unnormalize}
 
 # Generate test data and preprocess etc
 post_process_curtains(curtain_runner, datasets, sup_title='NSF', signal_anomalies=signal_anomalies,

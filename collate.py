@@ -6,6 +6,7 @@ import pdb
 import pickle
 
 import matplotlib.pyplot as plt
+from matplotlib.pyplot import cm
 import numpy as np
 
 from data.data_loaders import get_data, load_curtains_pd
@@ -124,9 +125,21 @@ def get_counts():
     args = parse_args()
 
     sv_dir = get_top_dir()
+    # # Old bump scan
     # directories = [f'build_images', f'build_images', f'build_images']
-    directories = [f'bins_doping_scan_OT_{i}' for i in range(0, 44)] + \
-                  [f'increase_bump_scan_OT_{i}' for i in range(0, 12)]
+    # directories = [f'bins_doping_scan_OT_{i}' for i in range(0, 44)] + \
+    #               [f'increase_bump_scan_OT_{i}' for i in range(0, 12)]
+    # New bump scans
+    # directories = [f'curtains_bins_OT_bins_scan_two_hundred_{i}' for i in range(0, 14)]
+    # directories = [f'curtains_bins_four_OT_bins_scan_four_hundred_{i}' for i in range(0, 6)]
+    # directories = [f'cathode_bins_CATHODE_bins_scan_two_hundred_{i}' for i in range(0, 14)]
+    # directories = [f'cathode_bins_four_CATHODE_bins_scan_four_hundred_{i}' for i in range(0, 6)]
+
+    # New features, mass ordered
+    # directories = [f'curtains_bins_true_OT_bins_scan_two_hundred_true_{i}' for i in range(0, 28)]
+    # directories = [f'cathode_bins_true_CATHODE_bins_scan_two_hundred_true_{i}' for i in range(0, 28)]
+    directories = [f'curtains_bins_four_true_OT_bins_scan_four_hundred_true_{i}' for i in range(0, 14)]
+    bin_width = 200
     thresholds = [0, 0.5, 0.8, 0.9, 0.95, 0.99]
     nfolds = 5
 
@@ -137,12 +150,16 @@ def get_counts():
     for directory in directories:
         try:
             with open(f'{sv_dir}/images/{directory}/counts.pkl', 'rb') as f:
+                # with open(f'{sv_dir}/images/{directory}/counts_no_eps.pkl', 'rb') as f:
                 info_dict = pickle.load(f)
                 true_counts = np.sum(info_dict['counts'], 0)
                 expected_counts = np.sum(info_dict['expected_counts'], 0) / 8
-                # counts = true_counts / expected_counts  # + 4 * (1 - np.array(thresholds))
-                counts = true_counts - expected_counts  # + 4 * (1 - np.array(thresholds))
+                counts = true_counts # / expected_counts  # + 4 * (1 - np.array(thresholds))
+                # counts = true_counts - expected_counts  # + 4 * (1 - np.array(thresholds))
+                # counts = true_counts  # - expected_counts  # + 4 * (1 - np.array(thresholds))
                 error = counts * (np.sqrt(expected_counts) / expected_counts + np.sqrt(true_counts) / true_counts)
+                counts = [true_counts, expected_counts]
+                # error = counts * (np.sqrt(expected_counts) / expected_counts + np.sqrt(true_counts) / true_counts)
                 # counts = true_counts - expected_counts / 4
                 rate = info_dict['pass_rates']
                 signal_pass_rate = rate[:, 0].reshape(nfolds, len(thresholds)).mean(0)
@@ -162,10 +179,10 @@ def get_counts():
             inf = counts
             rt = np.vstack((signal_pass_rate, bg_pass_rate))
             if label in vals:
-                vals[label] += [np.hstack((x, inf, error))]
+                vals[label] += [np.hstack((x, *inf, error))]
                 rates[label] += [rt]
             else:
-                vals[label] = [np.hstack((x, inf, error))]
+                vals[label] = [np.hstack((x, *inf, error))]
                 rates[label] = [rt]
 
     # Start plotting different quantities
@@ -173,7 +190,8 @@ def get_counts():
     n_dopings = len(dopings)
     n_thresh = len(thresholds)
     # print(vals.keys())
-    fig, axes = plt.subplots(n_dopings, n_thresh, figsize=(7 * n_thresh, 5 * n_dopings + 2))
+    # fig, axes = plt.subplots(n_dopings, n_thresh, figsize=(7 * n_thresh, 5 * n_dopings + 2))
+    fig, axes = plt.subplots(n_dopings, 1, figsize=(7, 5 * n_dopings + 2))
     fig1, axes1 = plt.subplots(1, 1, figsize=(7, 5))
     n_plots = 5
     fig2, axes2 = plt.subplots(n_dopings, n_plots, figsize=(7 * n_plots, 5 * n_dopings + 2))
@@ -209,33 +227,43 @@ def get_counts():
         lst = vals[label]
         rt = rates[label]
         for i in range(n_thresh):
-            ax = axes[j, i]
+            # ax = axes[j, i]
+            ax = axes[j]
             if i > -1:
                 xy = np.array(lst)
                 # ax.plot(xy[:, 0], xy[:, i + 1], 'x', label=f'Cut = {thresholds[i]}')
+                x_all = xy[:, 0]
+                # mx = x_all / 100 % 2 == 0
+                # x = xy[mx, 0]
+                # y = xy[mx, i + 1]
+                # expected = xy[mx, i + 1 + len(thresholds)]\
+                x = xy[:, 0]
                 y = xy[:, i + 1]
+                expected = xy[:, i + 1 + len(thresholds)]
                 norm_fact = 1  # max(y)
                 # sf = shift[i]
                 sf = 0
-                err = xy[:, i + 1 + len(thresholds)] / norm_fact
+                err = xy[:, i + 1 + 2 * len(thresholds)] / norm_fact
                 # err = np.sqrt(abs(y)) / norm_fact
                 lines = {'linestyle': 'None'}
                 plt.rc('lines', **lines)
                 # p = ax.plot(xy[:, 0], y / norm_fact + sf, 'o', markersize=3)
                 clr = clist[i]
-                p = ax.bar(xy[:, 0], y / norm_fact + sf, width=100, color='None', edgecolor=clr)
-                ax.errorbar(xy[:, 0], y / norm_fact + sf, yerr=err,
-                            label=f'Cut = {thresholds[i]}', fmt='', color=clr)
-                axes1.plot(xy[:, 0], y / norm_fact + sf, 'o', label=f'Cut = {thresholds[i]}', markersize=3)
+                p = ax.bar(x, y / norm_fact + sf, width=bin_width, color='None', edgecolor=clr)
+                ax.bar(x, expected / norm_fact + sf, width=bin_width, color='None', edgecolor='r')
+                # ax.errorbar(x, y / norm_fact + sf, yerr=err,
+                #             label=f'Cut = {thresholds[i]}', fmt='', color=clr)
+                axes1.plot(x, y / norm_fact + sf, 'o', label=f'Cut = {thresholds[i]}', markersize=3)
 
                 rt = np.array(rt)
+
                 bins, bg_counts, ad_counts = get_mass_spectrum(int(label))
                 mx = np.digitize(xy[:, 0], bins=bins) - 1
-                axes2[j, 0].bar(bins[mx], rt[:, 0, i] * ad_counts[mx], width=100, color='None', edgecolor='r')
-                axes2[j, 1].bar(bins[mx], rt[:, 1, i] * bg_counts[mx], width=100, color='None', edgecolor='b')
-                axes2[j, 2].bar(bins[mx], rt[:, 0, i] * ad_counts[mx], width=100, color='None', edgecolor='r')
-                axes2[j, 2].bar(bins[mx], rt[:, 1, i] * bg_counts[mx], width=100, color='None', edgecolor='b')
-                axes2[j, 3].bar(bins[mx], rt[:, 0, i] * ad_counts[mx] / (rt[:, 1, i] * bg_counts[mx]), width=100,
+                axes2[j, 0].bar(bins[mx], rt[:, 0, i] * ad_counts[mx], width=bin_width, color='None', edgecolor='r')
+                axes2[j, 1].bar(bins[mx], rt[:, 1, i] * bg_counts[mx], width=bin_width, color='None', edgecolor='b')
+                axes2[j, 2].bar(bins[mx], rt[:, 0, i] * ad_counts[mx], width=bin_width, color='None', edgecolor='r')
+                axes2[j, 2].bar(bins[mx], rt[:, 1, i] * bg_counts[mx], width=bin_width, color='None', edgecolor='b')
+                axes2[j, 3].bar(bins[mx], rt[:, 0, i] * ad_counts[mx] / (rt[:, 1, i] * bg_counts[mx]), width=bin_width,
                                 label=f'Cut = {thresholds[i]}', color='None', edgecolor=clr)
                 axes2[j, 4].bar(bins[mx], rt[:, 0, i] * ad_counts[mx] / np.sqrt(rt[:, 1, i] * bg_counts[mx]),
                                 width=100, label=f'Cut = {thresholds[i]}', color='None', edgecolor=clr)
@@ -244,7 +272,7 @@ def get_counts():
                 ax.set_ylabel('Counts / Expected Counts')
             ax.set_xlabel('Mean SR mass')
             ax.set_title(f'{label} Anomalies, Cut = {thresholds[i]}')
-            # ax.set_yscale('log')
+            ax.set_yscale('log')
 
         axes1.set_ylabel('Counts / Expected Counts')
         axes1.set_xlabel('Mean SR mass')
@@ -262,8 +290,8 @@ def get_counts():
         # axes2[j, 3].set_yscale('log')
         # axes2[j, 4].set_yscale('log')
 
-    # handles, labels = ax.get_legend_handles_labels()
-    # fig.legend(handles, labels, loc='upper left', bbox_to_anchor=(0.9, 0.89), frameon=False)
+    handles, labels = ax.get_legend_handles_labels()
+    fig.legend(handles, labels, loc='upper left', bbox_to_anchor=(0.9, 0.89), frameon=False)
     fig.savefig(f'{sv_dir}/images/counts_collated.png', bbox_inches='tight')
     fig.clf()
 
@@ -292,7 +320,8 @@ def get_sics():
     #               [f'supervised_no_eps_supervised_no_eps_{i}' for i in range(0, 9)]
     directories = [f'test_test_imbal_{i}' for i in range(0, 9)] + \
                   [f'super_cathode_cathy_new_weights_{i}' for i in range(0, 9)] + \
-                  [f'super_slim_super_{i}' for i in range(0, 9)]
+                  [f'super_slim_super_{i}' for i in range(0, 9)] + \
+                  [f'ideal_nobells_ideal_{i}' for i in range(0, 9)]
     # names = ['cathode' for i in range(0, 9)] + \
     #         [f'curtains' for i in range(0, 9)] + \
     #         [f'idealized' for i in range(0, 9)] + \
@@ -303,7 +332,15 @@ def get_sics():
     #         [f'no_adam' for i in range(0, 9)] + \
     #         [f'no_adam_no_scheduler' for i in range(0, 9)] + \
     #         [f'supervised_no_eps' for i in range(0, 9)]
-    names = ['SUPER'] * 9 + ['SUPER_schedule_wd'] * 9 + ['SUPER_slim'] * 9
+    names = ['SUPER'] * 9 + ['SUPER_av_no_wd'] * 9 + ['SUPER_slim_wd'] * 9 + ['ideal'] * 9
+
+    # Classifier test settings
+    # directories = [f'test_clas_classifier_settings_{i}' for i in range(0, 64)]
+    # names = [f'{i}' for i in range(0, 64)]
+    # directories = [f'test_clas_no_fs_classifier_settings_{i}' for i in range(0, 32)]
+    # names = [f'{i}' for i in range(0, 32)]
+    directories = [f'super_slim_super_{i}' for i in range(0, 32)]
+    names = ['SUPER_test'] * 32
 
     # Gather saved quantities
     vals = {}
@@ -338,11 +375,12 @@ def get_sics():
     n_runs = len(runs)
     unique_names = list(set(names)) + ['Supervised']
     n_versions = len(unique_names)
-    fig, axes = plt.subplots(n_runs, 2, figsize=(14, 5 * n_runs + 2))
+    fig, axes = plt.subplots(n_runs, 2, figsize=(14, 5 * n_runs + 2), squeeze=False)
 
     # clist = sorted(plt.rcParams['axes.prop_cycle'].by_key()['color'])
-    clist = [u'#1f77b4', u'#ff7f0e', u'#2ca02c', u'#d62728', u'#9467bd', u'#8c564b', u'#e377c2', u'#7f7f7f', u'#bcbd22',
-             u'#17becf']
+    # clist = [u'#1f77b4', u'#ff7f0e', u'#2ca02c', u'#d62728', u'#9467bd', u'#8c564b', u'#e377c2', u'#7f7f7f', u'#bcbd22',
+    #          u'#17becf']
+    clist = cm.rainbow(np.linspace(0, 1, n_versions))
     clrs = {unique_names[i]: clist[i] for i in range(n_versions)}
     max_sic = 20
 
@@ -385,6 +423,6 @@ def get_sics():
 
 
 if __name__ == '__main__':
-    # get_counts()
-    get_sics()
+    get_counts()
+    # get_sics()
     # get_max_sic()

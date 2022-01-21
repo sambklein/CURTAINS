@@ -51,7 +51,7 @@ parser.add_argument("--feature_type", type=int, default=3)
 ## Names for saving
 parser.add_argument('-n', type=str, default='cathode', help='The name with which to tag saved outputs.')
 parser.add_argument('-d', type=str, default='NSF_CATHODE', help='Directory to save contents into.')
-parser.add_argument('--load', type=int, default=1, help='Whether or not to load a model.')
+parser.add_argument('--load', type=int, default=0, help='Whether or not to load a model.')
 parser.add_argument('--model_name', type=str, default=None, help='Saved name of model to load.')
 parser.add_argument('--load_classifiers', type=int, default=0, help='Whether or not to load a model.')
 parser.add_argument('--use_mass_sampler', type=int, default=1, help='Whether or not to sample the mass.')
@@ -216,7 +216,8 @@ else:
 
 # TODO: pass inputs to this dictionary as args.
 classifier_args = {'false_signal': 2, 'batch_size': 1000, 'nepochs': args.classifier_epochs,
-                   'lr': 0.001, 'balance': 0, 'pure_noise': 0, 'beta_add_noise': args.beta_add_noise}
+                   'lr': 0.001, 'pure_noise': 0, 'beta_add_noise': args.beta_add_noise, 'drp': 0.0,
+                   'normalize': True, 'data_unscaler': datasets.signalset.unnormalize}
 
 # Generate test data and preprocess etc
 post_process_curtains(cathode, datasets, sup_title='NSF', signal_anomalies=signal_anomalies,
