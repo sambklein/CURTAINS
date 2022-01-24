@@ -270,11 +270,8 @@ def get_datasets(train_index, test_index, false_signal, X, y, beta_add_noise, us
                 data = np.concatenate(
                     (data, np.random.multivariate_normal([0] * n_features, np.eye(n_features), n_sample)))
             else:
-                # l1 = data.min(0)
-                # l2 = data.max(0)
-                # The data is normalised, so we take this as the support for the 1+eps
-                l1 = -1
-                l2 = 1
+                l1 = np.quantile(data, 0.01, axis=0)
+                l2 = np.quantile(data, 0.99, axis=0)
                 data = np.concatenate(
                     (data, ((l1 - l2) * np.random.rand(*data.shape) + l2)[:n_sample]))
             labels = np.concatenate((labels, np.zeros((n_sample, 1))))
@@ -300,10 +297,10 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
     if thresholds is None:
         thresholds = [0, 0.5, 0.8, 0.9, 0.95, 0.99]
 
-    if anomaly_data is not None:
-        CATHODE_classifier.get_auc(bg_template, sr_samples, directory, name, anomaly_data=anomaly_data,
-                               data_unscaler=data_unscaler, mass_incl=mass_incl, bg_truth_labels=bg_truth_labels,
-                               batch_size=batch_size, normalize=normalize, nepochs=nepochs, load=load)
+    # if anomaly_data is not None:
+    #     CATHODE_classifier.get_auc(bg_template, sr_samples, directory, name, anomaly_data=anomaly_data,
+    #                                data_unscaler=data_unscaler, mass_incl=mass_incl, bg_truth_labels=bg_truth_labels,
+    #                                batch_size=batch_size, normalize=normalize, nepochs=nepochs, load=load)
 
     def prepare_data(data):
         data = data.detach().cpu()
@@ -395,7 +392,8 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
     # Take every second because the first is the training loss
     losses = np.concatenate(store_losses)[1::2]
     eval_epoch = np.argsort(losses.mean(0))[:n_av]
-    # eval_epoch = [nepochs - 1]
+    # eval_epoch = [nepochs - 1, nepochs - 2]
+    eval_epoch = [nepochs - 1]
     print(f'Best epoch: {eval_epoch}. \nLoading and evaluating now.')
     models_to_load = [os.path.join(sv_dir, f'classifier_{fold}', f'{e}') for e in eval_epoch]
     split_inds = kfold.split(X, y)
@@ -436,14 +434,16 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
                 ad = ad.data
                 anomaly_scores = classifier.predict(ad.to(device)).cpu().numpy()
             if valid_data.bg_labels is not None:
-                lbls = valid_data.bg_labels
-                bg_scores = y_scores
+                lbls_bg = valid_data.bg_labels
+                lbls = lbls_bg
+                bg_scores = y_scores[:, 0]
             else:
                 bg_scores = y_scores[valid_data.targets == 1]
-                lbls = np.ones(len(bg_scores))
+                lbls_bg = np.ones(len(bg_scores))
+                lbls = np.ones(len(valid_data.data))
             # Get the background vs signal AUC if that is available
-            y_labels_1 += [np.concatenate((np.zeros(len(anomaly_scores)), lbls))]
-            y_scores_1 += [np.concatenate((anomaly_scores, bg_scores))]
+            y_labels_1 += [np.concatenate((np.zeros(len(anomaly_scores)), lbls_bg))]
+            y_scores_1 += [np.concatenate((anomaly_scores[:, 0], bg_scores))]
             # Get the background only AUC if that information is available
             y_labels_2 += [valid_data.targets[lbls == 1]]
             y_scores_2 += [y_scores[lbls == 1]]
@@ -471,8 +471,10 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
                 count += [sum(y_scores[valid_data.targets == 0] <= threshold)]
                 if anomaly_bool:
                     signal_pass_rate = sum(anomaly_scores <= threshold) / len(anomaly_scores)
-                    bg_pass_rate = sum(bg_scores[lbls == 1] <= threshold) / len(y_scores)
-                    pass_rates += [np.concatenate((signal_pass_rate, bg_pass_rate))]
+                    bg_pass_rate = sum(bg_scores[lbls_bg == 1] <= threshold) / len(y_scores)
+                    # TODO fix the pass rates
+                    # pass_rates += [np.concatenate((signal_pass_rate, bg_pass_rate))]
+                    pass_rates += [np.zeros(nfolds * len(thresholds))]
             counts += [np.array(count)]
             expected_counts += [np.array(expected_count)]
 
@@ -488,7 +490,7 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
         y_labels_2 = np.concatenate(y_labels_2)
         y_scores_2 = np.concatenate(y_scores_2)
         lmx = np.isfinite(y_scores_1)
-        fpr1, tpr1, _ = roc_curve(y_labels_1[lmx[:, 0]], y_scores_1[lmx])
+        fpr1, tpr1, _ = roc_curve(y_labels_1[lmx], y_scores_1[lmx])
         lmx = np.isfinite(y_scores_2)
         fpr2, tpr2, _ = roc_curve(y_labels_2[lmx], y_scores_2[lmx])
         roc_auc_anomalies = auc(fpr1, tpr1)
@@ -497,6 +499,7 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
         counts = np.array(counts)
         if anomaly_bool:
             pass_rates = np.array(pass_rates)
+        print(f'Expected {np.sum(expected_counts, 0)}.\n Measured {np.sum(counts, 0)}.')
         counts = {'counts': counts, 'expected_counts': expected_counts, 'pass_rates': pass_rates}
 
     # Plot a roc curve

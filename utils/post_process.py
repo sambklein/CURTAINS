@@ -373,25 +373,17 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
                 target_sample = target_datasets[set]
                 print(f"Now evaluating sample {set} from {base_name}")
                 samples = get_transformed(input_dataset, target_dist=target_sample, r_mass=False, oversample=1)
+                sv_nm = f'{base_name}_to_{set}'
+                if sv_nm in ['SB1_to_SB2', 'SB2_to_SB1']:
+                    save_samples(samples, f'{sv_nm}_samples')
                 # For the feature plot we only want to look at as many samples as there are in SB1
                 title = f'{base_name} to {set}' if not cathode else f'Sampled from {set}'
                 getFeaturePlot(model, target_sample, samples, input_dataset, nm, sv_dir, title,
                                datasets.signalset.feature_nms, n_sample_for_plot=n_sample_for_plot,
                                summary_writer=summary_writer)
 
-                # samples = get_samples(input_dataset, target_sample, model, r_mass=True)
-                # f_nms = input_dataset.feature_nms
-                # fig, axs = plt.subplots(1, len(f_nms), figsize=(8 * len(f_nms), 5))
-                # for i in range(len(f_nms)):
-                #     # axs[i].scatter(tensor2numpy(input_dataset[:len(samples), i]),
-                #     #                tensor2numpy(samples[:, i]))
-                #     axs[i].hist2d(tensor2numpy(input_dataset[:len(samples), i]),
-                #                   tensor2numpy(samples[:, i]), bins=50)
-                #     axs[i].set_xlabel(f'{base_name} {f_nms[i]}')
-                #     axs[i].set_ylabel(f'{set} {f_nms[i]}')
-                # fig.savefig(f'{sv_dir}/{set}_{base_name}_compare.png')
-                #
-                # fig.clf()
+    def save_samples(data_tensor, name):
+        np.save(os.path.join(sv_dir, name), data_tensor.detach().cpu().numpy())
 
     # Map low mass samples to high mass
     high_mass_datasets = {'Signal Set': datasets.signalset, 'SB2': high_mass_training,
@@ -410,11 +402,12 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
     # Validation set one, SB2 to one mass bin higher
     get_maps('SB2', high_mass_training, {'OB2': datasets.validationset})
     auc_dict = {}
-    if not light_job:
+    if not light_job or (light_job == 3):
         # AUC for OB2 vs T(SB2)
         print('SB2 from OB2')
         ob2_samples = get_transformed(high_mass_training, lm=datasets.mass_bins[4], hm=datasets.mass_bins[5],
                                       target_dist=datasets.validationset, oversample=oversample)
+        save_samples(ob2_samples, 'SB2_to_OB2_samples')
         auc_ob2 = get_auc(ob2_samples, datasets.validationset.data, sv_dir, nm + 'OB2_vs_TSB2',
                           sup_title=f'T(SB2) vs OB2', load=load, **classifier_args)
         auc_dict['SB2/OB2'] = auc_ob2
@@ -425,6 +418,7 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
         print('SB1 from OB1')
         ob1_samples = get_transformed(low_mass_training, lm=datasets.mass_bins[0], hm=datasets.mass_bins[1],
                                       target_dist=datasets.validationset_lm, oversample=oversample)
+        save_samples(ob2_samples, 'SB1_to_OB1_samples')
         auc_ob1 = get_auc(ob1_samples, datasets.validationset_lm.data, sv_dir, nm + 'OB1_vs_TSB1',
                           sup_title=f'T(SB1) vs OB1', load=load, **classifier_args)
         auc_dict['SB1/OB1'] = auc_ob1
@@ -435,19 +429,14 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
                                       target_dist=datasets.signalset, oversample=oversample)
         sb1_samples = get_transformed(low_mass_sample, lm=datasets.mass_bins[2], hm=datasets.mass_bins[3],
                                       target_dist=datasets.signalset, oversample=oversample)
+        save_samples(sb2_samples, 'SB1_to_SR_samples')
+        save_samples(sb1_samples, 'SB2_to_SR_samples')
         samples = torch.cat((sb2_samples, sb1_samples))
 
         # For the feature plot we only want to look at as many samples as there are in SB1
         title = 'SB1 and SB2 to Signal' if not cathode else f'Sampled from Signal'
         getFeaturePlot(model, datasets.signalset, samples, high_mass_sample, nm, sv_dir, title,
                        datasets.signalset.feature_nms, n_sample_for_plot=n_sample_for_plot)
-
-        print('Without anomalies injected')
-        auc = get_auc(samples, datasets.signalset.data, sv_dir, nm + 'SB12', sup_title=f'T(SB1) U T(SB2) vs SR',
-                      load=load, **classifier_args)
-        auc_dict['SB12/SR'] = auc
-        if summary_writer_passed:
-            summary_writer.add_hparams(vars(args), auc_dict)
 
     if light_job <= 1:
         print('SB2 from signal set')
@@ -460,46 +449,25 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
         auc_dict['SB1/SR'] = auc_sb1
         auc_dict['SB2/SR'] = auc_sb2
 
-        # print('Without anomalies injected')
-        # auc = get_auc(samples, datasets.signalset.data, sv_dir, nm + 'SB12',
-        #               load=False, sup_title=f'T(SB1) U T(SB2) vs SR',
-        #               **classifier_args)
-
     if (not light_job) or (light_job == 3):
         # Get the AUC of the ROC for a classifier trained to separate interpolated samples from data
-        # print('Benchmark classifier separating samples from anomalies')
-        # auc_super_info = get_auc(signal_anomalies.data.to(device), datasets.signalset.data.to(device), sv_dir,
-        #                          nm + 'Super', sup_title=f'QCD SR vs Anomalies SR', load=load, return_rates=True,
-        #                          **classifier_args)
         print('With anomalies injected')
         rates_sr_vs_transformed = {}
         # rates_sr_qcd_vs_anomalies = {'Supervised': auc_super_info[1]}
         rates_sr_qcd_vs_anomalies = {}
-        # for beta in [0.0, 0.5, 1, 5, 15]:
-        # TODO: the above for loop will no longer work, data doping must be done outside of the classifier now.
-        for beta in [0.0]:
-            auc_info = get_auc(samples, datasets.signalset.data, sv_dir, nm + f'{beta}%Anomalies',
-                               anomaly_data=signal_anomalies.data.to(device),
-                               sup_title=f'QCD in SR doped with {beta:.3f}% anomalies', load=load, return_rates=True,
-                               **classifier_args)
-            auc_anomalies = auc_info[0]
-            rates_sr_vs_transformed[f'{beta}'] = auc_info[3]
-            rates_sr_qcd_vs_anomalies[f'{beta}'] = auc_info[2]
-            if beta == 0.0:
-                with open(f'{sv_dir}/counts.pkl', 'wb') as f:
-                    pickle.dump(auc_info[-1], f)
 
-                # ca = deepcopy(classifier_args)
-                # ca['false_signal'] = 0
-                # auc_info = get_auc(samples, datasets.signalset.data, sv_dir, nm + f'{beta}%Anomalies_no_eps',
-                #                    anomaly_data=signal_anomalies.data.to(device),
-                #                    sup_title=f'QCD in SR doped with {beta:.3f}% anomalies and no eps', load=load,
-                #                    return_rates=True, **ca)
-                # rates_sr_vs_transformed[f'{beta}_no_eps'] = auc_info[3]
-                # rates_sr_qcd_vs_anomalies[f'{beta}_no_eps'] = auc_info[2]
-                #
-                # with open(f'{sv_dir}/counts_no_eps.pkl', 'wb') as f:
-                #     pickle.dump(auc_info[-1], f)
+        load = 0
+        auc_info = get_auc(samples, datasets.signalset.data, sv_dir, nm + f'Anomalies_no_eps',
+                           anomaly_data=signal_anomalies.data.to(device),
+                           sup_title=f'QCD in SR', load=load, return_rates=True,
+                           **classifier_args)
+        auc_anomalies = auc_info[0]
+        print(f'AUC separation {auc_anomalies}')
+        auc_dict['SB12/SR'] = auc_anomalies
+        rates_sr_vs_transformed[f'0.0'] = auc_info[3]
+        rates_sr_qcd_vs_anomalies[f'0.0'] = auc_info[2]
+        with open(f'{sv_dir}/counts_no_eps.pkl', 'wb') as f:
+            pickle.dump(auc_info[-1], f)
 
         plot_rates_dict(sv_dir, rates_sr_qcd_vs_anomalies, 'SR QCD vs SR Anomalies')
         plot_rates_dict(sv_dir, rates_sr_vs_transformed, 'T(SB12) vs SR')

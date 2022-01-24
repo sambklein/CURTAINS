@@ -163,13 +163,21 @@ def get_counts():
     directories = [f'curtains_bins_true_OT_bins_scan_two_hundred_true_{i}' for i in range(0, 28)]
     # directories = [f'cathode_bins_true_CATHODE_bins_scan_two_hundred_true_{i}' for i in range(0, 28)]
     # directories = [f'curtains_bins_four_true_OT_bins_scan_four_hundred_true_{i}' for i in range(0, 14)]
+
+    # Idealised hunts
+    # directories = [f'idealised_check_eps_idealised_scan_two_hundred_true_{i}' for i in range(0, 14)]
+    # directories = [f'idealised_scan_idealised_scan_two_hundred_no_eps_{i}' for i in range(0, 14)]
+    # directories = [f'idealised_scan_add_vars_idealised_scan_two_hundred_no_eps_add_vars_{i}' for i in range(0, 28)]
+    # directories = [f'idealised_check_eps_add_vars_idealised_scan_two_hundred_true_add_vars_{i}' for i in range(0, 28)]
+    directories = [f'ideal_no_sig_ideal_no_sig_{i}' for i in range(0, 14)]
+
     bin_width = 200
     thresholds = [0, 0.5, 0.8, 0.9, 0.95, 0.99]
     nfolds = 5
 
     reload = 1
-    cathode_classifier = 1
-    filename = '200_cathode'
+    cathode_classifier = 0
+    filename = '200'
 
     if reload:
         # Gather saved quantities
@@ -193,7 +201,8 @@ def get_counts():
                         # with open(f'{sv_dir}/images/{directory}/counts_no_eps.pkl', 'rb') as f:
                         info_dict = pickle.load(f)
                     true_counts = np.sum(info_dict['counts'], 0)
-                    expected_counts = np.sum(info_dict['expected_counts'], 0)
+                    # expected_counts = np.sum(info_dict['expected_counts'], 0) / 8
+                    expected_counts = true_counts[0] * (1 - np.array(thresholds))
 
                 #
                 # expected_counts = np.sum(info_dict['expected_counts'], 0) / 8
@@ -254,6 +263,10 @@ def get_counts():
     fig1, axes1 = plt.subplots(1, 1, figsize=(7, 5))
     n_plots = 5
     fig2, axes2 = plt.subplots(n_dopings, n_plots, figsize=(7 * n_plots, 5 * n_dopings + 2))
+
+    if n_dopings == 1:
+        axes2 = np.array([axes2])
+        axes = np.array([axes])
 
     class MassSpectrum:
 
@@ -321,16 +334,16 @@ def get_counts():
 
                 rt = np.array(rt)
 
-                bins, bg_counts, ad_counts = get_mass_spectrum(int(label))
-                mx = np.digitize(xy[:, 0], bins=bins) - 1
-                axes2[j, 0].bar(bins[mx], rt[:, 0, i] * ad_counts[mx], width=bin_width, color='None', edgecolor='r')
-                axes2[j, 1].bar(bins[mx], rt[:, 1, i] * bg_counts[mx], width=bin_width, color='None', edgecolor='b')
-                axes2[j, 2].bar(bins[mx], rt[:, 0, i] * ad_counts[mx], width=bin_width, color='None', edgecolor='r')
-                axes2[j, 2].bar(bins[mx], rt[:, 1, i] * bg_counts[mx], width=bin_width, color='None', edgecolor='b')
-                axes2[j, 3].bar(bins[mx], rt[:, 0, i] * ad_counts[mx] / (rt[:, 1, i] * bg_counts[mx]), width=bin_width,
-                                label=f'Cut = {thresholds[i]}', color='None', edgecolor=clr)
-                axes2[j, 4].bar(bins[mx], rt[:, 0, i] * ad_counts[mx] / np.sqrt(rt[:, 1, i] * bg_counts[mx]),
-                                width=100, label=f'Cut = {thresholds[i]}', color='None', edgecolor=clr)
+                # bins, bg_counts, ad_counts = get_mass_spectrum(int(label))
+                # mx = np.digitize(xy[:, 0], bins=bins) - 1
+                # axes2[j, 0].bar(bins[mx], rt[:, 0, i] * ad_counts[mx], width=bin_width, color='None', edgecolor='r')
+                # axes2[j, 1].bar(bins[mx], rt[:, 1, i] * bg_counts[mx], width=bin_width, color='None', edgecolor='b')
+                # axes2[j, 2].bar(bins[mx], rt[:, 0, i] * ad_counts[mx], width=bin_width, color='None', edgecolor='r')
+                # axes2[j, 2].bar(bins[mx], rt[:, 1, i] * bg_counts[mx], width=bin_width, color='None', edgecolor='b')
+                # axes2[j, 3].bar(bins[mx], rt[:, 0, i] * ad_counts[mx] / (rt[:, 1, i] * bg_counts[mx]), width=bin_width,
+                #                 label=f'Cut = {thresholds[i]}', color='None', edgecolor=clr)
+                # axes2[j, 4].bar(bins[mx], rt[:, 0, i] * ad_counts[mx] / np.sqrt(rt[:, 1, i] * bg_counts[mx]),
+                #                 width=100, label=f'Cut = {thresholds[i]}', color='None', edgecolor=clr)
 
             if i == 0:
                 ax.set_ylabel('Counts / Expected Counts')

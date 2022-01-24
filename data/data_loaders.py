@@ -173,7 +173,6 @@ def load_curtains_pd(sm='QCDjj_pT', dtype='float32', extraStats=False, feature_t
         df = pd.concat((proper_order, improper_order))
 
         if sm == 'QCDjj_pT':
-            # TODO: is background labelled 0?
             df = df.loc[df['label'] == 0]
         else:
             df = df.loc[df['label'] == 1]
