@@ -29,7 +29,7 @@ def parse_args():
     parser.add_argument('--load', type=int, default=0, help='Load a model?')
 
     # Multiple runs
-    parser.add_argument('--shift_seed', type=int, default=0,
+    parser.add_argument('--shift_seed', type=int, default=1,
                         help='Add this number to the fixed seed.')
 
     # Classifier set up
@@ -86,9 +86,9 @@ def test_classifier():
 
     # Load the data and dope appropriately
     sm = load_curtains_pd(feature_type=args.feature_type)
-    sm = sm.sample(frac=1)
+    sm = sm.sample(frac=1).dropna()
     ad = load_curtains_pd(sm='WZ_allhad_pT', feature_type=args.feature_type)
-    ad = ad.sample(frac=1)
+    ad = ad.sample(frac=1).dropna()
     bg_truth_labels = None
 
     # Bin the data
@@ -122,12 +122,12 @@ def test_classifier():
         ad_extra = ad_extra.iloc[n_to_bg:]
 
         ndata = int(len(sm) / 2)
-        data_to_dope = pd.concat((sm.iloc[:ndata], ad)).dropna()
-        undoped_data = pd.concat((sm.iloc[ndata:], ad_bg)).dropna()
+        data_to_dope = pd.concat((sm.iloc[:ndata], ad))
+        undoped_data = pd.concat((sm.iloc[ndata:], ad_bg))
         # This is ordered from undoped data to data to dope
         bg_truth_labels = torch.cat((
-            torch.ones(len(sm.iloc[:ndata].dropna())),
-            torch.zeros(len(ad.dropna())),
+            torch.ones(len(sm.iloc[:ndata])),
+            torch.zeros(len(ad)),
             torch.ones(len(undoped_data))
         ))
     else:
@@ -139,9 +139,9 @@ def test_classifier():
         ad_extra = ad.iloc[ntake:]
         ad = ad.iloc[:ntake]
         ad_extra, _ = mx_data(ad_extra, sr_bin)
-        data_to_dope = ad.dropna()
-        undoped_data = sm.dropna()
-        ad_extra = ad_extra.dropna()
+        data_to_dope = ad
+        undoped_data = sm
+        ad_extra = ad_extra
 
     dtype = torch.float32
     names = undoped_data.keys()

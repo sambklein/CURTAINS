@@ -4,6 +4,7 @@ import json
 import os
 import pdb
 import pickle
+from collections import defaultdict
 
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import cm
@@ -169,7 +170,8 @@ def get_counts():
     # directories = [f'idealised_scan_idealised_scan_two_hundred_no_eps_{i}' for i in range(0, 14)]
     # directories = [f'idealised_scan_add_vars_idealised_scan_two_hundred_no_eps_add_vars_{i}' for i in range(0, 28)]
     # directories = [f'idealised_check_eps_add_vars_idealised_scan_two_hundred_true_add_vars_{i}' for i in range(0, 28)]
-    directories = [f'ideal_no_sig_ideal_no_sig_{i}' for i in range(0, 14)]
+    # directories = [f'ideal_no_sig_ideal_no_sig_{i}' for i in range(0, 14)]
+    directories = [f'no_sig_eps_no_sig_{i}' for i in range(0, 14)]
 
     bin_width = 200
     thresholds = [0, 0.5, 0.8, 0.9, 0.95, 0.99]
@@ -181,8 +183,8 @@ def get_counts():
 
     if reload:
         # Gather saved quantities
-        vals = {}
-        rates = {}
+        vals = defaultdict(list)
+        rates = defaultdict(list)
         get_property = PropertiesHandler()
         for i, directory in enumerate(directories):
             # pdb.set_trace()
@@ -236,12 +238,8 @@ def get_counts():
                 # inf = true_counts / (expected_counts[0] * (1 - np.array(thresholds)))
                 inf = counts
                 rt = np.vstack((signal_pass_rate, bg_pass_rate))
-                if label in vals:
-                    vals[label] += [np.hstack((x, *inf, error))]
-                    rates[label] += [rt]
-                else:
-                    vals[label] = [np.hstack((x, *inf, error))]
-                    rates[label] = [rt]
+                vals[label] += [np.hstack((x, *inf, error))]
+                rates[label] += [rt]
 
             with open(f'{sv_dir}/images/rates_info_{filename}.pkl', 'wb') as f:
                 pickle.dump(rates, f)

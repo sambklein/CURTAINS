@@ -456,7 +456,6 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
         # rates_sr_qcd_vs_anomalies = {'Supervised': auc_super_info[1]}
         rates_sr_qcd_vs_anomalies = {}
 
-        load = 0
         auc_info = get_auc(samples, datasets.signalset.data, sv_dir, nm + f'Anomalies_no_eps',
                            anomaly_data=signal_anomalies.data.to(device),
                            sup_title=f'QCD in SR', load=load, return_rates=True,
