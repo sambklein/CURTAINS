@@ -393,8 +393,8 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
     # Take every second because the first is the training loss
     losses = np.concatenate(store_losses)[1::2]
     eval_epoch = np.argsort(losses.mean(0))[:n_av]
-    # eval_epoch = [nepochs - 1, nepochs - 2]
-    eval_epoch = [nepochs - 1]
+    eval_epoch = [nepochs - 1, nepochs - 2]
+    # eval_epoch = [nepochs - 1]
     print(f'Best epoch: {eval_epoch}. \nLoading and evaluating now.')
     models_to_load = [os.path.join(sv_dir, f'classifier_{fold}', f'{e}') for e in eval_epoch]
     split_inds = kfold.split(X, y)
@@ -442,7 +442,10 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
             info_dict['y_scores_2'] += [y_scores[lbls == 1]]
 
             # Calculate and plot some AUCs for the epoch
-            fpr, tpr, _ = roc_curve(info_dict['y_labels_1'][-1], info_dict['y_scores_1'][-1])
+            fpr, tpr, _ = roc_curve(info_dict['y_labels_1'][-1], info_dict['y_scores_1'][-1], pos_label=0)
+            fpr_nonzero = np.delete(fpr, np.argwhere(fpr == 0))
+            tpr_nonzero = np.delete(tpr, np.argwhere(fpr == 0))
+            sic = tpr_nonzero / fpr_nonzero ** 0.5
             roc_auc_1 = roc_auc_score(info_dict['y_labels_1'][-1], info_dict['y_scores_1'][-1])
             roc_auc_2 = roc_auc_score(info_dict['y_labels_2'][-1], info_dict['y_scores_2'][-1])
             roc_auc_3 = roc_auc_score(labels_test, y_scores)
@@ -480,9 +483,22 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
     fpr, tpr, _ = roc_curve(info_dict['labels_test'], info_dict['y_scores'])
     roc_auc = auc(fpr, tpr)
 
+    # Plot the classifier output distributions
+    fig, ax = plt.subplots()
+    d1 = info_dict['y_scores_1']
+    bins = get_bins(d1)
+    plt_kwargs = {'bins': bins, 'alpha': 0.8, 'histtype': 'step', 'density': True}
+    ax.hist(d1, label='Anomalies', **plt_kwargs)
+    ax.hist(info_dict['y_scores'][info_dict['labels_test'] == 0], label='Train Label 0', **plt_kwargs)
+    ax.hist(info_dict['y_scores'][info_dict['labels_test'] == 1], label='Train Label 1', **plt_kwargs)
+    fig.legend()
+    fig.savefig(os.path.join(sv_dir, 'classifier_outputs.png'))
+
     if anomaly_bool:
         lmx = np.isfinite(info_dict['y_scores_1'])
-        fpr1, tpr1, _ = roc_curve(info_dict['y_labels_1'][lmx], info_dict['y_scores_1'][lmx])
+        fpr1, tpr1, _ = roc_curve(info_dict['y_labels_1'][lmx], info_dict['y_scores_1'][lmx], pos_label=0)
+        fpr1 = 1 - fpr1
+        tpr1 = 1 - tpr1
         lmx = np.isfinite(info_dict['y_scores_2'])
         fpr2, tpr2, _ = roc_curve(info_dict['y_labels_2'][lmx], info_dict['y_scores_2'][lmx])
         roc_auc_anomalies = auc(fpr1, tpr1)

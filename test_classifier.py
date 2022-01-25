@@ -29,7 +29,7 @@ def parse_args():
     parser.add_argument('--load', type=int, default=0, help='Load a model?')
 
     # Multiple runs
-    parser.add_argument('--shift_seed', type=int, default=1,
+    parser.add_argument('--shift_seed', type=int, default=0,
                         help='Add this number to the fixed seed.')
 
     # Classifier set up
@@ -38,9 +38,9 @@ def parse_args():
     parser.add_argument('--dataset', type=str, default='curtains', help='The dataset to train on.')
     parser.add_argument("--bins", type=str, default='2900,3100,3300,3700,3900,4100')
     parser.add_argument("--feature_type", type=int, default=3)
-    parser.add_argument("--split_data", type=int, default=2,
+    parser.add_argument("--split_data", type=int, default=3,
                         help='2 for idealised classifier, 3 for supervised.')
-    parser.add_argument("--doping", type=int, default=000,
+    parser.add_argument("--doping", type=int, default=1000,
                         help='Raw number of signal events to be added into the entire bg spectra.')
 
     # Training parameters

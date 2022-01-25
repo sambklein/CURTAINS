@@ -36,6 +36,10 @@ class Classifier(nn.Module):
     def device(self):
         return next(self.parameters()).device
 
+    def weighted_loss(self, prediction, target, weight):
+        wl = target * -prediction.log() * weight + (1 - target) * -(1 - prediction).log()
+        return wl.mean()
+
     def compute_loss(self, data, return_pred=False):
         inputs, target, weight = data
         if inputs.isnan().any():
@@ -45,6 +49,8 @@ class Classifier(nn.Module):
         if prediction.isnan().any():
             raise Exception('Classifier has diverged.')
         self.loss = self.loss_object(prediction, target.to(device), weight=weight.to(device))
+        # # TODO: trying this
+        # self.loss = self.weighted_loss(prediction, target.to(device), 0.1)
         if return_pred:
             return self.loss, prediction
         else:

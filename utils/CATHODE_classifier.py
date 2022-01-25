@@ -6,7 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import cm
 from scipy.interpolate import interp1d
-from sklearn.metrics import roc_curve
+from sklearn.metrics import roc_curve, auc
 from sklearn.model_selection import train_test_split
 from sklearn.utils import class_weight
 
@@ -319,8 +319,10 @@ def tprs_fprs_sics(preds_matris, y_test, X_test):
     sics = {}
     for j in range(runs):
         for i in range(epchs):
-            fpr, tpr, thresholds = roc_curve(X_test[:, -1][y_test == 1],
-                                             preds_matris[j, i][y_test == 1])
+            fpr, tpr, thresholds = roc_curve(X_test[:, -1],
+                                             preds_matris[j, i])
+            # fpr, tpr, thresholds = roc_curve(X_test[:, -1][y_test == 1],
+            #                                  preds_matris[j, i][y_test == 1])
             fpr_nonzero = np.delete(fpr, np.argwhere(fpr == 0))
             tpr_nonzero = np.delete(tpr, np.argwhere(fpr == 0))
             tprs[j, i] = tpr_nonzero
@@ -473,6 +475,39 @@ def compare_on_various_runs(tprs_list, fprs_list, pick_epochs_list, labels_list,
     # plt.tight_layout()
     if savefig is not None:
         plt.savefig(savefig, bbox_inches="tight")
+
+    # draw SICs
+
+    fig, ax = plt.subplots()
+    for k, run_collection in enumerate(zip(tprs_list, fprs_list, pick_epochs_list, labels_list)):
+        tprs, fprs, pick_epoch, label = run_collection
+        full_label = "" if label == "" else ", " + label
+        if not only_median:
+            for j, picked_epoch in enumerate(pick_epoch):
+                fpr = fprs[j, picked_epoch]
+                tpr = tprs[j, picked_epoch]
+                roc_auc = auc(fpr, tpr)
+                ax.plot(fpr, tpr, color=single_colors[k], label=f'AUC = {roc_auc:.2f}')
+            if not reduced_legend:
+                ax.plot(np.nan, np.nan, color=single_colors[k],
+                         label=f"{len(pick_epoch)} individual runs{full_label}",
+                         zorder=zorder_single[k])
+    #     plt.plot(tprs_manual_list[k], sic_median_list[k], color=median_colors[k],
+    #              label=f"median{full_label}", zorder=zorder_median[k])
+    # plt.plot(np.linspace(0.0001, 1, 300),
+    #          np.linspace(0.0001, 1, 300) / np.linspace(0.0001, 1, 300) ** (0.5), color="gray",
+    #          linestyle=":", label="random")
+    # plt.ylim(sic_lim)
+    # plt.title("Signal Region", loc="right", style='italic')
+    # plt.ylabel('Significance Improvement')
+    # plt.xlabel('Signal Efficiency (True Positive Rate)')
+    # plt.legend(loc='upper right')
+    ax.plot([0, 1], [0, 1], 'k--')
+    ax.set_xticks(np.arange(0, 1.1, 0.1))
+    ax.set_xlabel('False positive rate')
+    ax.set_ylabel('True positive rate')
+    ax.legend()
+    fig.savefig(f'{savefig}_AUC')
 
     if return_all:
         return tprs_manual_list, roc_median_list, sic_median_list, tprs_list, fprs_list
