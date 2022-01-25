@@ -277,7 +277,7 @@ def plot_rates_dict(sv_dir, rates_dict, title):
     ax.set_xlabel('Signal efficiency (true positive rate)')
     ax.set_title(title)
     # fig.tight_layout(rect=[0, 0, 0.9, 1])
-    lgd = fig.legend(bbox_to_anchor=(0.76, 0.94), loc='upper left')
+    lgd = fig.legend()
     ax.set_aspect('equal')
     fig.savefig(sv_dir + f'/{title}_sic.png', bbox_extra_artists=(lgd,), bbox_inches='tight')
 

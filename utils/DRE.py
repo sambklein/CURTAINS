@@ -291,17 +291,20 @@ def get_datasets(train_index, test_index, false_signal, X, y, beta_add_noise, us
 def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_truth_labels=None, mass_incl=True,
             sup_title='', load=False, return_rates=False, false_signal=1, normalize=True, batch_size=1000, nepochs=100,
             lr=0.0001, wd=0.001, drp=0.0, width=32, depth=3, batch_norm=False, layer_norm=False, use_scheduler=True,
-            use_weights=True, thresholds=None, beta_add_noise=0.1, pure_noise=False, nfolds=5, data_unscaler=None):
+            use_weights=True, thresholds=None, beta_add_noise=0.1, pure_noise=False, nfolds=5, data_unscaler=None,
+            run_cathode_classifier=True):
     """
     bg_truth_labels 0 = known anomaly, 1 = known background, -1 = unknown/sampled/transformed sample
     """
     if thresholds is None:
-        thresholds = [0, 0.5, 0.8, 0.9, 0.95, 0.99]
+        thresholds = [0, 0.5, 0.8, 0.9, 0.95, 0.99, 0.999, 0.9999]
 
-    # if anomaly_data is not None:
-    #     CATHODE_classifier.get_auc(bg_template, sr_samples, directory, name, anomaly_data=anomaly_data,
-    #                                data_unscaler=data_unscaler, mass_incl=mass_incl, bg_truth_labels=bg_truth_labels,
-    #                                batch_size=batch_size, normalize=normalize, nepochs=nepochs, load=load)
+    tpr_c, fpr_c = None, None
+    if (anomaly_data is not None) and run_cathode_classifier:
+        tpr_c, fpr_c = CATHODE_classifier.get_auc(bg_template, sr_samples, directory, name, anomaly_data=anomaly_data,
+                                                  bg_truth_labels=bg_truth_labels, mass_incl=mass_incl, load=load,
+                                                  normalize=normalize, batch_size=batch_size, nepochs=nepochs,
+                                                  thresholds=thresholds, data_unscaler=data_unscaler)
 
     def prepare_data(data):
         data = data.detach().cpu()
@@ -324,7 +327,7 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
         anomaly_data = prepare_data(anomaly_data)
 
     X, y = torch.cat((bg_template, sr_samples), 0).cpu().numpy(), torch.cat(
-        (torch.ones(len(bg_template)), torch.zeros(len(sr_samples))), 0).view(-1, 1).cpu().numpy()
+        (torch.zeros(len(bg_template)), torch.ones(len(sr_samples))), 0).view(-1, 1).cpu().numpy()
 
     # Setting random_state to an integer means repeated calls yield the same result
     kfold = StratifiedKFold(n_splits=nfolds, shuffle=True, random_state=1)
@@ -431,21 +434,18 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
                 lbls = lbls_bg
                 bg_scores = y_scores[:, 0]
             else:
-                bg_scores = y_scores[valid_data.targets == 1]
-                lbls_bg = np.ones(len(bg_scores))
-                lbls = np.ones(len(valid_data.data))
+                bg_scores = y_scores[valid_data.targets == 0]
+                lbls_bg = np.zeros(len(bg_scores))
+                lbls = np.zeros(len(valid_data.data))
             # Get the background vs signal AUC if that is available
-            info_dict['y_labels_1'] += [np.concatenate((np.zeros(len(anomaly_scores)), lbls_bg))]
+            info_dict['y_labels_1'] += [np.concatenate((np.ones(len(anomaly_scores)), lbls_bg))]
             info_dict['y_scores_1'] += [np.concatenate((anomaly_scores[:, 0], bg_scores))]
             # Get the background only AUC if that information is available
-            info_dict['y_labels_2'] += [valid_data.targets[lbls == 1]]
-            info_dict['y_scores_2'] += [y_scores[lbls == 1]]
+            info_dict['y_labels_2'] += [valid_data.targets[lbls == 0]]
+            info_dict['y_scores_2'] += [y_scores[lbls == 0]]
 
             # Calculate and plot some AUCs for the epoch
-            fpr, tpr, _ = roc_curve(info_dict['y_labels_1'][-1], info_dict['y_scores_1'][-1], pos_label=0)
-            fpr_nonzero = np.delete(fpr, np.argwhere(fpr == 0))
-            tpr_nonzero = np.delete(tpr, np.argwhere(fpr == 0))
-            sic = tpr_nonzero / fpr_nonzero ** 0.5
+            fpr, tpr, _ = roc_curve(info_dict['y_labels_1'][-1], info_dict['y_scores_1'][-1])
             roc_auc_1 = roc_auc_score(info_dict['y_labels_1'][-1], info_dict['y_scores_1'][-1])
             roc_auc_2 = roc_auc_score(info_dict['y_labels_2'][-1], info_dict['y_scores_2'][-1])
             roc_auc_3 = roc_auc_score(labels_test, y_scores)
@@ -460,17 +460,17 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
             # template
             count = []
             expected_count = []
-            mx = valid_data.targets == 1
+            mx = valid_data.targets == 0
             for i, at in enumerate(thresholds):
-                threshold = np.quantile(y_scores[mx], 1 - at)
-                expected_count += [sum(y_scores[mx] <= threshold)]
-                count += [sum(y_scores[valid_data.targets == 0] <= threshold)]
+                threshold = np.quantile(y_scores[mx], at)
+                expected_count += [sum(y_scores[mx] >= threshold)]
+                count += [sum(y_scores[valid_data.targets == 1] >= threshold)]
                 if anomaly_bool:
-                    signal_pass_rate = sum(anomaly_scores <= threshold) / len(anomaly_scores)
-                    bg_pass_rate = sum(bg_scores[lbls_bg == 1] <= threshold) / len(y_scores)
+                    signal_pass_rate = sum(anomaly_scores >= threshold) / len(anomaly_scores)
+                    bg_pass_rate = sum(bg_scores[lbls_bg == 0] >= threshold) / len(y_scores)
                     # TODO fix the pass rates
                     # pass_rates += [np.concatenate((signal_pass_rate, bg_pass_rate))]
-                    info_dict['pass_rates'] += [np.zeros(nfolds * len(thresholds))]
+                    info_dict['pass_rates'] += [np.ones(nfolds * len(thresholds))]
             info_dict['counts'] += [np.array(count)]
             info_dict['expected_counts'] += [np.array(expected_count)]
 
@@ -496,9 +496,20 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
 
     if anomaly_bool:
         lmx = np.isfinite(info_dict['y_scores_1'])
-        fpr1, tpr1, _ = roc_curve(info_dict['y_labels_1'][lmx], info_dict['y_scores_1'][lmx], pos_label=0)
-        fpr1 = 1 - fpr1
-        tpr1 = 1 - tpr1
+        fpr1, tpr1, _ = roc_curve(info_dict['y_labels_1'][lmx], info_dict['y_scores_1'][lmx])
+        if tpr_c is not None:
+            # Plot a roc curve
+            fig, ax = plt.subplots(1, 1, figsize=(5, 5))
+            ax.plot(fpr1, tpr1, label='Curtains', linewidth=2)
+            key = list(fpr_c.keys())[0]
+            ax.plot(fpr_c[key], tpr_c[key], label='CATHODE', linewidth=2)
+            ax.plot([0, 1], [0, 1], 'k--')
+            ax.set_xticks(np.arange(0, 1.1, 0.1))
+            ax.set_xlabel('False positive rate')
+            ax.set_ylabel('True positive rate')
+            ax.legend()
+            fig.savefig(sv_dir + 'roc_compare.png')
+
         lmx = np.isfinite(info_dict['y_scores_2'])
         fpr2, tpr2, _ = roc_curve(info_dict['y_labels_2'][lmx], info_dict['y_scores_2'][lmx])
         roc_auc_anomalies = auc(fpr1, tpr1)

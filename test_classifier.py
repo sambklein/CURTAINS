@@ -38,7 +38,7 @@ def parse_args():
     parser.add_argument('--dataset', type=str, default='curtains', help='The dataset to train on.')
     parser.add_argument("--bins", type=str, default='2900,3100,3300,3700,3900,4100')
     parser.add_argument("--feature_type", type=int, default=3)
-    parser.add_argument("--split_data", type=int, default=3,
+    parser.add_argument("--split_data", type=int, default=2,
                         help='2 for idealised classifier, 3 for supervised.')
     parser.add_argument("--doping", type=int, default=1000,
                         help='Raw number of signal events to be added into the entire bg spectra.')
@@ -47,7 +47,7 @@ def parse_args():
     parser.add_argument('--batch_size', type=int, default=1000, help='Size of batch for training.')
     parser.add_argument('--nepochs', type=int, default=10, help='Number of epochs.')
     parser.add_argument('--lr', type=float, default=0.001, help='Classifier learning rate.')
-    parser.add_argument('--wd', type=float, default=0.001, help='Weight Decay, set to None for ADAM.')
+    parser.add_argument('--wd', type=float, default=0.01, help='Weight Decay, set to None for ADAM.')
     parser.add_argument('--drp', type=float, default=0.0, help='Dropout to apply.')
     parser.add_argument('--width', type=int, default=64, help='Width to use for the classifier.')
     parser.add_argument('--depth', type=int, default=3, help='Depth of classifier to use.')
@@ -64,7 +64,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def test_classifier():
+def test_classifier(): 
     args = parse_args()
 
     seed = 42 + args.shift_seed
@@ -123,12 +123,13 @@ def test_classifier():
 
         ndata = int(len(sm) / 2)
         data_to_dope = pd.concat((sm.iloc[:ndata], ad))
-        undoped_data = pd.concat((sm.iloc[ndata:], ad_bg))
+        # undoped_data = pd.concat((sm.iloc[ndata:], ad_bg))
+        undoped_data = sm.iloc[ndata:]
         # This is ordered from undoped data to data to dope
         bg_truth_labels = torch.cat((
-            torch.ones(len(sm.iloc[:ndata])),
-            torch.zeros(len(ad)),
-            torch.ones(len(undoped_data))
+            torch.zeros(len(sm.iloc[:ndata])),
+            torch.ones(len(ad)),
+            torch.zeros(len(undoped_data))
         ))
     else:
         # Supervised classifier

@@ -271,7 +271,7 @@ def preds_from_models(model_path_list, X_test, save_dir, predict_on_samples=Fals
 
 def counts_from_models(model_path_list, X_val, save_dir, anomaly_scores, thresholds=None):
     if thresholds is None:
-        thresholds = [0, 0.5, 0.8, 0.9, 0.95, 0.99]
+        thresholds = [0, 0.5, 0.8, 0.9, 0.95, 0.99, 0.999, 0.9999]
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda:0" if use_cuda else "cpu")
 
@@ -296,6 +296,7 @@ def counts_from_models(model_path_list, X_val, save_dir, anomaly_scores, thresho
         threshold = np.quantile(y_scores[mx], at)
         expected_count += [sum(y_scores[mx] >= threshold)]
         count += [sum(y_scores[X_val[:, -2] == 1] >= threshold)]
+
         signal_pass_rate = sum(anomaly_scores >= threshold) / len(anomaly_scores)
         # TODO this is a poor proxy for the BG rejection rate
         bg_pass_rate = sum(y_scores[mx] >= threshold) / len(y_scores)
@@ -490,8 +491,8 @@ def compare_on_various_runs(tprs_list, fprs_list, pick_epochs_list, labels_list,
                 ax.plot(fpr, tpr, color=single_colors[k], label=f'AUC = {roc_auc:.2f}')
             if not reduced_legend:
                 ax.plot(np.nan, np.nan, color=single_colors[k],
-                         label=f"{len(pick_epoch)} individual runs{full_label}",
-                         zorder=zorder_single[k])
+                        label=f"{len(pick_epoch)} individual runs{full_label}",
+                        zorder=zorder_single[k])
     #     plt.plot(tprs_manual_list[k], sic_median_list[k], color=median_colors[k],
     #              label=f"median{full_label}", zorder=zorder_median[k])
     # plt.plot(np.linspace(0.0001, 1, 300),
@@ -526,10 +527,12 @@ def full_single_evaluation(prediction_dir, X_test, n_ensemble_epochs=10,
             predictions, val_losses, n_epochs=n_ensemble_epochs)
     tprs, fprs, sics = tprs_fprs_sics(min_val_loss_predictions, y_test, X_test)
 
-    return compare_on_various_runs(
+    _ = compare_on_various_runs(
         [tprs], [fprs], [np.zeros(min_val_loss_predictions.shape[0])], [""],
         sic_lim=sic_range, savefig=savefig, only_median=False, continuous_colors=False,
         reduced_legend=False, suppress_show=suppress_show, return_all=return_all)
+
+    return tprs, fprs
 
 
 def minimum_validation_loss_models(prediction_dir, n_epochs=10):
@@ -579,8 +582,7 @@ def get_auc(bg_template, sr_samples, sv_dir, name, anomaly_data=None, bg_truth_l
     X_train = torch.cat((bg_template.roll(1, 1), sr_samples.roll(1, 1)), 0)
     # Treat the BG templates as label zero
     y_train = torch.cat((torch.zeros(len(bg_template)), torch.ones(len(sr_samples))), 0)
-    bg_labls = 1 - bg_truth_labels
-    X_train = torch.cat((X_train, y_train.view(-1, 1), bg_labls.view(-1, 1)), 1)
+    X_train = torch.cat((X_train, y_train.view(-1, 1), bg_truth_labels.view(-1, 1)), 1)
     X_train[:, 0] /= 1000
 
     # Append additional signal
@@ -602,7 +604,7 @@ def get_auc(bg_template, sr_samples, sv_dir, name, anomaly_data=None, bg_truth_l
     if load not in [1, 2]:
         loss_matris, val_loss_matris = train_n_models(
             1, 'utils/classifier.yml', nepochs, X_train, y_train, X_test, y_test,
-            batch_size=batch_size,
+            batch_size=batch_size, X_val=X_val,
             supervised=False, verbose=False,
             savedir=model_dir, save_model=os.path.join(model_dir, 'model'))
 
@@ -616,7 +618,10 @@ def get_auc(bg_template, sr_samples, sv_dir, name, anomaly_data=None, bg_truth_l
     else:
         nm = name
     try:
-        _ = full_single_evaluation(model_dir, X_test, n_ensemble_epochs=10, sic_range=(0, 20),
+        tpr, fpr = full_single_evaluation(model_dir, X_test, n_ensemble_epochs=10, sic_range=(0, 20),
                                    savefig=os.path.join(sv_dir, f'result_SIC_{nm}'))
     except Exception as e:
         print(e)
+        tpr, fpr = None, None
+
+    return tpr, fpr
