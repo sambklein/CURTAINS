@@ -32,8 +32,6 @@ def parse_args():
     parser.add_argument('--shift_seed', type=int, default=0,
                         help='Add this number to the fixed seed.')
 
-    # Classifier set up
-
     # Dataset parameters
     parser.add_argument('--dataset', type=str, default='curtains', help='The dataset to train on.')
     parser.add_argument("--bins", type=str, default='2900,3100,3300,3700,3900,4100')
@@ -64,7 +62,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def test_classifier(): 
+def test_classifier():
     args = parse_args()
 
     seed = 42 + args.shift_seed
