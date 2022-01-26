@@ -38,7 +38,7 @@ def parse_args():
     parser.add_argument('--dataset', type=str, default='curtains', help='The dataset to train on.')
     parser.add_argument("--bins", type=str, default='2900,3100,3300,3700,3900,4100')
     parser.add_argument("--feature_type", type=int, default=3)
-    parser.add_argument("--doping", type=int, default=1000,
+    parser.add_argument("--doping", type=int, default=000,
                         help='Raw number of signal events to be added into the entire bg spectra.')
     parser.add_argument("--split_data", type=int, default=2,
                         help='2 for idealised classifier, 3 for supervised.')
@@ -59,10 +59,11 @@ def parse_args():
     parser.add_argument('--batch_norm', type=int, default=0, help='Apply batch norm?')
     parser.add_argument('--layer_norm', type=int, default=0, help='Apply layer norm?')
     parser.add_argument('--use_scheduler', type=int, default=1, help='Use cosine annealing of the learning rate?')
+    parser.add_argument('--run_cathode_classifier', type=int, default=0, help='Use cathode classifier?')
 
     # Classifier settings
-    parser.add_argument('--false_signal', type=int, default=2, help='Add random noise samples to the signal set?')
-    parser.add_argument('--use_weight', type=int, default=1, help='Apply weights to the data?')
+    parser.add_argument('--false_signal', type=int, default=0, help='Add random noise samples to the signal set?')
+    parser.add_argument('--use_weight', type=int, default=0, help='Apply weights to the data?')
     parser.add_argument('--beta_add_noise', type=float, default=0.1,
                         help='The value of epsilon to use in the 1-e training.')
 
@@ -73,7 +74,7 @@ def test_classifier():
     args = parse_args()
 
     # If a data directory is passed, load the log and set the args appropriately.
-    # if args.data_directory is not None:
+    # This allows samples to be loaded and a classifier to be trained against them.
     if (args.data_directory != 'none') and (args.split_data == 1):
         exp_info = glob.glob(os.path.join(args.data_directory, '*.json'))[0]
         with open(exp_info, "r") as file_name:
@@ -116,7 +117,6 @@ def test_classifier():
         mx = (context_df >= bins[0]) & (context_df < bins[1])
         return data.loc[mx], data.loc[~mx]
 
-
     if args.split_data == 1:
         # Select the data
         ad_extra = ad.iloc[args.doping:].to_numpy()
@@ -157,13 +157,15 @@ def test_classifier():
         ad_extra = ad_extra.iloc[n_to_bg:].to_numpy()
 
         ndata = int(len(sm) / 2)
-        data_to_dope = pd.concat((sm.iloc[:ndata], ad)).sample(frac=1).to_numpy()
+        mx_ind = np.random.permutation(np.arange(0, ndata + len(ad)))
+        data_to_dope = pd.concat((sm.iloc[:ndata], ad)).to_numpy()[mx_ind]
+        bg_truth = torch.cat((torch.zeros(len(sm.iloc[:ndata])),
+                              torch.ones(len(ad))))[mx_ind]
         # undoped_data = pd.concat((sm.iloc[ndata:], ad_bg))
         undoped_data = sm.iloc[ndata:].to_numpy()
         # This is ordered from undoped data to data to dope
         bg_truth_labels = torch.cat((
-            torch.zeros(len(sm.iloc[:ndata])),
-            torch.ones(len(ad)),
+            bg_truth,
             torch.zeros(len(undoped_data))
         ))
     else:
@@ -204,7 +206,8 @@ def test_classifier():
                        false_signal=args.false_signal, batch_size=args.batch_size, nepochs=args.nepochs, lr=args.lr,
                        wd=args.wd, drp=args.drp, width=args.width, depth=args.depth, batch_norm=args.batch_norm,
                        layer_norm=args.layer_norm, use_scheduler=args.use_scheduler, use_weights=args.use_weight,
-                       beta_add_noise=args.beta_add_noise, pure_noise=pure_noise, bg_truth_labels=bg_truth_labels)
+                       beta_add_noise=args.beta_add_noise, pure_noise=pure_noise, bg_truth_labels=bg_truth_labels,
+                       run_cathode_classifier=args.run_cathode_classifier)
 
     rates_sr_vs_transformed[f'0.0'] = auc_info[3]
     rates_sr_qcd_vs_anomalies[f'0.0'] = auc_info[2]

@@ -300,11 +300,11 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
         thresholds = [0, 0.5, 0.8, 0.9, 0.95, 0.99, 0.999, 0.9999]
 
     tpr_c, fpr_c = None, None
-    # if (anomaly_data is not None) and run_cathode_classifier:
-    #     tpr_c, fpr_c = CATHODE_classifier.get_auc(bg_template, sr_samples, directory, name, anomaly_data=anomaly_data,
-    #                                               bg_truth_labels=bg_truth_labels, mass_incl=mass_incl, load=load,
-    #                                               normalize=normalize, batch_size=batch_size, nepochs=nepochs,
-    #                                               thresholds=thresholds, data_unscaler=data_unscaler)
+    if (anomaly_data is not None) and run_cathode_classifier:
+        tpr_c, fpr_c = CATHODE_classifier.get_auc(bg_template, sr_samples, directory, name, anomaly_data=anomaly_data,
+                                                  bg_truth_labels=bg_truth_labels, mass_incl=mass_incl, load=load,
+                                                  normalize=normalize, batch_size=batch_size, nepochs=nepochs,
+                                                  thresholds=thresholds, data_unscaler=data_unscaler)
 
     def prepare_data(data):
         data = data.detach().cpu()
@@ -397,7 +397,7 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
     losses = np.concatenate(store_losses)[1::2]
     eval_epoch = np.argsort(losses.mean(0))[:n_av]
     # eval_epoch = [nepochs - 1, nepochs - 2]
-    # eval_epoch = [nepochs - 1]
+    eval_epoch = [nepochs - 1]
     print(f'Best epoch: {eval_epoch}. \nLoading and evaluating now.')
     models_to_load = [os.path.join(sv_dir, f'classifier_{fold}', f'{e}') for e in eval_epoch]
     split_inds = kfold.split(X, y)

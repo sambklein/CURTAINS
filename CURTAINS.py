@@ -48,20 +48,20 @@ parser.add_argument("--quantiles", nargs="*", type=float, default=[1, 2, 3, 4])
 # parser.add_argument("--bins", nargs="*", type=float, default=[3000, 3200, 3400, 3600, 3800, 4000])
 parser.add_argument("--bins", type=str, default='3000,3200,3400,3600,3800,4000')
 # parser.add_argument("--bins", nargs="*", type=float, default=[2900, 3100, 3300, 3500, 3800, 4000])
-parser.add_argument("--doping", type=int, default=0,
+parser.add_argument("--doping", type=int, default=1000,
                     help='Raw number of signal events to be added into the entire bg spectra.')
-parser.add_argument("--feature_type", type=int, default=3)
+parser.add_argument("--feature_type", type=int, default=10)
 
 ## Names for saving
 parser.add_argument('-n', type=str, default='Transformer', help='The name with which to tag saved outputs.')
 parser.add_argument('-d', type=str, default='NSF_CURT', help='Directory to save contents into.')
-parser.add_argument('--load', type=int, default=1, help='Whether or not to load a model.')
+parser.add_argument('--load', type=int, default=0, help='Whether or not to load a model.')
 parser.add_argument('--model_name', type=str, default=None, help='Saved name of model to load.')
 parser.add_argument('--load_classifiers', type=int, default=2, help='Whether or not to load a model.')
 parser.add_argument('--log_dir', type=str, default='no_scan', help='Whether or not to load a model.')
 
 ## Hyper parameters
-parser.add_argument('--distance', type=str, default='energy', help='Type of dist measure to use.')
+parser.add_argument('--distance', type=str, default='sinkhorn', help='Type of dist measure to use.')
 parser.add_argument('--coupling', type=int, default=1, help='One to use coupling layers, zero for autoregressive.')
 parser.add_argument('--spline', type=int, default=0, help='One to use spline transformations.')
 parser.add_argument('--two_way', type=int, default=1,
@@ -73,7 +73,7 @@ parser.add_argument('--coupling_depth', type=int, default=3,
                     help='Depth of network used to learn transformer parameters.')
 
 parser.add_argument('--batch_size', type=int, default=100, help='Size of batch for training.')
-parser.add_argument('--epochs', type=int, default=10,
+parser.add_argument('--epochs', type=int, default=30,
                     help='The number of epochs to train for.')
 parser.add_argument('--nstack', type=int, default=4,
                     help='The number of spline transformations to stack in the inn.')

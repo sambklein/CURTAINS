@@ -550,6 +550,9 @@ def get_auc(bg_template, sr_samples, sv_dir, name, anomaly_data=None, bg_truth_l
             sup_title='', load=False, normalize=True, batch_size=1000, nepochs=100,
             lr=0.0001, wd=0.001, drp=0.0, width=32, depth=3, batch_norm=False, layer_norm=False, use_scheduler=True,
             use_weights=True, thresholds=None, beta_add_noise=0.1, pure_noise=False, nfolds=5, data_unscaler=None):
+
+    batch_size = 128
+    nepochs = 100
     def prepare_data(data):
         data = data.detach().cpu()
         if data_unscaler is not None:
@@ -578,7 +581,6 @@ def get_auc(bg_template, sr_samples, sv_dir, name, anomaly_data=None, bg_truth_l
         bg_truth_labels = torch.zeros(len(bg_template) + len(sr_samples))
 
     # First thing you need to do is put the mass first
-    feature_filter = [-1, 0, 1, 2, 3]
     X_train = torch.cat((bg_template.roll(1, 1), sr_samples.roll(1, 1)), 0)
     # Treat the BG templates as label zero
     y_train = torch.cat((torch.zeros(len(bg_template)), torch.ones(len(sr_samples))), 0)

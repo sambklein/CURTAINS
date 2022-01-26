@@ -11,7 +11,7 @@ export XDG_RUNTIME_DIR=""
 # specify here the directory containing your notebooks and images
 RUNDIR=/home/users/k/kleins/MLproject/CURTAINS
 IMGDIR=/home/users/k/kleins/MLproject/CURTAINS/container/latest_latest.sif
-DATADIR=/srv/beegfs/scratch/groups/dpnc/atlas/CURTAINS
+DATADIR=/srv/beegfs/scratch/groups/dpnc/atlas/CURTAINS,/srv/beegfs/scratch/groups/rodem/LHCO/
 
 # launch Jupyter notebook
 srun singularity exec --nv -B $RUNDIR:/$RUNDIR,$DATADIR $IMGDIR jupyter notebook --no-browser --ip=$SLURMD_NODENAME --notebook-dir=$RUNDIR
