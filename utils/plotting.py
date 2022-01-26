@@ -91,7 +91,9 @@ def kde_plot(x, y, axes, levels=5):
     sns.kdeplot(tensor2numpy(x), y=tensor2numpy(y), ax=axes, alpha=0.4, levels=levels, color='red', fill=True)
 
 
-def add_contour(axes, i, j, data, sampled):
+def add_contour(axes, i, j, data, sampled, x_bounds=None):
+    if x_bounds is None:
+        x_bounds = [-1.2, 1.2]
     sns.kdeplot(tensor2numpy(data[:, j]), y=tensor2numpy(data[:, i]), ax=axes[i, j], alpha=0.4, levels=3,
                 color='red', fill=True)
     sns.kdeplot(tensor2numpy(sampled[:, j]), y=tensor2numpy(sampled[:, i]), ax=axes[i, j], alpha=0.4, levels=3,
@@ -104,8 +106,10 @@ def add_contour(axes, i, j, data, sampled):
     #                            labelbottom=False, labelleft=False)
 
 
-def getFeaturePlot(model, original, sampled, lm_sample, nm, savedir, region, feature_names, nbins=20, contour=True,
-                   n_sample_for_plot=-1, summary_writer=None):
+def getFeaturePlot(original, sampled, nm, savedir, region, feature_names, input_sample=None, nbins=20, contour=True,
+                   n_sample_for_plot=-1, summary_writer=None, x_bounds=None):
+    if x_bounds is None:
+        x_bounds = [-1.2, 1.2]
     if n_sample_for_plot > 0:
         original = shuffle_tensor(original)
         sampled = shuffle_tensor(sampled)
@@ -134,19 +138,21 @@ def getFeaturePlot(model, original, sampled, lm_sample, nm, savedir, region, fea
 
             if i == j:
                 og = original[:, i]
-                bin = get_bins(og[(og > -1.2) & (og < 1.2)], nbins=nbins)
-                add_hist(axes[i, j], model.get_numpy(original[:, i]), bin, 'red', 'Original')
-                add_hist(axes[i, j], model.get_numpy(sampled[:, i]), bin, 'blue', 'Transformed')
-                add_error_hist(axes[i, j], model.get_numpy(original[:, i]), bins=bin, color='red')
-                add_error_hist(axes[i, j], model.get_numpy(sampled[:, i]), bins=bin, color='blue')
-                data = model.get_numpy(lm_sample[:, i])
-                axes[i, j].hist(data, density=False, bins=bin, histtype='step',
-                                color='black', linestyle='dashed', label='Input Sample', weights=get_weights(data))
-                axes[i, j].set_xlim([-1.2, 1.2])
+                bin = get_bins(og[(og > x_bounds[0]) & (og < x_bounds[1])], nbins=nbins)
+                add_hist(axes[i, j], tensor2numpy(original[:, i]), bin, 'red', 'Original')
+                add_hist(axes[i, j], tensor2numpy(sampled[:, i]), bin, 'blue', 'Transformed')
+                add_error_hist(axes[i, j], tensor2numpy(original[:, i]), bins=bin, color='red')
+                add_error_hist(axes[i, j], tensor2numpy(sampled[:, i]), bins=bin, color='blue')
+                if input_sample is not None:
+                    data = tensor2numpy(input_sample[:, i])
+                    axes[i, j].hist(data, density=False, bins=bin, histtype='step',
+                                    color='black', linestyle='dashed', label='Input Sample', weights=get_weights(data))
+                axes[i, j].set_xlim(x_bounds)
 
             if contour:
                 if i > j:
-                    add_contour(axes, i, j, original[:n_sample_for_plot], sampled[:n_sample_for_plot])
+                    add_contour(axes, i, j, original[:n_sample_for_plot], sampled[:n_sample_for_plot],
+                                x_bounds=x_bounds)
                 elif i < j:
                     axes[i, j].set_visible(False)
             else:
@@ -176,7 +182,7 @@ def getCrossFeaturePlot(model, original, sampled, nm, savedir, mass, feature_nam
             if i <= j:
                 bini = get_bins(original[:, i])
                 binj = get_bins(sampled[:, j])
-                axes[i, j].hist2d(model.get_numpy(original[:, i]), model.get_numpy(sampled[:, j]), bins=[bini, binj],
+                axes[i, j].hist2d(tensor2numpy(original[:, i]), tensor2numpy(sampled[:, j]), bins=[bini, binj],
                                   density=True, cmap='Reds')
     fig.suptitle(f"Mass: {mass + 1}")
     fig.tight_layout()
@@ -226,7 +232,7 @@ def plot_single_feature_mass_diagnostic(model, samples, generating_data, feature
     # TODO: this is SLOW, need ot write something that can do histograms in batches and accumulate
     for i in range(nfeatures):
         biny = get_bins(samples[:, i])
-        ax[i].hist2d(model.get_numpy(generating_mass), model.get_numpy(samples[:, i]), alpha=0.5, density=True,
+        ax[i].hist2d(tensor2numpy(generating_mass), tensor2numpy(samples[:, i]), alpha=0.5, density=True,
                      bins=[binx, biny])
         ax[i].set_ylabel(feature_names[i])
         ax[i].set_xlabel('Target Mass')
@@ -277,7 +283,7 @@ def plot_rates_dict(sv_dir, rates_dict, title):
     ax.set_xlabel('Signal efficiency (true positive rate)')
     ax.set_title(title)
     # fig.tight_layout(rect=[0, 0, 0.9, 1])
-    lgd = fig.legend()
+    # lgd = fig.legend()
     ax.set_aspect('equal')
     fig.savefig(sv_dir + f'/{title}_sic.png', bbox_extra_artists=(lgd,), bbox_inches='tight')
 
@@ -333,7 +339,7 @@ def getInputTransformedHist(model, input, transformed, nm, savedir, region, feat
     fig, axes = plt.subplots(1, nfeatures, figsize=(8 * nfeatures + 3, 8), sharex=True, sharey=True)
     for i in range(nfeatures):
         axes[i].set_xlabel(feature_names[i])
-        axes[i].hist2d(model.get_numpy(input[:, i]), model.get_numpy(transformed[:, i]),
+        axes[i].hist2d(tensor2numpy(input[:, i]), tensor2numpy(transformed[:, i]),
                        bins=[np.linspace(-1, 1, 60), np.linspace(-1, 1, 60)], alpha=0.6)
         axes[i].set_xlim(-1.0, 1.0)
         axes[i].set_ylim(-1.0, 1.0)

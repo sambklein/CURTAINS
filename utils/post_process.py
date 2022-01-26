@@ -367,6 +367,12 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
         else:
             return get_samples(data, target_dist, model, r_mass=r_mass)
 
+
+    def save_samples(data_tensor, name):
+        if 'data_unscaler' in classifier_args.keys():
+            data_tensor = classifier_args['data_unscaler'](data_tensor)
+        np.save(os.path.join(sv_dir, name), data_tensor.detach().cpu().numpy())
+
     def get_maps(base_name, input_dataset, target_datasets):
         if plot:
             for i, set in enumerate(target_datasets):
@@ -378,12 +384,9 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
                     save_samples(samples, f'{sv_nm}_samples')
                 # For the feature plot we only want to look at as many samples as there are in SB1
                 title = f'{base_name} to {set}' if not cathode else f'Sampled from {set}'
-                getFeaturePlot(model, target_sample, samples, input_dataset, nm, sv_dir, title,
-                               datasets.signalset.feature_nms, n_sample_for_plot=n_sample_for_plot,
-                               summary_writer=summary_writer)
+                getFeaturePlot(target_sample, samples, nm, sv_dir, title, datasets.signalset.feature_nms, input_dataset,
+                               n_sample_for_plot=n_sample_for_plot, summary_writer=summary_writer)
 
-    def save_samples(data_tensor, name):
-        np.save(os.path.join(sv_dir, name), data_tensor.detach().cpu().numpy())
 
     # Map low mass samples to high mass
     high_mass_datasets = {'Signal Set': datasets.signalset, 'SB2': high_mass_training,
@@ -435,8 +438,8 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
 
         # For the feature plot we only want to look at as many samples as there are in SB1
         title = 'SB1 and SB2 to Signal' if not cathode else f'Sampled from Signal'
-        getFeaturePlot(model, datasets.signalset, samples, high_mass_sample, nm, sv_dir, title,
-                       datasets.signalset.feature_nms, n_sample_for_plot=n_sample_for_plot)
+        getFeaturePlot(datasets.signalset, samples, nm, sv_dir, title, datasets.signalset.feature_nms, high_mass_sample,
+                       n_sample_for_plot=n_sample_for_plot)
 
     if light_job <= 1:
         print('SB2 from signal set')

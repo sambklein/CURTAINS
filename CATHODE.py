@@ -217,7 +217,7 @@ else:
 # TODO: pass inputs to this dictionary as args.
 classifier_args = {'false_signal': 2, 'batch_size': 1000, 'nepochs': args.classifier_epochs,
                    'lr': 0.001, 'pure_noise': 0, 'beta_add_noise': args.beta_add_noise, 'drp': 0.0,
-                   'normalize': True, 'data_unscaler': datasets.signalset.unnormalize, 'width': 64}
+                   'normalize': True, 'data_unscaler': datasets.signalset.unnormalize, 'width': 32}
 
 # Generate test data and preprocess etc
 post_process_curtains(cathode, datasets, sup_title='NSF', signal_anomalies=signal_anomalies,

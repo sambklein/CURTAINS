@@ -1,4 +1,6 @@
 import argparse
+import glob
+import json
 import os
 import pdb
 import pickle
@@ -36,16 +38,21 @@ def parse_args():
     parser.add_argument('--dataset', type=str, default='curtains', help='The dataset to train on.')
     parser.add_argument("--bins", type=str, default='2900,3100,3300,3700,3900,4100')
     parser.add_argument("--feature_type", type=int, default=3)
-    parser.add_argument("--split_data", type=int, default=2,
-                        help='2 for idealised classifier, 3 for supervised.')
     parser.add_argument("--doping", type=int, default=1000,
                         help='Raw number of signal events to be added into the entire bg spectra.')
+    parser.add_argument("--split_data", type=int, default=2,
+                        help='2 for idealised classifier, 3 for supervised.')
+    parser.add_argument("--data_directory", type=str,
+                        default='/home/users/k/kleins/atlas/CURTAINS/fixed_widths_curtains_features_OT_features_4',
+                        help='The directory within which to search for data.')
+    parser.add_argument("--data_file", type=str, default=None,
+                        help='The file to load and train against within  data_directory.')
 
     # Training parameters
     parser.add_argument('--batch_size', type=int, default=1000, help='Size of batch for training.')
-    parser.add_argument('--nepochs', type=int, default=10, help='Number of epochs.')
-    parser.add_argument('--lr', type=float, default=0.001, help='Classifier learning rate.')
-    parser.add_argument('--wd', type=float, default=0.01, help='Weight Decay, set to None for ADAM.')
+    parser.add_argument('--nepochs', type=int, default=30, help='Number of epochs.')
+    parser.add_argument('--lr', type=float, default=0.0001, help='Classifier learning rate.')
+    parser.add_argument('--wd', type=float, default=0.0, help='Weight Decay, set to None for ADAM.')
     parser.add_argument('--drp', type=float, default=0.0, help='Dropout to apply.')
     parser.add_argument('--width', type=int, default=64, help='Width to use for the classifier.')
     parser.add_argument('--depth', type=int, default=3, help='Depth of classifier to use.')
@@ -54,7 +61,7 @@ def parse_args():
     parser.add_argument('--use_scheduler', type=int, default=1, help='Use cosine annealing of the learning rate?')
 
     # Classifier settings
-    parser.add_argument('--false_signal', type=int, default=0, help='Add random noise samples to the signal set?')
+    parser.add_argument('--false_signal', type=int, default=2, help='Add random noise samples to the signal set?')
     parser.add_argument('--use_weight', type=int, default=1, help='Apply weights to the data?')
     parser.add_argument('--beta_add_noise', type=float, default=0.1,
                         help='The value of epsilon to use in the 1-e training.')
@@ -64,6 +71,20 @@ def parse_args():
 
 def test_classifier():
     args = parse_args()
+
+    # If a data directory is passed, load the log and set the args appropriately.
+    # if args.data_directory is not None:
+    if (args.data_directory != 'none') and (args.split_data == 1):
+        exp_info = glob.glob(os.path.join(args.data_directory, '*.json'))[0]
+        with open(exp_info, "r") as file_name:
+            json_dict = json.load(file_name)
+        exp_dict = json.loads(json_dict)
+        args.doping = exp_dict['doping']
+        args.bins = exp_dict['bins']
+        args.feature_type = exp_dict['feature_type']
+        sb1_samples = np.load(os.path.join(args.data_directory, 'SB1_to_SR_samples.npy'))
+        sb2_samples = np.load(os.path.join(args.data_directory, 'SB2_to_SR_samples.npy'))
+        bg_template = np.concatenate((sb1_samples, sb2_samples))
 
     seed = 42 + args.shift_seed
     torch.manual_seed(seed)
@@ -95,7 +116,24 @@ def test_classifier():
         mx = (context_df >= bins[0]) & (context_df < bins[1])
         return data.loc[mx], data.loc[~mx]
 
-    if args.split_data == 2:
+
+    if args.split_data == 1:
+        # Select the data
+        ad_extra = ad.iloc[args.doping:].to_numpy()
+        ad = ad.iloc[:args.doping]
+        # Bin the data
+        sr_bin = [curtains_bins[2], curtains_bins[3]]
+        sm, sm_out = mx_data(sm, sr_bin)
+        ad, ad_out = mx_data(ad, sr_bin)
+        data_to_dope = pd.concat((sm, ad)).to_numpy()
+        undoped_data = bg_template[~np.isnan(bg_template).any(axis=1)]
+        bg_truth_labels = torch.cat((
+            torch.zeros(len(sm)),
+            torch.ones(len(ad)),
+            torch.zeros(len(undoped_data))
+        ))
+
+    elif args.split_data == 2:
         # Idealised anomaly detection
         # Split the anomalies into two so that the doping fraction is the same (SR will be split into two)
         ad_extra = ad.iloc[int(args.doping / 2):]
@@ -105,7 +143,6 @@ def test_classifier():
         sm, sm_out = mx_data(sm, sr_bin)
         ad, ad_out = mx_data(ad, sr_bin)
         ad_extra, ad_extra_out = mx_data(ad_extra, sr_bin)
-
         # Need to figure out how much data there is in the SBs to figure out how much signal to add to the signal
         # template
         sbs = [[curtains_bins[1], curtains_bins[2]], [curtains_bins[3], curtains_bins[4]]]
@@ -117,12 +154,12 @@ def test_classifier():
         frac = np.mean(fracs)
         n_to_bg = int(frac * len(sm) / 2)
         ad_bg = ad_extra.iloc[:n_to_bg]
-        ad_extra = ad_extra.iloc[n_to_bg:]
+        ad_extra = ad_extra.iloc[n_to_bg:].to_numpy()
 
         ndata = int(len(sm) / 2)
-        data_to_dope = pd.concat((sm.iloc[:ndata], ad))
+        data_to_dope = pd.concat((sm.iloc[:ndata], ad)).sample(frac=1).to_numpy()
         # undoped_data = pd.concat((sm.iloc[ndata:], ad_bg))
-        undoped_data = sm.iloc[ndata:]
+        undoped_data = sm.iloc[ndata:].to_numpy()
         # This is ordered from undoped data to data to dope
         bg_truth_labels = torch.cat((
             torch.zeros(len(sm.iloc[:ndata])),
@@ -138,16 +175,15 @@ def test_classifier():
         ad_extra = ad.iloc[ntake:]
         ad = ad.iloc[:ntake]
         ad_extra, _ = mx_data(ad_extra, sr_bin)
-        data_to_dope = ad
-        undoped_data = sm
-        ad_extra = ad_extra
+        data_to_dope = ad.to_numpy()
+        undoped_data = sm.to_numpy()
+        ad_extra = ad_extra.to_numpy()
 
     dtype = torch.float32
-    names = undoped_data.keys()
 
-    data_to_dope = torch.tensor(data_to_dope.to_numpy()).type(dtype)
-    undoped_data = torch.tensor(undoped_data.to_numpy()).type(dtype)
-    signal_anomalies = torch.tensor(ad_extra.to_numpy()).type(dtype)
+    data_to_dope = torch.tensor(data_to_dope).type(dtype)
+    undoped_data = torch.tensor(undoped_data).type(dtype)
+    signal_anomalies = torch.tensor(ad_extra).type(dtype)
     pure_noise = False
 
     n_feature = data_to_dope.shape[1] - 1
@@ -155,8 +191,8 @@ def test_classifier():
 
     # Plot some distributions
     fig, axes = plt.subplots(n_feature, 1, figsize=(7, 5 * n_feature))
-    hist_features(data_to_dope, undoped_data, n_feature, axes, labels=labels, axs_nms=list(names))
-    # hist_features(signal_anomalies, data_to_dope, n_feature, axes, labels=labels, axs_nms=list(names))
+    hist_features(data_to_dope, undoped_data, n_feature, axes, labels=labels)
+    # hist_features(signal_anomalies, data_to_dope, n_feature, axes, labels=labels)
     os.makedirs(f'images/{args.outputdir}', exist_ok=True)
     fig.savefig(os.path.join(sv_dir, 'features.png'))
 

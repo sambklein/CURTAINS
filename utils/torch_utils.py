@@ -15,9 +15,12 @@ def shuffle_tensor(data):
     return data[mx]
 
 
-def tensor2numpy(tensor):
-    try:
-        return tensor.detach().cpu().numpy()
-    except Exception as e:
-        print('Transform from tensor to numpy failed. Returning object directly.')
-        return tensor
+def tensor2numpy(x):
+    # try:
+    #     return tensor.detach().cpu().numpy()
+    # except Exception as e:
+    #     print('Transform from tensor to numpy failed. Returning object directly.')
+    #     return tensor
+    if torch.is_tensor(x):
+        x = x.detach().cpu().numpy()
+    return x
