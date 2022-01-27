@@ -39,7 +39,7 @@ class SupervisedDataClass(Dataset):
         self.normed = False
         self.base_data = data
         self.base_labels = labels
-        self.weights = torch.ones_like(self.targets)
+        self.weights = torch.ones_like(self.targets) 
         self.update_weights = False
         if noise_generator is not None:
             self.update_data()
@@ -275,7 +275,7 @@ def get_datasets(train_index, test_index, false_signal, X, y, beta_add_noise, us
                 l2 = np.quantile(data, 0.99, axis=0)
                 data = np.concatenate(
                     (data, ((l1 - l2) * np.random.rand(*data.shape) + l2)[:n_sample]))
-            labels = np.concatenate((labels, np.zeros((n_sample, 1))))
+            labels = np.concatenate((labels, np.ones((n_sample, 1))))
             return data, labels
     else:
         add_noise = None
