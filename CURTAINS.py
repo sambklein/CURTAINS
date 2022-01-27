@@ -45,17 +45,15 @@ parser.add_argument("--doping", type=int, default=500,
 parser.add_argument("--feature_type", type=int, default=3)
 
 ## Names for saving
-# parser.add_argument('-n', type=str, default='Transformer', help='The name with which to tag saved outputs.')
-# parser.add_argument('-d', type=str, default='NSF_CURT', help='Directory to save contents into.')
-parser.add_argument('-n', type=str, default='OT_bump_two_hundred_31', help='The name with which to tag saved outputs.')
-parser.add_argument('-d', type=str, default='curtains_bump', help='Directory to save contents into.')
+parser.add_argument('-n', type=str, default='Transformer', help='The name with which to tag saved outputs.')
+parser.add_argument('-d', type=str, default='NSF_CURT', help='Directory to save contents into.')
 parser.add_argument('--load', type=int, default=1, help='Whether or not to load a model.')
 parser.add_argument('--model_name', type=str, default=None, help='Saved name of model to load.')
 parser.add_argument('--load_classifiers', type=int, default=2, help='Whether or not to load a model.')
 parser.add_argument('--log_dir', type=str, default='scanning_bins', help='Whether or not to load a model.')
 
 ## Hyper parameters
-parser.add_argument('--distance', type=str, default='sinkhorn_slow', help='Type of dist measure to use.')
+parser.add_argument('--distance', type=str, default='sinkhorn', help='Type of dist measure to use.')
 parser.add_argument('--coupling', type=int, default=1, help='One to use coupling layers, zero for autoregressive.')
 parser.add_argument('--spline', type=int, default=1, help='One to use spline transformations.')
 parser.add_argument('--two_way', type=int, default=1,
@@ -66,10 +64,10 @@ parser.add_argument('--coupling_width', type=int, default=32,
 parser.add_argument('--coupling_depth', type=int, default=2,
                     help='Depth of network used to learn transformer parameters.')
 
-parser.add_argument('--batch_size', type=int, default=256, help='Size of batch for training.')
+parser.add_argument('--batch_size', type=int, default=100, help='Size of batch for training.')
 parser.add_argument('--epochs', type=int, default=30,
                     help='The number of epochs to train for.')
-parser.add_argument('--nstack', type=int, default=8,
+parser.add_argument('--nstack', type=int, default=4,
                     help='The number of spline transformations to stack in the inn.')
 parser.add_argument('--nblocks', type=int, default=3,
                     help='The number of layers in the networks in each spline transformation.')
@@ -99,6 +97,7 @@ parser.add_argument('--beta_add_noise', type=float, default=0.,
 parser.add_argument('--classifier_epochs', type=int, default=1,
                     help='The value of epsilon to use in the 1-e training.')
 parser.add_argument('--use_mass_sampler', type=int, default=1, help='Whether or not to sample the mass.')
+parser.add_argument('--c_nruns', type=int, default=1, help='Number of classifiers to run.')
 
 ## Plotting
 parser.add_argument('--n_sample', type=int, default=1000,
@@ -243,7 +242,8 @@ else:
 # TODO: pass this as a .yml file
 classifier_args = {'false_signal': 2, 'batch_size': 1000, 'nepochs': args.classifier_epochs,
                    'lr': 0.001, 'pure_noise': 0, 'beta_add_noise': args.beta_add_noise, 'drp': 0.0,
-                   'normalize': True, 'data_unscaler': datasets.signalset.unnormalize, 'width': 32}
+                   'normalize': True, 'data_unscaler': datasets.signalset.unnormalize, 'width': 32,
+                   'n_run': args.c_nruns}
 
 # Generate test data and preprocess etc
 post_process_curtains(curtain_runner, datasets, sup_title='NSF', signal_anomalies=signal_anomalies,

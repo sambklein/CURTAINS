@@ -292,7 +292,7 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
             sup_title='', load=False, return_rates=False, false_signal=1, normalize=True, batch_size=1000, nepochs=100,
             lr=0.0001, wd=0.001, drp=0.0, width=32, depth=3, batch_norm=False, layer_norm=False, use_scheduler=True,
             use_weights=True, thresholds=None, beta_add_noise=0.1, pure_noise=False, nfolds=5, data_unscaler=None,
-            run_cathode_classifier=True):
+            run_cathode_classifier=True, n_run=1):
     """
     bg_truth_labels 0 = known anomaly, 1 = known background, -1 = unknown/sampled/transformed sample
     """
@@ -304,7 +304,7 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
         tpr_c, fpr_c = CATHODE_classifier.get_auc(bg_template, sr_samples, directory, name, anomaly_data=anomaly_data,
                                                   bg_truth_labels=bg_truth_labels, mass_incl=mass_incl, load=load,
                                                   normalize=normalize, batch_size=batch_size, nepochs=nepochs,
-                                                  thresholds=thresholds, data_unscaler=data_unscaler)
+                                                  thresholds=thresholds, data_unscaler=data_unscaler, n_run=n_run)
 
     def prepare_data(data):
         data = data.detach().cpu()

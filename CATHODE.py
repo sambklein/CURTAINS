@@ -98,6 +98,7 @@ parser.add_argument('--beta_add_noise', type=float, default=0.01,
                     help='The value of epsilon to use in the 1-e training.')
 parser.add_argument('--classifier_epochs', type=int, default=1,
                     help='The value of epsilon to use in the 1-e training.')
+parser.add_argument('--c_nruns', type=int, default=1, help='Number of classifiers to run.')
 
 ## Redundat args for matching to Curtains
 parser.add_argument('--distance', type=str, default='sinkhorn_slow', help='Type of dist measure to use.')
@@ -217,7 +218,8 @@ else:
 # TODO: pass inputs to this dictionary as args.
 classifier_args = {'false_signal': 2, 'batch_size': 1000, 'nepochs': args.classifier_epochs,
                    'lr': 0.001, 'pure_noise': 0, 'beta_add_noise': args.beta_add_noise, 'drp': 0.0,
-                   'normalize': True, 'data_unscaler': datasets.signalset.unnormalize, 'width': 32}
+                   'normalize': True, 'data_unscaler': datasets.signalset.unnormalize, 'width': 32,
+                   'n_run': args.c_nruns}
 
 # Generate test data and preprocess etc
 post_process_curtains(cathode, datasets, sup_title='NSF', signal_anomalies=signal_anomalies,

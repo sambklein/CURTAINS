@@ -549,10 +549,11 @@ def minimum_validation_loss_models(prediction_dir, n_epochs=10):
 def get_auc(bg_template, sr_samples, sv_dir, name, anomaly_data=None, bg_truth_labels=None, mass_incl=True,
             sup_title='', load=False, normalize=True, batch_size=1000, nepochs=100,
             lr=0.0001, wd=0.001, drp=0.0, width=32, depth=3, batch_norm=False, layer_norm=False, use_scheduler=True,
-            use_weights=True, thresholds=None, beta_add_noise=0.1, pure_noise=False, nfolds=5, data_unscaler=None):
-
+            use_weights=True, thresholds=None, beta_add_noise=0.1, pure_noise=False, nfolds=5, data_unscaler=None,
+            n_run=1):
     batch_size = 128
     nepochs = 100
+
     def prepare_data(data):
         data = data.detach().cpu()
         if data_unscaler is not None:
@@ -605,7 +606,7 @@ def get_auc(bg_template, sr_samples, sv_dir, name, anomaly_data=None, bg_truth_l
     os.makedirs(model_dir, exist_ok=True)
     if load not in [1, 2]:
         loss_matris, val_loss_matris = train_n_models(
-            1, 'utils/classifier.yml', nepochs, X_train, y_train, X_test, y_test,
+            n_run, 'utils/classifier.yml', nepochs, X_train, y_train, X_test, y_test,
             batch_size=batch_size, X_val=X_val,
             supervised=False, verbose=False,
             savedir=model_dir, save_model=os.path.join(model_dir, 'model'))
@@ -621,7 +622,7 @@ def get_auc(bg_template, sr_samples, sv_dir, name, anomaly_data=None, bg_truth_l
         nm = name
     try:
         tpr, fpr = full_single_evaluation(model_dir, X_test, n_ensemble_epochs=10, sic_range=(0, 20),
-                                   savefig=os.path.join(sv_dir, f'result_SIC_{nm}'))
+                                          savefig=os.path.join(sv_dir, f'result_SIC_{nm}'))
         with open(os.path.join(sv_dir, 'tpr_cathode.pkl'), 'wb') as f:
             pickle.dump(tpr, f)
         with open(os.path.join(sv_dir, 'fpr_cathode.npy'), 'wb') as f:
