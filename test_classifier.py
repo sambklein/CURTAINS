@@ -28,7 +28,7 @@ def parse_args():
                         help='Choose the base output directory')
     parser.add_argument('-n', '--outputname', type=str, default='local',
                         help='Set the output name directory')
-    parser.add_argument('--load', type=int, default=0, help='Load a model?')
+    parser.add_argument('--load', type=int, default=1, help='Load a model?')
 
     # Multiple runs
     parser.add_argument('--shift_seed', type=int, default=0,
@@ -59,7 +59,7 @@ def parse_args():
     parser.add_argument('--batch_norm', type=int, default=0, help='Apply batch norm?')
     parser.add_argument('--layer_norm', type=int, default=0, help='Apply layer norm?')
     parser.add_argument('--use_scheduler', type=int, default=1, help='Use cosine annealing of the learning rate?')
-    parser.add_argument('--run_cathode_classifier', type=int, default=0, help='Use cathode classifier?')
+    parser.add_argument('--run_cathode_classifier', type=int, default=1, help='Use cathode classifier?')
 
     # Classifier settings
     parser.add_argument('--false_signal', type=int, default=0, help='Add random noise samples to the signal set?')

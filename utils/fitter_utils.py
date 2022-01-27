@@ -1,3 +1,5 @@
+import pdb
+
 import zfit
 from zfit import z
 import math
@@ -35,7 +37,7 @@ class dijet_ATLAS_fit(zfit.pdf.ZPDF):
     '''add a doc string here'''
 
     _PARAMS = ['p1', 'p2', 'p3']
-    
+
     def __init__(self, *args, scaler=None, unscaler=None, root_s=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.scaler = scaler

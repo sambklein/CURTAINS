@@ -50,9 +50,9 @@ class PropertiesHandler():
             self.property_dict = {}
         # self.property_dict = {}
 
-    def __del__(self):
-        with open(f'{self.image_dir}/counts.pkl', 'wb') as f:
-            pickle.dump(self.property_dict, f)
+    # def __del__(self):
+    #     with open(f'{self.image_dir}/counts.pkl', 'wb') as f:
+    #         pickle.dump(self.property_dict, f)
 
     def get_expected_count(self, args, int_bins):
         bn = np.mean(int_bins)
@@ -173,12 +173,20 @@ def get_counts():
     # directories = [f'ideal_no_sig_ideal_no_sig_{i}' for i in range(0, 14)]
     directories = [f'no_sig_eps_no_sig_{i}' for i in range(0, 14)]
 
+    # The real hunt
+    name = 'OT_bump_two_hundred'
+    dd = 'curtains_bump'
+    name = 'CATHODE_bump_scan_two_hundred'
+    dd = 'cathode_bump'
+    directories = [f'{dd}_{name}_{i}' for i in range(0, 35)]
+
     bin_width = 200
-    thresholds = [0, 0.5, 0.8, 0.9, 0.95, 0.99]
+    # thresholds = [0, 0.5, 0.8, 0.9, 0.95, 0.99]
+    thresholds = [0, 0.5, 0.8, 0.9, 0.95, 0.99, 0.999, 0.9999]
     nfolds = 5
 
     reload = 1
-    cathode_classifier = 0
+    cathode_classifier = 1
     filename = '200'
 
     if reload:
@@ -192,12 +200,13 @@ def get_counts():
             try:
                 if cathode_classifier:
                     with open(
-                            f'{sv_dir}/images/{directory}/models_OT_bins_scan_two_hundred_true_{i}0.0%Anomalies/counts_cathode.pkl',
+                            f'{sv_dir}/images/{directory}/models_{name}_{i}Anomalies_no_eps/counts_cathode.pkl',
                             'rb') as f:
                         info_dict = pickle.load(f)
                     true_counts = info_dict['counts']
                     expected_counts = info_dict['expected_counts']
                     expected_counts = expected_counts / 8
+                    # expected_counts = true_counts[0] * (1 - np.array(thresholds))
                 else:
                     with open(f'{sv_dir}/images/{directory}/counts.pkl', 'rb') as f:
                         # with open(f'{sv_dir}/images/{directory}/counts_no_eps.pkl', 'rb') as f:
@@ -233,8 +242,8 @@ def get_counts():
                 x, expected, label = get_property(args)
                 # # TODO: why does this work better than the true expected values?
                 expected = counts[0] * (1 - np.array(thresholds))
-                inf = true_counts / expected  # + 4 * (1 - np.array(thresholds))
-                inf = true_counts / (true_counts[0] * (1 - np.array(thresholds)))
+                # inf = true_counts / expected  # + 4 * (1 - np.array(thresholds))
+                # inf = true_counts / (true_counts[0] * (1 - np.array(thresholds)))
                 # inf = true_counts / (expected_counts[0] * (1 - np.array(thresholds)))
                 inf = counts
                 rt = np.vstack((signal_pass_rate, bg_pass_rate))
@@ -303,7 +312,7 @@ def get_counts():
                 xy = np.array(lst)
                 # ax.plot(xy[:, 0], xy[:, i + 1], 'x', label=f'Cut = {thresholds[i]}')
                 x_all = xy[:, 0]
-                mx = x_all / 100 % 2 == 1
+                mx = x_all / 100 % 2 == 0
                 x = xy[mx, 0]
                 y = xy[mx, i + 1]
                 expected = xy[mx, i + 1 + len(thresholds)] \
@@ -313,7 +322,7 @@ def get_counts():
                 norm_fact = 1  # max(y)
                 # sf = shift[i]
                 sf = 0
-                err = xy[:, i + 1 + 2 * len(thresholds)] / norm_fact
+                # err = xy[:, i + 1 + 2 * len(thresholds)] / norm_fact
                 # err = np.sqrt(abs(y)) / norm_fact
                 # lines = {'linestyle': 'None'}
                 # plt.rc('lines', **lines)
@@ -495,7 +504,124 @@ def get_sics():
     fig.clf()
 
 
+def figs_six_and_seven():
+    sv_dir = get_top_dir()
+    directories = [f'ot_fig7_OT_fig7_{i}' for i in range(0, 8)] + \
+                  [f'cathode_fig7_CATHODE_fig7_{i}' for i in range(0, 8)]
+    names = ['Curtains'] * 8 + ['Cathode'] * 8
+    reload = 0
+
+    if reload:
+        # Gather saved quantities
+        vals = defaultdict(list)
+        for i, directory in enumerate(directories):
+            try:
+                with open(f'{sv_dir}/images/{directory}/tpr_cathode.pkl', 'rb') as f:
+                    tpr_l = pickle.load(f)
+                with open(f'{sv_dir}/images/{directory}/fpr_cathode.npy', 'rb') as f:
+                    fpr_l = pickle.load(f)
+                passed = 1
+            except Exception as e:
+                print(e)
+                passed = 0
+
+            if passed:
+                args = get_args(f'{sv_dir}/images/{directory}')
+                label = f'{args["doping"]}'
+                vals[label] += [[names[i], tpr_l, fpr_l]]
+
+            with open(f'{sv_dir}/images/fig_6_7.pkl', 'wb') as f:
+                pickle.dump(vals, f)
+    else:
+        with open(f'{sv_dir}/images/fig_6_7.pkl', 'rb') as f:
+            vals = pickle.load(f)
+
+    # Plot fig 6
+
+    fig_six, ax_six = plt.subplots(1, 2, figsize=(14, 5))
+    # We make this figure for this doping level
+    data = vals['1000']
+    max_sic = 20
+    for lst in data:
+        label = lst[0]
+        # TODO: when there are multiple runs with different seeds averages etc will need to be taken.
+        fpr = lst[1][(0, 0)]
+        tpr = lst[2][(0, 0)]
+        fpr_mx = fpr != 0.
+        fpr_nz = fpr[fpr_mx]
+        tpr_nz = tpr[fpr_mx]
+        ax_six[1].plot(tpr_nz, tpr_nz / fpr_nz ** 0.5, linewidth=2, label=label)
+        ax_six[0].plot(tpr_nz, 1 / fpr_nz, linewidth=2, label=label)
+        ax_six[1].set_ylim(0, max_sic)
+
+    ax_six[1].set_xlabel('Signal efficiency')
+    ax_six[1].set_ylabel('Significance improvement')
+    ax_six[0].set_xlabel('Signal efficiency')
+    ax_six[0].set_ylabel('Rejection (1 / false positive rate)')
+    ax_six[0].set_yscale('log')
+
+    handles, labels = ax_six[1].get_legend_handles_labels()
+    fig_six.legend(handles, labels, loc='upper left', bbox_to_anchor=(0.9, 0.89), frameon=False)
+    fig_six.savefig(f'{sv_dir}/images/figure_six.png', bbox_inches='tight')
+    fig_six.clf()
+
+    # Start fig 7
+    runs = sorted(set(vals.keys()))
+    n_runs = len(runs)
+    unique_names = list(set(names))
+    n_versions = len(unique_names)
+
+    fig, axes = plt.subplots(n_runs, 2, figsize=(14, 5 * n_runs + 2), squeeze=False)
+    clist = [u'#1f77b4', u'#ff7f0e', u'#2ca02c', u'#d62728', u'#9467bd', u'#8c564b', u'#e377c2', u'#7f7f7f',
+             u'#bcbd22', u'#17becf']
+    clrs = {unique_names[i]: clist[i] for i in range(n_versions)}
+
+    max_sic = 20
+
+    for j in range(n_runs):
+        label = runs[j]
+        lst = vals[label]
+        lst += [['random', [np.linspace(0, 1, 50), np.linspace(0, 1, 50)]]]
+        for values in lst:
+            nm = values[0]
+            try:
+                # TODO: when there are multiple runs with different seeds averages etc will need to be taken.
+                fpr = values[1][(0, 0)]
+                tpr = values[2][(0, 0)]
+            except:
+                fpr = values[1][0]
+                tpr = values[1][1]
+            ax = axes[j, 1]
+            ax1 = axes[j, 0]
+            fpr_mx = fpr != 0.
+            fpr_nz = fpr[fpr_mx]
+            tpr_nz = tpr[fpr_mx]
+            if nm == 'random':
+                line = '--'
+                color = 'k'
+            else:
+                line = '-'
+                color = clrs[nm]
+            ax.plot(tpr_nz, tpr_nz / fpr_nz ** 0.5, linewidth=2, label=nm, linestyle=line, color=color)
+            ax1.plot(tpr_nz, 1 / fpr_nz, linewidth=2, label=nm, linestyle=line, color=color)
+            ax.set_ylim(0, max_sic)
+
+        ax.set_xlabel('Signal efficiency')
+        ax.set_ylabel('Significance improvement')
+        ax1.set_xlabel('Signal efficiency')
+        ax1.set_ylabel('Rejection (1 / false positive rate)')
+        # ax1.set_yscale('log')
+        # feature_type, bins = label.split('__')
+        # ax.set_title(f'Feature type{feature_type}, Bins {bins}')
+
+    handles, labels = ax.get_legend_handles_labels()
+    fig.legend(handles, labels, loc='upper left', bbox_to_anchor=(0.9, 0.89), frameon=False)
+    fig.savefig(f'{sv_dir}/images/sics.png', bbox_inches='tight')
+    fig.clf()
+
+
 if __name__ == '__main__':
-    get_counts()
+    # get_counts()
+    figs_six_and_seven()
     # get_sics()
     # get_max_sic()

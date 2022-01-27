@@ -1,4 +1,5 @@
 import os
+import pdb
 import warnings
 
 from torch.utils.data import Dataset
@@ -52,6 +53,7 @@ def preprocess_method(data, info=None):
     return data, info, min_max_mask
 
 def unpreprocess_method(data, info):
+    info = info.to(data.device)
     data = data / 2 + 0.5
     mass = data[:, -1]
     data = data[:, :-1]

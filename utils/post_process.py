@@ -1,5 +1,6 @@
 import json
 import os
+import pdb
 import pickle
 from copy import deepcopy
 
@@ -367,7 +368,6 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
         else:
             return get_samples(data, target_dist, model, r_mass=r_mass)
 
-
     def save_samples(data_tensor, name):
         if 'data_unscaler' in classifier_args.keys():
             data_tensor = classifier_args['data_unscaler'](data_tensor)
@@ -386,7 +386,6 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
                 title = f'{base_name} to {set}' if not cathode else f'Sampled from {set}'
                 getFeaturePlot(target_sample, samples, nm, sv_dir, title, datasets.signalset.feature_nms, input_dataset,
                                n_sample_for_plot=n_sample_for_plot, summary_writer=summary_writer)
-
 
     # Map low mass samples to high mass
     high_mass_datasets = {'Signal Set': datasets.signalset, 'SB2': high_mass_training,

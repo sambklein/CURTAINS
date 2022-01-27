@@ -37,64 +37,58 @@ parser.add_argument('--mix_sb', type=int, default=2, help='Mix sidebands while t
 
 ## Binning parameters
 parser.add_argument("--quantiles", nargs="*", type=float, default=[1, 2, 3, 4])
-# parser.add_argument("--bins", nargs="*", type=float, default=[55, 65, 75, 85, 95, 105])
-# parser.add_argument("--bins", nargs="*", type=float, default=[1000, 1200, 1800, 1900, 2000, 2100])
-# parser.add_argument("--bins", nargs="*", type=float, default=[1000, 1200, 1400, 1600, 1800, 2000])
-# parser.add_argument("--bins", nargs="*", type=float, default=[2000, 2500, 3000, 3500, 4000, 4500])
-# parser.add_argument("--bins", nargs="*", type=float, default=[3000, 3200, 3400, 3600, 3800, 4000])
-# parser.add_argument("--bins", nargs="*", type=float, default=[2700, 3000, 3300, 3600, 3900, 4100])
-# parser.add_argument("--bins", nargs="*", type=float, default=[2300, 2700, 3300, 3700, 4000, 4300])
-# parser.add_argument("--bins", nargs="*", type=float, default=[2300, 2700, 3300, 3700, 4900, 5000])
-# parser.add_argument("--bins", nargs="*", type=float, default=[3000, 3200, 3400, 3600, 3800, 4000])
-parser.add_argument("--bins", type=str, default='3000,3200,3400,3600,3800,4000')
+# parser.add_argument("--bins", type=str, default='3000,3200,3400,3600,3800,4000')
+parser.add_argument("--bins", type=str, default='3900,4100,4300,4500,4700,4900')
 # parser.add_argument("--bins", nargs="*", type=float, default=[2900, 3100, 3300, 3500, 3800, 4000])
-parser.add_argument("--doping", type=int, default=1000,
+parser.add_argument("--doping", type=int, default=500,
                     help='Raw number of signal events to be added into the entire bg spectra.')
-parser.add_argument("--feature_type", type=int, default=10)
+parser.add_argument("--feature_type", type=int, default=3)
 
 ## Names for saving
-parser.add_argument('-n', type=str, default='Transformer', help='The name with which to tag saved outputs.')
-parser.add_argument('-d', type=str, default='NSF_CURT', help='Directory to save contents into.')
-parser.add_argument('--load', type=int, default=0, help='Whether or not to load a model.')
+# parser.add_argument('-n', type=str, default='Transformer', help='The name with which to tag saved outputs.')
+# parser.add_argument('-d', type=str, default='NSF_CURT', help='Directory to save contents into.')
+parser.add_argument('-n', type=str, default='OT_bump_two_hundred_31', help='The name with which to tag saved outputs.')
+parser.add_argument('-d', type=str, default='curtains_bump', help='Directory to save contents into.')
+parser.add_argument('--load', type=int, default=1, help='Whether or not to load a model.')
 parser.add_argument('--model_name', type=str, default=None, help='Saved name of model to load.')
 parser.add_argument('--load_classifiers', type=int, default=2, help='Whether or not to load a model.')
-parser.add_argument('--log_dir', type=str, default='no_scan', help='Whether or not to load a model.')
+parser.add_argument('--log_dir', type=str, default='scanning_bins', help='Whether or not to load a model.')
 
 ## Hyper parameters
-parser.add_argument('--distance', type=str, default='sinkhorn', help='Type of dist measure to use.')
+parser.add_argument('--distance', type=str, default='sinkhorn_slow', help='Type of dist measure to use.')
 parser.add_argument('--coupling', type=int, default=1, help='One to use coupling layers, zero for autoregressive.')
-parser.add_argument('--spline', type=int, default=0, help='One to use spline transformations.')
+parser.add_argument('--spline', type=int, default=1, help='One to use spline transformations.')
 parser.add_argument('--two_way', type=int, default=1,
                     help='One to train mapping from high mass to low mass, and low mass to high mass.')
 parser.add_argument('--shuffle', type=int, default=1, help='Shuffle on epoch end.')
-parser.add_argument('--coupling_width', type=int, default=64,
+parser.add_argument('--coupling_width', type=int, default=32,
                     help='Width of network used to learn transformer parameters.')
-parser.add_argument('--coupling_depth', type=int, default=3,
+parser.add_argument('--coupling_depth', type=int, default=2,
                     help='Depth of network used to learn transformer parameters.')
 
-parser.add_argument('--batch_size', type=int, default=100, help='Size of batch for training.')
+parser.add_argument('--batch_size', type=int, default=256, help='Size of batch for training.')
 parser.add_argument('--epochs', type=int, default=30,
                     help='The number of epochs to train for.')
-parser.add_argument('--nstack', type=int, default=4,
+parser.add_argument('--nstack', type=int, default=8,
                     help='The number of spline transformations to stack in the inn.')
-parser.add_argument('--nblocks', type=int, default=2,
+parser.add_argument('--nblocks', type=int, default=3,
                     help='The number of layers in the networks in each spline transformation.')
 parser.add_argument('--nodes', type=int, default=20,
                     help='The number of nodes in each of the neural spline layers.')
-parser.add_argument('--activ', type=str, default='relu',
+parser.add_argument('--activ', type=str, default='leaky_relu',
                     help='The activation function to use in the networks in the neural spline.')
-parser.add_argument('--lr', type=float, default=0.001,
+parser.add_argument('--lr', type=float, default=0.0001,
                     help='The learning rate.')
 parser.add_argument('--reduce_lr_plat', type=int, default=0,
                     help='Whether to apply the reduce learning rate on plateau scheduler.')
 parser.add_argument('--gclip', type=int, default=5,
                     help='The value to clip the gradient by.')
-parser.add_argument('--nbins', type=int, default=10,
+parser.add_argument('--nbins', type=int, default=4,
                     help='The number of bins to use in each spline transformation.')
 parser.add_argument('--ncond', type=int, default=1,
                     help='The number of features to condition on.')
 parser.add_argument('--load_best', type=int, default=0, help='Load the model that has the best validation score.')
-parser.add_argument('--det_beta', type=float, default=0.1, help='Factor to multiply determinant by in the loss.')
+parser.add_argument('--det_beta', type=float, default=0.0, help='Factor to multiply determinant by in the loss.')
 parser.add_argument('--sample_m_train', type=int, default=0, help='Use mass sampler during training?')
 parser.add_argument('--oversample', type=int, default=4,
                     help='How many times do we want to sample a point from the target distribution to transform to?')
@@ -104,14 +98,14 @@ parser.add_argument('--beta_add_noise', type=float, default=0.,
                     help='The value of epsilon to use in the 1-e training.')
 parser.add_argument('--classifier_epochs', type=int, default=1,
                     help='The value of epsilon to use in the 1-e training.')
-parser.add_argument('--use_mass_sampler', type=int, default=0, help='Whether or not to sample the mass.')
+parser.add_argument('--use_mass_sampler', type=int, default=1, help='Whether or not to sample the mass.')
 
 ## Plotting
 parser.add_argument('--n_sample', type=int, default=1000,
                     help='The number of features to use when calculating contours in the feature plots.')
-parser.add_argument('--light', type=int, default=0,
+parser.add_argument('--light', type=int, default=3,
                     help='We do not always want to plot everything and calculate all of the ROC plots.')
-parser.add_argument('--plot', type=int, default=1, help='Plot all feature dists?')
+parser.add_argument('--plot', type=int, default=0, help='Plot all feature dists?')
 
 ## reproducibility
 parser.add_argument('--seed', type=int, default=1638128,

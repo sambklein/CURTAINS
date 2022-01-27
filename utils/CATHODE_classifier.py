@@ -622,6 +622,10 @@ def get_auc(bg_template, sr_samples, sv_dir, name, anomaly_data=None, bg_truth_l
     try:
         tpr, fpr = full_single_evaluation(model_dir, X_test, n_ensemble_epochs=10, sic_range=(0, 20),
                                    savefig=os.path.join(sv_dir, f'result_SIC_{nm}'))
+        with open(os.path.join(sv_dir, 'tpr_cathode.pkl'), 'wb') as f:
+            pickle.dump(tpr, f)
+        with open(os.path.join(sv_dir, 'fpr_cathode.npy'), 'wb') as f:
+            pickle.dump(fpr, f)
     except Exception as e:
         print(e)
         tpr, fpr = None, None
