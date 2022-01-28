@@ -1,6 +1,7 @@
 import os
 import pickle
 import re
+from copy import deepcopy
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -527,12 +528,15 @@ def full_single_evaluation(prediction_dir, X_test, n_ensemble_epochs=10,
             predictions, val_losses, n_epochs=n_ensemble_epochs)
     tprs, fprs, sics = tprs_fprs_sics(min_val_loss_predictions, y_test, X_test)
 
+    tpr_r = deepcopy(tprs)
+    fpr_r = deepcopy(fprs)
+
     _ = compare_on_various_runs(
         [tprs], [fprs], [np.zeros(min_val_loss_predictions.shape[0])], [""],
         sic_lim=sic_range, savefig=savefig, only_median=False, continuous_colors=False,
         reduced_legend=False, suppress_show=suppress_show, return_all=return_all)
 
-    return tprs, fprs
+    return tpr_r, fpr_r
 
 
 def minimum_validation_loss_models(prediction_dir, n_epochs=10):

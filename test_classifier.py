@@ -38,7 +38,7 @@ def parse_args():
     parser.add_argument('--dataset', type=str, default='curtains', help='The dataset to train on.')
     parser.add_argument("--bins", type=str, default='2900,3100,3300,3700,3900,4100')
     parser.add_argument("--feature_type", type=int, default=3)
-    parser.add_argument("--doping", type=int, default=000,
+    parser.add_argument("--doping", type=int, default=1000,
                         help='Raw number of signal events to be added into the entire bg spectra.')
     parser.add_argument("--split_data", type=int, default=2,
                         help='2 for idealised classifier, 3 for supervised.')
@@ -60,6 +60,7 @@ def parse_args():
     parser.add_argument('--layer_norm', type=int, default=0, help='Apply layer norm?')
     parser.add_argument('--use_scheduler', type=int, default=1, help='Use cosine annealing of the learning rate?')
     parser.add_argument('--run_cathode_classifier', type=int, default=1, help='Use cathode classifier?')
+    parser.add_argument('--n_run', type=int, default=10, help='Use cathode classifier?')
 
     # Classifier settings
     parser.add_argument('--false_signal', type=int, default=0, help='Add random noise samples to the signal set?')
@@ -207,7 +208,7 @@ def test_classifier():
                        wd=args.wd, drp=args.drp, width=args.width, depth=args.depth, batch_norm=args.batch_norm,
                        layer_norm=args.layer_norm, use_scheduler=args.use_scheduler, use_weights=args.use_weight,
                        beta_add_noise=args.beta_add_noise, pure_noise=pure_noise, bg_truth_labels=bg_truth_labels,
-                       run_cathode_classifier=args.run_cathode_classifier)
+                       run_cathode_classifier=args.run_cathode_classifier, n_run=args.n_run)
 
     rates_sr_vs_transformed[f'0.0'] = auc_info[3]
     rates_sr_qcd_vs_anomalies[f'0.0'] = auc_info[2]

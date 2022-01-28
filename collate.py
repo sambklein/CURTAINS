@@ -10,6 +10,7 @@ from copy import deepcopy
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import cm
 import numpy as np
+from scipy.interpolate import interp1d
 
 from data.data_loaders import get_data, load_curtains_pd
 from utils.io import get_top_dir
@@ -543,7 +544,6 @@ def figs_six_and_seven():
     fig_six, ax_six = plt.subplots(1, 2, figsize=(14, 5))
     # We make this figure for this doping level
     data = deepcopy(vals['1000'])
-    pdb.set_trace()
     data += [['random', np.linspace(0, 1, 50), np.linspace(0, 1, 50)]]
     max_sic = 20
     clrs = {'Curtains': 'r', 'Cathode': 'b'}
@@ -551,32 +551,57 @@ def figs_six_and_seven():
         label = lst[0]
         try:
             # TODO: when there are multiple runs with different seeds averages etc will need to be taken.
-            tpr = lst[1][(0, 0)]
-            fpr = lst[2][(0, 0)]
+            tpr_list = lst[1].values()
+            fpr_list = lst[2].values()
+            # tpr = np.array(lst[1].values())
+            # fpr = np.array(lst[2].values())
         except:
-            fpr = lst[1]
-            tpr = lst[2]
-        fpr_mx = fpr != 0.
-        fpr_nz = fpr[fpr_mx]
-        tpr_nz = tpr[fpr_mx]
-        if label == 'random':
-            line = '--'
-            color = 'k'
-        else:
-            line = '-'
-            color = clrs[label]
-        ax_six[1].plot(tpr_nz, tpr_nz / fpr_nz ** 0.5, linewidth=2, label=label, linestyle=line, color=color)
-        ax_six[0].plot(tpr_nz, 1 / fpr_nz, linewidth=2, label=label, linestyle=line, color=color)
-        ax_six[1].set_ylim(0, max_sic)
+            fpr = [lst[1]]
+            tpr = [lst[2]]
+        data = defaultdict(list)
+        for tpr, fpr in zip(tpr_list, fpr_list):
+            fpr_mx = fpr != 0.
+            fpr_nz = fpr[fpr_mx]
+            tpr_nz = tpr[fpr_mx]
+            if label == 'random':
+                line = '--'
+                color = 'k'
+            else:
+                line = '-'
+                color = clrs[label]
+            sic = tpr_nz / fpr_nz ** 0.5
+            data['sic'] += [tpr_nz / fpr_nz ** 0.5]
+            data['tpr'] += [tpr_nz]
+            data['rejection'] += [1 / fpr_nz]
+            data['interp_sic'] += [interp1d(tpr_nz, sic, fill_value="extrapolate")]
+            alpha = 0.1
+            ax_six[1].plot(tpr_nz, sic, linewidth=2, label=label, linestyle=line, color=color, alpha=alpha)
+            ax_six[0].plot(tpr_nz, data['rejection'][-1], linewidth=2, label=label, linestyle=line, color=color,
+                           alpha=alpha)
+            # ax_six[1].plot(1 / fpr_nz, sic, linewidth=2, label=label, linestyle=line, color=color, alpha=alpha)
+            # ax_six[0].plot(tpr_nz, data['rejection'][-1], linewidth=2, label=label, linestyle=line, color=color,
+            #                alpha=alpha)
+            ax_six[1].set_ylim(0, max_sic)
+        if label != 'random':
+            mtp = np.concatenate(data['tpr'])
+            min_tpr, max_tpr = mtp.min(), mtp.max()
+            tprs = np.linspace(min_tpr, max_tpr, 1000)
+            host = []
+            for func in data['interp_sic']:
+                host += [func(tprs)]
+            mean_sic = np.vstack(host).mean(0)
+            ax_six[1].plot(tprs, mean_sic, linewidth=2, label=label, linestyle=line, color=color)
 
     ax_six[1].set_xlabel('Signal efficiency')
     ax_six[1].set_ylabel('Significance improvement')
     ax_six[0].set_xlabel('Signal efficiency')
     ax_six[0].set_ylabel('Rejection (1 / false positive rate)')
     ax_six[0].set_yscale('log')
+    # ax_six[1].set_xscale('log')
 
-    handles, labels = ax_six[1].get_legend_handles_labels()
-    fig_six.legend(handles, labels, loc='upper left', bbox_to_anchor=(0.9, 0.89), frameon=False)
+    handles, labels = ax_six[0].get_legend_handles_labels()
+    unique = [(h, l) for i, (h, l) in enumerate(zip(handles, labels)) if l not in labels[:i]]
+    fig_six.legend(*zip(*unique), loc='upper left', bbox_to_anchor=(0.9, 0.89), frameon=False)
     fig_six.savefig(f'{sv_dir}/images/figure_six.png', bbox_inches='tight')
     fig_six.clf()
 
@@ -599,14 +624,15 @@ def figs_six_and_seven():
         for values in lst:
             nm = values[0]
             # TODO: when there are multiple runs with different seeds averages etc will need to be taken.
-            tpr = values[1][(0, 0)]
-            fpr = values[2][(0, 0)]
-            ax = axes[0]
-            ax1 = axes[1]
-            fpr_mx = fpr != 0.
-            fpr_nz = fpr[fpr_mx]
-            tpr_nz = tpr[fpr_mx]
-            ax.plot(doping_dict[label], max(tpr_nz / fpr_nz ** 0.5), 'x', linewidth=2, label=nm, color=clrs[nm])
+            tpr_list = values[1].values()
+            fpr_list = values[2].values()
+            for tpr, fpr in zip(tpr_list, fpr_list):
+                ax = axes[0]
+                ax1 = axes[1]
+                fpr_mx = fpr != 0.
+                fpr_nz = fpr[fpr_mx]
+                tpr_nz = tpr[fpr_mx]
+                ax.plot(doping_dict[label], max(tpr_nz / fpr_nz ** 0.5), 'x', linewidth=2, label=nm, color=clrs[nm])
 
     ax.set_xlabel('Signal efficiency')
     ax.set_ylabel('Significance improvement')

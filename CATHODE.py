@@ -42,16 +42,17 @@ parser.add_argument("--quantiles", nargs="*", type=float, default=[1, 2, 3, 4])
 # parser.add_argument("--bins", nargs="*", type=float, default=[2000, 2500, 3000, 3500, 4000, 4500])
 # parser.add_argument("--bins", nargs="*", type=float, default=[3000, 3200, 3400, 3600, 3800, 4000])
 # parser.add_argument("--bins", nargs="*", type=float, default=[2300, 2700, 3300, 3700, 4900, 5000])
-parser.add_argument("--bins", type=str, default='3000,3200,3400,3600,3800,4000')
+# parser.add_argument("--bins", type=str, default='3000,3200,3400,3600,3800,4000')
+parser.add_argument("--bins", type=str, default='2700,2710,3300,3700,4990,5000')
 # parser.add_argument("--bins", nargs="*", type=float, default=[2900, 3100, 3300, 3500, 3800, 4000])
 parser.add_argument("--doping", type=int, default=0,
                     help='Raw number of signal events to be added into the entire bg spectra.')
-parser.add_argument("--feature_type", type=int, default=3)
+parser.add_argument("--feature_type", type=int, default=13)
 
 ## Names for saving
 parser.add_argument('-n', type=str, default='cathode', help='The name with which to tag saved outputs.')
 parser.add_argument('-d', type=str, default='NSF_CATHODE', help='Directory to save contents into.')
-parser.add_argument('--load', type=int, default=1, help='Whether or not to load a model.')
+parser.add_argument('--load', type=int, default=0, help='Whether or not to load a model.')
 parser.add_argument('--cathode_load', type=int, default=0, help='Load SR samples directly.')
 parser.add_argument('--model_name', type=str, default=None, help='Saved name of model to load.')
 parser.add_argument('--load_classifiers', type=int, default=0, help='Whether or not to load a model.')
@@ -112,7 +113,7 @@ parser.add_argument('--mix_sb', type=int, default=0, help='Mix sidebands while t
 ## Plotting
 parser.add_argument('--n_sample', type=int, default=1000,
                     help='The number of features to use when calculating contours in the feature plots.')
-parser.add_argument('--light', type=int, default=0,
+parser.add_argument('--light', type=int, default=3,
                     help='We do not always want to plot everything and calculate all of the ROC plots.')
 parser.add_argument('--plot', type=int, default=1, help='Plot all feature dists?')
 

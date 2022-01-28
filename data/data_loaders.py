@@ -238,6 +238,13 @@ def load_curtains_pd(sm='QCDjj_pT', dtype='float32', extraStats=False, feature_t
             data = data[['mj1', 'mj2-mj1', r'$\tau_{21}^{j_1}$', r'$\tau_{21}^{j_2}$', r'$dR_{jj}$', r'$p_t^{j_1}$',
                          r'$p_t^{j_2}$', 'delEta', 'mjj']]
 
+        if feature_type == 12:
+            data = data[['mj1', 'mj2-mj1', r'$\tau_{21}^{j_1}$', r'$\tau_{21}^{j_2}$', 'mjj']]
+
+        if feature_type == 13:
+            data = data[['mj1', 'mj2-mj1', r'$\tau_{21}^{j_1}$', r'$\tau_{21}^{j_2}$', 'mjj']]
+            data['gauss'] = np.random.normal(size=data['mj1'].shape[0])
+
         if 3 <= feature_type <= 8:
             # Introduce successive spurious correlations
             mJJ = data.iloc[:, -1]
