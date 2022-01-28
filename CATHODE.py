@@ -51,7 +51,8 @@ parser.add_argument("--feature_type", type=int, default=3)
 ## Names for saving
 parser.add_argument('-n', type=str, default='cathode', help='The name with which to tag saved outputs.')
 parser.add_argument('-d', type=str, default='NSF_CATHODE', help='Directory to save contents into.')
-parser.add_argument('--load', type=int, default=0, help='Whether or not to load a model.')
+parser.add_argument('--load', type=int, default=1, help='Whether or not to load a model.')
+parser.add_argument('--cathode_load', type=int, default=0, help='Load SR samples directly.')
 parser.add_argument('--model_name', type=str, default=None, help='Saved name of model to load.')
 parser.add_argument('--load_classifiers', type=int, default=0, help='Whether or not to load a model.')
 parser.add_argument('--use_mass_sampler', type=int, default=1, help='Whether or not to sample the mass.')
@@ -225,4 +226,4 @@ classifier_args = {'false_signal': 2, 'batch_size': 1000, 'nepochs': args.classi
 post_process_curtains(cathode, datasets, sup_title='NSF', signal_anomalies=signal_anomalies,
                       load=args.load_classifiers, use_mass_sampler=args.use_mass_sampler,
                       n_sample_for_plot=args.n_sample, light_job=args.light, classifier_args=classifier_args,
-                      plot=args.plot, cathode=True, summary_writer=writer, args=args)
+                      plot=args.plot, cathode=True, summary_writer=writer, args=args, cathode_load=args.cathode_load)

@@ -613,7 +613,9 @@ def get_auc(bg_template, sr_samples, sv_dir, name, anomaly_data=None, bg_truth_l
 
     model_paths = minimum_validation_loss_models(model_dir, n_epochs=10)
     preds_matrix = preds_from_models(model_paths, X_test, model_dir)
-    _ = counts_from_models(model_paths, X_val, model_dir, preds_matrix, thresholds=thresholds)
+    if n_run == 1:
+        # TODO: get this function to work for multiple runs
+        _ = counts_from_models(model_paths, X_val, model_dir, preds_matrix, thresholds=thresholds)
 
     match = re.match(r"([a-z]+)([0-9]+)", name, re.I)
     if match:

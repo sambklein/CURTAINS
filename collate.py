@@ -543,6 +543,7 @@ def figs_six_and_seven():
     fig_six, ax_six = plt.subplots(1, 2, figsize=(14, 5))
     # We make this figure for this doping level
     data = deepcopy(vals['1000'])
+    pdb.set_trace()
     data += [['random', np.linspace(0, 1, 50), np.linspace(0, 1, 50)]]
     max_sic = 20
     clrs = {'Curtains': 'r', 'Cathode': 'b'}

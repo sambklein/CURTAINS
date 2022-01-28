@@ -325,7 +325,7 @@ def get_samples(input_dist, target_dist, model, r_mass=False):
 
 def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=None, load=False, use_mass_sampler=False,
                           n_sample_for_plot=-1, light_job=0, classifier_args=None, plot=True, mass_sampler=None,
-                          cathode=False, summary_writer=None, args=None):
+                          cathode=False, summary_writer=None, args=None, cathode_load=False):
     if classifier_args is None:
         classifier_args = {}
 
@@ -426,13 +426,17 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
         auc_dict['SB1/OB1'] = auc_ob1
 
     if light_job <= 1 or (light_job == 3):
-        # Map the combined side bands into the signal region
-        sb2_samples = get_transformed(high_mass_sample, lm=datasets.mass_bins[2], hm=datasets.mass_bins[3],
-                                      target_dist=datasets.signalset, oversample=oversample)
-        sb1_samples = get_transformed(low_mass_sample, lm=datasets.mass_bins[2], hm=datasets.mass_bins[3],
-                                      target_dist=datasets.signalset, oversample=oversample)
-        save_samples(sb2_samples, 'SB1_to_SR_samples')
-        save_samples(sb1_samples, 'SB2_to_SR_samples')
+        if cathode_load:
+            sb2_samples = datasets.signalset.normalize(np.load(os.path.join(sv_dir, 'SB1_to_SR_samples')))
+            sb1_samples = datasets.signalset.normalize(np.load(os.path.join(sv_dir, 'SB2_to_SR_samples')))
+        else:
+            # Map the combined side bands into the signal region
+            sb2_samples = get_transformed(high_mass_sample, lm=datasets.mass_bins[2], hm=datasets.mass_bins[3],
+                                          target_dist=datasets.signalset, oversample=oversample)
+            sb1_samples = get_transformed(low_mass_sample, lm=datasets.mass_bins[2], hm=datasets.mass_bins[3],
+                                          target_dist=datasets.signalset, oversample=oversample)
+            save_samples(sb2_samples, 'SB1_to_SR_samples')
+            save_samples(sb1_samples, 'SB2_to_SR_samples')
         samples = torch.cat((sb2_samples, sb1_samples))
 
         # For the feature plot we only want to look at as many samples as there are in SB1
