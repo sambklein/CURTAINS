@@ -509,8 +509,10 @@ def get_sics():
 def figs_six_and_seven():
     sv_dir = get_top_dir()
     directories = [f'ot_fig7_OT_fig7_{i}' for i in range(0, 8)] + \
-                  [f'cathode_fig7_CATHODE_fig7_{i}' for i in range(0, 8)]
-    names = ['Curtains'] * 8 + ['Cathode'] * 8
+                  [f'cathode_fig7_CATHODE_fig7_{i}' for i in range(0, 8)] +\
+                  ['idealised_class_cath_idealised_class_cath_0'] + \
+                  ['super_class_cath_super_class_cath_0']
+    names = ['Curtains'] * 8 + ['Cathode'] * 8 + ['Idealised'] + ['Supervised']
     # directories = ['classifier_local_local']
     # names = ['Cathode']
     reload = 0
@@ -546,7 +548,7 @@ def figs_six_and_seven():
     data = deepcopy(vals['1000'])
     data += [['random', np.linspace(0, 1, 50), np.linspace(0, 1, 50)]]
     max_sic = 20
-    clrs = {'Curtains': 'r', 'Cathode': 'b'}
+    clrs = {'Curtains': 'r', 'Cathode': 'b', 'Idealised': 'g', 'Supervised': 'k'}
     for lst in data:
         label = lst[0]
         try:
