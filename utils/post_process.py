@@ -427,8 +427,8 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
 
     if light_job <= 1 or (light_job == 3):
         if cathode_load:
-            sb2_samples = datasets.signalset.normalize(np.load(os.path.join(sv_dir, 'SB1_to_SR_samples')))
-            sb1_samples = datasets.signalset.normalize(np.load(os.path.join(sv_dir, 'SB2_to_SR_samples')))
+            sb2_samples = datasets.signalset.normalize(np.load(os.path.join(sv_dir, 'SB1_to_SR_samples.npy')))
+            sb1_samples = datasets.signalset.normalize(np.load(os.path.join(sv_dir, 'SB2_to_SR_samples.npy')))
         else:
             # Map the combined side bands into the signal region
             sb2_samples = get_transformed(high_mass_sample, lm=datasets.mass_bins[2], hm=datasets.mass_bins[3],
