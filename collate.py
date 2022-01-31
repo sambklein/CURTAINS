@@ -508,13 +508,20 @@ def get_sics():
 
 def figs_six_and_seven():
     sv_dir = get_top_dir()
+    # directories = [f'ot_fig7_OT_fig7_{i}' for i in range(0, 8)] + \
+    #               [f'cathode_fig7_CATHODE_fig7_{i}' for i in range(0, 8)] + \
+    #               ['idealised_class_cath_idealised_class_cath_0'] + \
+    #               ['super_class_cath_super_class_cath_0'] + \
+    #               ['cathode_match_CATHODE_match_0']
+    #               # ['cathode_match_CATHODE_match_0'] 0 = all sideband data 100 epochs, 4 = restircted but 100 epochs
+    # names = ['Curtains'] * 8 + ['Cathode'] * 8 + ['Idealised'] + ['Supervised'] + ['CATHODE_full']
+    # This has CATHODE trained only for 100 epochs and taking the last model, not the best
     directories = [f'ot_fig7_OT_fig7_{i}' for i in range(0, 8)] + \
-                  [f'cathode_fig7_CATHODE_fig7_{i}' for i in range(0, 8)] + \
+                  [f'cathode_match_CATHODE_match_4'] + \
                   ['idealised_class_cath_idealised_class_cath_0'] + \
                   ['super_class_cath_super_class_cath_0'] + \
-                  ['cathode_match_CATHODE_match_4']
-                  # ['cathode_match_CATHODE_match_0'] 0 = all sideband data 100 epochs, 4 = restircted but 100 epochs
-    names = ['Curtains'] * 8 + ['Cathode'] * 8 + ['Idealised'] + ['Supervised'] + ['CATHODE_full']
+                  ['cathode_match_CATHODE_match_0']
+    names = ['Curtains'] * 8 + ['Cathode'] + ['Idealised'] + ['Supervised'] + ['CATHODE_full']
     # directories = ['classifier_local_local']
     # names = ['Cathode']
     reload = 1
@@ -662,6 +669,6 @@ def figs_six_and_seven():
 
 if __name__ == '__main__':
     get_counts()
-    # figs_six_and_seven()
+    figs_six_and_seven()
     # get_sics()
     # get_max_sic()

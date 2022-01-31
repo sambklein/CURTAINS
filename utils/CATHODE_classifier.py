@@ -608,7 +608,17 @@ def get_auc(bg_template, sr_samples, sv_dir, name, anomaly_data=None, bg_truth_l
 
     model_dir = os.path.join(sv_dir, f'models_{name}')
     os.makedirs(model_dir, exist_ok=True)
-    if load not in [1, 2]:
+
+    if load == 2:
+        load = 1
+        try:
+            # Check if the validation loss matrix exists
+            _ = minimum_validation_loss_models(model_dir, n_epochs=10)
+        except:
+            # If it doesn't exist then retrain a model
+            load = 0
+
+    if not load:
         loss_matris, val_loss_matris = train_n_models(
             n_run, 'utils/classifier.yml', nepochs, X_train, y_train, X_test, y_test,
             batch_size=batch_size, X_val=X_val,

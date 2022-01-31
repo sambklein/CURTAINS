@@ -1,5 +1,9 @@
+import pdb
+import random
+
 import matplotlib.pyplot as plt
 import numpy as np
+import torch
 import zfit
 
 from .fitter_utils import linearPDF, dijet_ATLAS_fit
@@ -168,9 +172,11 @@ def signalMassSampler(masses, edge1, edge2, getStatus=False, plt_sv_dir=None, sc
 
     # parameters for the dijet function - move this outside of the function, if the
     # script complains about repeated parameters. Shouldn't be an issue.
-    p1 = zfit.Parameter('p1', 100.)
-    p2 = zfit.Parameter('p2', 10.)
-    p3 = zfit.Parameter('p3', 0.1)
+    # TODO: remove the while loop, this removes the need for it.
+    lb = 0.0
+    p1 = zfit.Parameter('p1', 100., lower_limit=lb)
+    p2 = zfit.Parameter('p2', 10., lower_limit=lb)
+    p3 = zfit.Parameter('p3', -0.1, upper_limit=lb)
 
     data = zfit.Data.from_numpy(obs=massRange, array=masses)
     model = dijet_ATLAS_fit(obs=massRange, p1=p1, p2=p2, p3=p3, root_s=root_s, scaler=scaler, unscaler=unscaler)
