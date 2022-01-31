@@ -178,8 +178,8 @@ def get_counts():
     # The real hunt
     name = 'OT_bump_two_hundred'
     dd = 'curtains_bump'
-    name = 'CATHODE_bump_scan_two_hundred'
-    dd = 'cathode_bump'
+    # name = 'CATHODE_bump_scan_two_hundred'
+    # dd = 'cathode_bump'
     directories = [f'{dd}_{name}_{i}' for i in range(0, 35)]
 
     bin_width = 200
@@ -509,13 +509,15 @@ def get_sics():
 def figs_six_and_seven():
     sv_dir = get_top_dir()
     directories = [f'ot_fig7_OT_fig7_{i}' for i in range(0, 8)] + \
-                  [f'cathode_fig7_CATHODE_fig7_{i}' for i in range(0, 8)] +\
+                  [f'cathode_fig7_CATHODE_fig7_{i}' for i in range(0, 8)] + \
                   ['idealised_class_cath_idealised_class_cath_0'] + \
-                  ['super_class_cath_super_class_cath_0']
-    names = ['Curtains'] * 8 + ['Cathode'] * 8 + ['Idealised'] + ['Supervised']
+                  ['super_class_cath_super_class_cath_0'] + \
+                  ['cathode_match_CATHODE_match_4']
+                  # ['cathode_match_CATHODE_match_0'] 0 = all sideband data 100 epochs, 4 = restircted but 100 epochs
+    names = ['Curtains'] * 8 + ['Cathode'] * 8 + ['Idealised'] + ['Supervised'] + ['CATHODE_full']
     # directories = ['classifier_local_local']
     # names = ['Cathode']
-    reload = 0
+    reload = 1
 
     if reload:
         # Gather saved quantities
@@ -548,7 +550,7 @@ def figs_six_and_seven():
     data = deepcopy(vals['1000'])
     data += [['random', np.linspace(0, 1, 50), np.linspace(0, 1, 50)]]
     max_sic = 20
-    clrs = {'Curtains': 'r', 'Cathode': 'b', 'Idealised': 'g', 'Supervised': 'k'}
+    clrs = {'Curtains': 'r', 'Cathode': 'b', 'Idealised': 'g', 'Supervised': 'k', 'CATHODE_full': 'y'}
     for lst in data:
         label = lst[0]
         try:
@@ -558,8 +560,8 @@ def figs_six_and_seven():
             # tpr = np.array(lst[1].values())
             # fpr = np.array(lst[2].values())
         except:
-            fpr = [lst[1]]
-            tpr = [lst[2]]
+            fpr_list = [lst[1]]
+            tpr_list = [lst[2]]
         data = defaultdict(list)
         for tpr, fpr in zip(tpr_list, fpr_list):
             fpr_mx = fpr != 0.
@@ -568,15 +570,16 @@ def figs_six_and_seven():
             if label == 'random':
                 line = '--'
                 color = 'k'
+                alpha = 0.8
             else:
                 line = '-'
                 color = clrs[label]
+                alpha = 0.1
             sic = tpr_nz / fpr_nz ** 0.5
             data['sic'] += [tpr_nz / fpr_nz ** 0.5]
             data['tpr'] += [tpr_nz]
             data['rejection'] += [1 / fpr_nz]
             data['interp_sic'] += [interp1d(tpr_nz, sic, fill_value="extrapolate")]
-            alpha = 0.1
             ax_six[1].plot(tpr_nz, sic, linewidth=2, label=label, linestyle=line, color=color, alpha=alpha)
             ax_six[0].plot(tpr_nz, data['rejection'][-1], linewidth=2, label=label, linestyle=line, color=color,
                            alpha=alpha)
@@ -658,7 +661,7 @@ def figs_six_and_seven():
 
 
 if __name__ == '__main__':
-    # get_counts()
-    figs_six_and_seven()
+    get_counts()
+    # figs_six_and_seven()
     # get_sics()
     # get_max_sic()

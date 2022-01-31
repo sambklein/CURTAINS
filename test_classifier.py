@@ -109,7 +109,8 @@ def test_classifier():
     sm = load_curtains_pd(feature_type=args.feature_type)
     sm = sm.sample(frac=1).dropna()
     ad = load_curtains_pd(sm='WZ_allhad_pT', feature_type=args.feature_type)
-    ad = ad.sample(frac=1).dropna()
+    # ad = ad.sample(frac=1).dropna()
+    ad = ad.dropna()
     bg_truth_labels = None
 
     # Bin the data

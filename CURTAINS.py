@@ -42,7 +42,7 @@ parser.add_argument("--bins", type=str, default='3900,4100,4300,4500,4700,4900')
 # parser.add_argument("--bins", nargs="*", type=float, default=[2900, 3100, 3300, 3500, 3800, 4000])
 parser.add_argument("--doping", type=int, default=500,
                     help='Raw number of signal events to be added into the entire bg spectra.')
-parser.add_argument("--feature_type", type=int, default=3)
+parser.add_argument("--feature_type", type=int, default=13)
 
 ## Names for saving
 parser.add_argument('-n', type=str, default='Transformer', help='The name with which to tag saved outputs.')
@@ -65,7 +65,7 @@ parser.add_argument('--coupling_depth', type=int, default=2,
                     help='Depth of network used to learn transformer parameters.')
 
 parser.add_argument('--batch_size', type=int, default=100, help='Size of batch for training.')
-parser.add_argument('--epochs', type=int, default=30,
+parser.add_argument('--epochs', type=int, default=1,
                     help='The number of epochs to train for.')
 parser.add_argument('--nstack', type=int, default=4,
                     help='The number of spline transformations to stack in the inn.')
