@@ -293,14 +293,17 @@ def counts_from_models(model_path_list, X_val, save_dir, anomaly_scores, thresho
     expected_count = []
     pass_rates = []
     mx = X_val[:, -2] == 0
+    if y_scores.ndim == 1:
+        y_scores = y_scores[np.newaxis, :]
+        anomaly_scores = anomaly_scores[np.newaxis, :]
     for i, at in enumerate(thresholds):
-        threshold = np.quantile(y_scores[mx], at)
-        expected_count += [sum(y_scores[mx] >= threshold)]
-        count += [sum(y_scores[X_val[:, -2] == 1] >= threshold)]
+        threshold = np.quantile(y_scores[:, mx], at, axis=1).reshape(-1, 1)
+        expected_count += [np.sum(y_scores[:, mx] >= threshold, axis=1)]
+        count += [np.sum(y_scores[:, X_val[:, -2] == 1] >= threshold, axis=1)]
 
-        signal_pass_rate = sum(anomaly_scores >= threshold) / len(anomaly_scores)
+        signal_pass_rate = np.sum(anomaly_scores >= threshold, axis=1) / anomaly_scores.shape[1]
         # TODO this is a poor proxy for the BG rejection rate
-        bg_pass_rate = sum(y_scores[mx] >= threshold) / len(y_scores)
+        bg_pass_rate = np.sum(y_scores[:, mx] >= threshold, axis=1) / y_scores.shape[1]
         pass_rates += [np.array((signal_pass_rate, bg_pass_rate))]
     counts = np.array(count)
     expected_counts = np.array(expected_count)
@@ -627,9 +630,7 @@ def get_auc(bg_template, sr_samples, sv_dir, name, anomaly_data=None, bg_truth_l
 
     model_paths = minimum_validation_loss_models(model_dir, n_epochs=10)
     preds_matrix = preds_from_models(model_paths, X_test, model_dir)
-    if n_run == 1:
-        # TODO: get this function to work for multiple runs
-        _ = counts_from_models(model_paths, X_val, model_dir, preds_matrix, thresholds=thresholds)
+    _ = counts_from_models(model_paths, X_val, model_dir, preds_matrix, thresholds=thresholds)
 
     match = re.match(r"([a-z]+)([0-9]+)", name, re.I)
     if match:

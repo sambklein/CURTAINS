@@ -176,8 +176,10 @@ def get_counts():
     directories = [f'no_sig_eps_no_sig_{i}' for i in range(0, 14)]
 
     # The real hunt
-    name = 'OT_bump_two_hundred'
-    dd = 'curtains_bump'
+    # name = 'OT_bump_two_hundred'
+    # dd = 'curtains_bump'
+    name = 'OT_bump_centered'
+    dd = 'curtains_bump_cfinal'
     # name = 'CATHODE_bump_scan_two_hundred'
     # dd = 'cathode_bump'
     directories = [f'{dd}_{name}_{i}' for i in range(0, 35)]
@@ -185,9 +187,10 @@ def get_counts():
     bin_width = 200
     # thresholds = [0, 0.5, 0.8, 0.9, 0.95, 0.99]
     thresholds = [0, 0.5, 0.8, 0.9, 0.95, 0.99, 0.999, 0.9999]
+    n_thresh_to_take = 7
     nfolds = 5
 
-    reload = 1
+    reload = 0
     cathode_classifier = 1
     filename = '200'
 
@@ -206,9 +209,11 @@ def get_counts():
                             'rb') as f:
                         info_dict = pickle.load(f)
                     true_counts = info_dict['counts']
-                    expected_counts = info_dict['expected_counts']
-                    expected_counts = expected_counts / 8
-                    # expected_counts = true_counts[0] * (1 - np.array(thresholds))
+                    if true_counts.ndim > 1:
+                        true_counts = true_counts.mean(1)
+                    # expected_counts = info_dict['expected_counts']
+                    # expected_counts = expected_counts / 8
+                    expected_counts = true_counts[0] * (1 - np.array(thresholds))
                 else:
                     with open(f'{sv_dir}/images/{directory}/counts.pkl', 'rb') as f:
                         # with open(f'{sv_dir}/images/{directory}/counts_no_eps.pkl', 'rb') as f:
@@ -223,7 +228,9 @@ def get_counts():
                 counts = true_counts  # / expected_counts  # + 4 * (1 - np.array(thresholds))
                 # counts = true_counts - expected_counts  # + 4 * (1 - np.array(thresholds))
                 # counts = true_counts  # - expected_counts  # + 4 * (1 - np.array(thresholds))
-                error = counts * (np.sqrt(expected_counts) / expected_counts + np.sqrt(true_counts) / true_counts)
+
+                # error = counts * (np.sqrt(expected_counts) / expected_counts + np.sqrt(true_counts) / true_counts)
+                error = np.zeros_like(counts)
                 counts = [true_counts, expected_counts]
                 # error = counts * (np.sqrt(expected_counts) / expected_counts + np.sqrt(true_counts) / true_counts)
                 # counts = true_counts - expected_counts / 4
@@ -307,14 +314,14 @@ def get_counts():
         label = dopings[j]
         lst = vals[label]
         rt = rates[label]
-        for i in range(n_thresh):
+        for i in range(n_thresh_to_take):
             # ax = axes[j, i]
             ax = axes[j]
             if i > -1:
                 xy = np.array(lst)
                 # ax.plot(xy[:, 0], xy[:, i + 1], 'x', label=f'Cut = {thresholds[i]}')
                 x_all = xy[:, 0]
-                mx = x_all / 100 % 2 == 0
+                mx = x_all / 100 % 2 == 1
                 x = xy[mx, 0]
                 y = xy[mx, i + 1]
                 expected = xy[mx, i + 1 + len(thresholds)] \
@@ -606,7 +613,7 @@ def figs_six_and_seven():
 
     ax_six[1].set_xlabel('Signal efficiency')
     ax_six[1].set_ylabel('Significance improvement')
-    ax_six[0].set_xlabel('Signal efficiency')
+    ax_six[0].set_xlabel('Signal efficiency') 
     ax_six[0].set_ylabel('Rejection (1 / false positive rate)')
     ax_six[0].set_yscale('log')
     # ax_six[1].set_xscale('log')
@@ -669,6 +676,6 @@ def figs_six_and_seven():
 
 if __name__ == '__main__':
     get_counts()
-    figs_six_and_seven()
+    # figs_six_and_seven()
     # get_sics()
     # get_max_sic()

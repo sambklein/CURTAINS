@@ -68,7 +68,7 @@ class Classifier(nn.Module):
         else:
             self.base_model.load_state_dict(torch.load(path))
 
-    def round_sf(self, x, nsf):
+    def round_sf(self, x, nsf): 
         if x:
             x = round(x, nsf - (int(np.floor(np.log10(abs(x)))) - 1))
         return x

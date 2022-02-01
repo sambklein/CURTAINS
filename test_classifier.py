@@ -50,7 +50,7 @@ def parse_args():
 
     # Training parameters
     parser.add_argument('--batch_size', type=int, default=1000, help='Size of batch for training.')
-    parser.add_argument('--nepochs', type=int, default=30, help='Number of epochs.')
+    parser.add_argument('--nepochs', type=int, default=10, help='Number of epochs.')
     parser.add_argument('--lr', type=float, default=0.0001, help='Classifier learning rate.')
     parser.add_argument('--wd', type=float, default=0.0, help='Weight Decay, set to None for ADAM.')
     parser.add_argument('--drp', type=float, default=0.0, help='Dropout to apply.')
@@ -60,7 +60,7 @@ def parse_args():
     parser.add_argument('--layer_norm', type=int, default=0, help='Apply layer norm?')
     parser.add_argument('--use_scheduler', type=int, default=1, help='Use cosine annealing of the learning rate?')
     parser.add_argument('--run_cathode_classifier', type=int, default=1, help='Use cathode classifier?')
-    parser.add_argument('--n_run', type=int, default=10, help='Use cathode classifier?')
+    parser.add_argument('--n_run', type=int, default=1, help='Number of classifiers to train.')
 
     # Classifier settings
     parser.add_argument('--false_signal', type=int, default=0, help='Add random noise samples to the signal set?')
