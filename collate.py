@@ -124,56 +124,36 @@ def get_max_sic():
     fig.savefig(f'{sv_dir}/images/sic_collated.png', bbox_inches='tight')
 
 
-def make_steps(axis, x, y, width, **kwargs):
+def make_steps(axis, x, y, width, drop_bars=True, plot=True, **kwargs):
     half_width = int(width / 2)
-    y = y.reshape(-1, 1) * np.ones(100)
-    y[:, -1] = np.nan
+    n_points = 500
+    y = y.reshape(-1, 1) * np.ones(n_points)
+    if drop_bars:
+        y[:, -1] = np.nan
+        linestyle = '-'
+    else:
+        linestyle = '--'
     y = y.flatten()
-    # x_to_plot = np.linspace(np.min(x) - half_width, np.max(x) + half_width, len(y))
     x_to_plot = np.concatenate(
-        [np.linspace(mn, mx, 100) for mx, mn in np.vstack((x - half_width, x + half_width)).transpose()])
-    axis.plot(x_to_plot, y, **kwargs)
-    xticks = np.unique(np.hstack(((x - half_width), (x + half_width))))
-    axis.set_xticks(xticks)
+        [np.linspace(mn, mx, n_points) for mn, mx in np.vstack((x - half_width, x + half_width)).transpose()])
+    if plot:
+        axis.plot(x_to_plot, y, ls=linestyle, **kwargs)
+        xticks = np.unique(np.hstack(((x - half_width), (x + half_width))))
+        axis.set_xticks(xticks)
+    else:
+        return x_to_plot, y
 
 
-# def make_steps(axis, x, y, width, **kwargs):
-#     half_width = int(width / 2)
-#     x_ = np.unique(np.concatenate((x - half_width, x + half_width)))
-#     x_ = np.vstack((x - half_width, x + half_width)).transpose().flatten()
-#     X = np.hstack((x_, x_[1:]))
-#     y_ = np.tile(y, (2, 1)).transpose().flatten()
-#     Y = np.hstack((y_, np.zeros_like(x_[1:]) * np.nan))
-#     # pdb.set_trace()
-#     return axis.plot(X.flatten(), Y.flatten(), **kwargs)
+def add_errors(axis, x, y, width, error, **kwargs):
+    x_to_plot, y1 = make_steps(axis, x, y - error, width, plot=False)
+    _, y2 = make_steps(axis, x, y + error, width, plot=False)
+    axis.fill_between(x_to_plot, y1, y2, alpha=0.5, facecolor=None, linewidth=0.0, **kwargs)
 
 
 def get_counts():
     args = parse_args()
 
     sv_dir = os.path.join(get_top_dir())
-    # # Old bump scan
-    # directories = [f'build_images', f'build_images', f'build_images']
-    # directories = [f'bins_doping_scan_OT_{i}' for i in range(0, 44)] + \
-    #               [f'increase_bump_scan_OT_{i}' for i in range(0, 12)]
-    # New bump scans
-    # directories = [f'curtains_bins_OT_bins_scan_two_hundred_{i}' for i in range(0, 14)]
-    # directories = [f'curtains_bins_four_OT_bins_scan_four_hundred_{i}' for i in range(0, 6)]
-    # directories = [f'cathode_bins_CATHODE_bins_scan_two_hundred_{i}' for i in range(0, 14)]
-    # directories = [f'cathode_bins_four_CATHODE_bins_scan_four_hundred_{i}' for i in range(0, 6)]
-
-    # New features, mass ordered
-    directories = [f'curtains_bins_true_OT_bins_scan_two_hundred_true_{i}' for i in range(0, 28)]
-    # directories = [f'cathode_bins_true_CATHODE_bins_scan_two_hundred_true_{i}' for i in range(0, 28)]
-    # directories = [f'curtains_bins_four_true_OT_bins_scan_four_hundred_true_{i}' for i in range(0, 14)]
-
-    # Idealised hunts
-    # directories = [f'idealised_check_eps_idealised_scan_two_hundred_true_{i}' for i in range(0, 14)]
-    # directories = [f'idealised_scan_idealised_scan_two_hundred_no_eps_{i}' for i in range(0, 14)]
-    # directories = [f'idealised_scan_add_vars_idealised_scan_two_hundred_no_eps_add_vars_{i}' for i in range(0, 28)]
-    # directories = [f'idealised_check_eps_add_vars_idealised_scan_two_hundred_true_add_vars_{i}' for i in range(0, 28)]
-    # directories = [f'ideal_no_sig_ideal_no_sig_{i}' for i in range(0, 14)]
-    directories = [f'no_sig_eps_no_sig_{i}' for i in range(0, 14)]
 
     # The real hunt
     # name = 'OT_bump_two_hundred'
@@ -190,6 +170,14 @@ def get_counts():
     n_thresh_to_take = 7
     nfolds = 5
 
+    def get_mask(mass):
+        """
+        Given the mass values that were scanned, return those values to include in the plot.
+        This is useful if there are overlapping bins in the bump hunt scan.
+        """
+        # return x_all / 100 % 2 == 1
+        return [True] * mass.shape[0]
+
     reload = 0
     cathode_classifier = 1
     filename = '200'
@@ -200,8 +188,6 @@ def get_counts():
         rates = defaultdict(list)
         get_property = PropertiesHandler()
         for i, directory in enumerate(directories):
-            # pdb.set_trace()
-            # with open(f'{sv_dir}/images/{directory}/counts_cathode.pkl', 'rb') as f: info_dict = pickle.load(f)
             try:
                 if cathode_classifier:
                     with open(
@@ -222,18 +208,11 @@ def get_counts():
                     # expected_counts = np.sum(info_dict['expected_counts'], 0) / 8
                     expected_counts = true_counts[0] * (1 - np.array(thresholds))
 
-                #
-                # expected_counts = np.sum(info_dict['expected_counts'], 0) / 8
-                # expected_counts = true_counts[0] * (1 - np.array(thresholds))
-                counts = true_counts  # / expected_counts  # + 4 * (1 - np.array(thresholds))
-                # counts = true_counts - expected_counts  # + 4 * (1 - np.array(thresholds))
-                # counts = true_counts  # - expected_counts  # + 4 * (1 - np.array(thresholds))
+                counts = true_counts
 
                 # error = counts * (np.sqrt(expected_counts) / expected_counts + np.sqrt(true_counts) / true_counts)
                 error = np.zeros_like(counts)
                 counts = [true_counts, expected_counts]
-                # error = counts * (np.sqrt(expected_counts) / expected_counts + np.sqrt(true_counts) / true_counts)
-                # counts = true_counts - expected_counts / 4
                 rate = info_dict['pass_rates']
                 if cathode_classifier:
                     signal_pass_rate = rate[:, 0]
@@ -249,14 +228,8 @@ def get_counts():
             if passed:
                 args = get_args(f'{sv_dir}/images/{directory}')
                 x, expected, label = get_property(args)
-                # # TODO: why does this work better than the true expected values?
-                expected = counts[0] * (1 - np.array(thresholds))
-                # inf = true_counts / expected  # + 4 * (1 - np.array(thresholds))
-                # inf = true_counts / (true_counts[0] * (1 - np.array(thresholds)))
-                # inf = true_counts / (expected_counts[0] * (1 - np.array(thresholds)))
-                inf = counts
                 rt = np.vstack((signal_pass_rate, bg_pass_rate))
-                vals[label] += [np.hstack((x, *inf, error))]
+                vals[label] += [np.hstack((x, *counts, error))]
                 rates[label] += [rt]
 
             with open(f'{sv_dir}/images/rates_info_{filename}.pkl', 'wb') as f:
@@ -273,8 +246,6 @@ def get_counts():
     dopings = sorted(set(vals.keys()))
     n_dopings = len(dopings)
     n_thresh = len(thresholds)
-    # print(vals.keys())
-    # fig, axes = plt.subplots(n_dopings, n_thresh, figsize=(7 * n_thresh, 5 * n_dopings + 2))
     fig, axes = plt.subplots(n_dopings, 1, figsize=(7, 5 * n_dopings + 2))
     fig1, axes1 = plt.subplots(1, 1, figsize=(7, 5))
     n_plots = 5
@@ -287,8 +258,8 @@ def get_counts():
     class MassSpectrum:
 
         def __init__(self):
-            self.sm = load_curtains_pd(feature_type=3)
-            self.ad = load_curtains_pd(sm='WZ_allhad_pT', feature_type=3)
+            self.sm = load_curtains_pd(feature_type=3).dropna()
+            self.ad = load_curtains_pd(sm='WZ_allhad_pT', feature_type=3).dropna()
 
         def __call__(self, num):
             """Get the counts of BG events and Anomaly events in each bin."""
@@ -307,7 +278,6 @@ def get_counts():
     get_mass_spectrum = MassSpectrum()
     spc = 0.1
     mxv = spc * len(thresholds)
-    shift = np.arange(0, mxv, spc)
     clist = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
     for j in range(n_dopings):
@@ -319,38 +289,27 @@ def get_counts():
             ax = axes[j]
             if i > -1:
                 xy = np.array(lst)
-                # ax.plot(xy[:, 0], xy[:, i + 1], 'x', label=f'Cut = {thresholds[i]}')
                 x_all = xy[:, 0]
-                mx = x_all / 100 % 2 == 1
+                mx = get_mask(x_all)
                 x = xy[mx, 0]
                 y = xy[mx, i + 1]
-                expected = xy[mx, i + 1 + len(thresholds)] \
-                    # x = xy[:, 0]
-                # y = xy[:, i + 1]
-                # expected = xy[:, i + 1 + len(thresholds)]
-                norm_fact = 1  # max(y)
-                # sf = shift[i]
-                sf = 0
-                # err = xy[:, i + 1 + 2 * len(thresholds)] / norm_fact
-                # err = np.sqrt(abs(y)) / norm_fact
-                # lines = {'linestyle': 'None'}
-                # plt.rc('lines', **lines)
-                # p = ax.plot(xy[:, 0], y / norm_fact + sf, 'o', markersize=3)
-                clr = clist[i]
-                # p = ax.bar(x, y / norm_fact + sf, width=bin_width, color='None', edgecolor=clr)
-                # ax.bar(x, expected / norm_fact + sf, width=bin_width, color='None', edgecolor='r')
-                p = make_steps(ax, x, y / norm_fact + sf, bin_width, color='r', label='Measured')
-                make_steps(ax, x, expected / norm_fact + sf, bin_width, color='b', label='Expected')
+                expected = xy[mx, i + 1 + len(thresholds)]
+                make_steps(ax, x, y, bin_width, color='r', label='Measured')
+                make_steps(ax, x, expected, bin_width, color='b', label='Expected', drop_bars=False)
                 if i == 0:
                     handles, labels = ax.get_legend_handles_labels()
                     fig.legend(handles, labels, loc='upper left', bbox_to_anchor=(0.9, 0.89), frameon=False)
-                # ax.errorbar(x, y / norm_fact + sf, yerr=err,
-                #             label=f'Cut = {thresholds[i]}', fmt='', color=clr)
-                axes1.plot(x, y / norm_fact + sf, 'o', label=f'Cut = {thresholds[i]}', markersize=3)
+                counts_error = np.sqrt(y)
+                add_errors(ax, x, y, bin_width, counts_error, color='r')
+                error_in_expected = np.sqrt(expected[0]) * (1 - np.array(thresholds))[:n_thresh_to_take]
+                # error_in_expected = np.sqrt(expected)
+                add_errors(ax, x, expected, bin_width, error_in_expected, color='b')
 
-                rt = np.array(rt)
+                axes1.plot(x, y, 'o', label=f'Cut = {thresholds[i]}', markersize=3)
 
+                # rt = np.array(rt)
                 # bins, bg_counts, ad_counts = get_mass_spectrum(int(label))
+                # clr = clist[i]
                 # mx = np.digitize(xy[:, 0], bins=bins) - 1
                 # axes2[j, 0].bar(bins[mx], rt[:, 0, i] * ad_counts[mx], width=bin_width, color='None', edgecolor='r')
                 # axes2[j, 1].bar(bins[mx], rt[:, 1, i] * bg_counts[mx], width=bin_width, color='None', edgecolor='b')
@@ -364,7 +323,7 @@ def get_counts():
             if i == 0:
                 ax.set_ylabel('Counts / Expected Counts')
             ax.set_xlabel('Mean SR mass')
-            ax.set_title(f'{label} Anomalies, Cut = {thresholds[i]}')
+            ax.set_title(f'{label} Anomalies')
             ax.set_yscale('log')
 
         axes1.set_ylabel('Counts / Expected Counts')
@@ -383,6 +342,11 @@ def get_counts():
         # axes2[j, 3].set_yscale('log')
         # axes2[j, 4].set_yscale('log')
 
+    signal_bins = np.sort(np.unique(np.concatenate((x - bin_width / 2, x + bin_width / 2))))
+    mass = get_mass_spectrum.ad['mjj']
+    for j in range(n_dopings):
+        label = dopings[j]
+        axes[j].hist(mass.iloc[:int(label)], bins=signal_bins, alpha=0.2, color='y')
     fig.savefig(f'{sv_dir}/images/counts_collated.png', bbox_inches='tight')
     fig.clf()
 
@@ -613,7 +577,7 @@ def figs_six_and_seven():
 
     ax_six[1].set_xlabel('Signal efficiency')
     ax_six[1].set_ylabel('Significance improvement')
-    ax_six[0].set_xlabel('Signal efficiency') 
+    ax_six[0].set_xlabel('Signal efficiency')
     ax_six[0].set_ylabel('Rejection (1 / false positive rate)')
     ax_six[0].set_yscale('log')
     # ax_six[1].set_xscale('log')
