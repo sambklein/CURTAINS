@@ -52,6 +52,7 @@ def preprocess_method(data, info=None):
     data = (data - 0.5) * 2
     return data, info, min_max_mask
 
+
 def unpreprocess_method(data, info):
     info = info.to(data.device)
     data = data / 2 + 0.5
@@ -104,11 +105,17 @@ class ClassifierData(Dataset):
             self.data = (self.data - self.min_vals) / (self.max_vals + 1e-8)
             self.preprocessed = True
 
-    def unpreprocess(self):
+    def unpreprocess(self, data=None):
+        dat_is_not_passed = data is None
+        if dat_is_not_passed:
+            data = self.data
         if self.preprocessed:
-            stds, means = self.max_vals, self.min_vals
-            self.data = self.data * (stds + 1e-8) + means
+            data = data * (self.max_vals + 1e-8) + self.min_vals
+        if dat_is_not_passed:
+            self.data = data
             self.preprocessed = False
+        else:
+            return data
 
 
 class BaseData(Dataset):

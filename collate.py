@@ -73,7 +73,9 @@ class PropertiesHandler():
         int_bins = [int(b) for b in bins]
         x = np.mean(int_bins)
         # Get the expected numbers
-        expected_sr_count = self.get_expected_count(args, int_bins)
+        # TODO: sort out this function call, it's crazy expensive and only needs to be made once, also it isn't used...
+        # expected_sr_count = self.get_expected_count(args, int_bins)
+        expected_sr_count = 0
         thresholds = np.array([0, 0.5, 0.8, 0.9, 0.95, 0.99])
         expected = (1 - thresholds) * expected_sr_count
         return x, expected, str(args['doping'])
@@ -158,13 +160,24 @@ def get_counts():
     # The real hunt
     # name = 'OT_bump_two_hundred'
     # dd = 'curtains_bump'
-    name = 'OT_bump_centered'
-    dd = 'curtains_bump_cfinal'
+    # # A very nice hunt
+    # name = 'OT_bump_centered'
+    # dd = 'curtains_bump_cfinal'
+    # filename = '200'
+    # bin_width = 200
+
+    # With bins of size 100
+    name = 'OT_bump_100'
+    dd = 'curtains_bump_100_cfinal'
+    filename = '100'
+    bin_width = 100
+
+    # # A cathode hunt
     # name = 'CATHODE_bump_scan_two_hundred'
     # dd = 'cathode_bump'
+
     directories = [f'{dd}_{name}_{i}' for i in range(0, 35)]
 
-    bin_width = 200
     # thresholds = [0, 0.5, 0.8, 0.9, 0.95, 0.99]
     thresholds = [0, 0.5, 0.8, 0.9, 0.95, 0.99, 0.999, 0.9999]
     n_thresh_to_take = 7
@@ -178,9 +191,8 @@ def get_counts():
         # return x_all / 100 % 2 == 1
         return [True] * mass.shape[0]
 
-    reload = 0
+    reload = 1
     cathode_classifier = 1
-    filename = '200'
 
     if reload:
         # Gather saved quantities
@@ -279,6 +291,7 @@ def get_counts():
     spc = 0.1
     mxv = spc * len(thresholds)
     clist = plt.rcParams['axes.prop_cycle'].by_key()['color']
+    mass = get_mass_spectrum.ad['mjj']
 
     for j in range(n_dopings):
         label = dopings[j]
@@ -294,17 +307,25 @@ def get_counts():
                 x = xy[mx, 0]
                 y = xy[mx, i + 1]
                 expected = xy[mx, i + 1 + len(thresholds)]
-                make_steps(ax, x, y, bin_width, color='r', label='Measured')
+                # make_steps(ax, x, y, bin_width, color='r', label='Measured')
+                ax.plot(x, y, marker='o', color='r', label='Measured', linestyle="None", markersize=3)
                 make_steps(ax, x, expected, bin_width, color='b', label='Expected', drop_bars=False)
                 if i == 0:
+                    signal_bins = np.sort(np.unique(np.concatenate((x - bin_width / 2, x + bin_width / 2))))
+                    ax.hist(mass.iloc[:int(label)], bins=signal_bins, alpha=0.2, color='y', label='Anomalies')
                     handles, labels = ax.get_legend_handles_labels()
-                    fig.legend(handles, labels, loc='upper left', bbox_to_anchor=(0.9, 0.89), frameon=False)
+                    # fig.legend(handles, labels, loc='upper left', bbox_to_anchor=(0.9, 0.89), frameon=False)
+                    ax.legend(handles, labels, frameon=False, loc='upper right')
                 counts_error = np.sqrt(y)
-                add_errors(ax, x, y, bin_width, counts_error, color='r')
-                error_in_expected = np.sqrt(expected[0]) * (1 - np.array(thresholds))[:n_thresh_to_take]
-                # error_in_expected = np.sqrt(expected)
+                # x_error = bin_width / 2
+                # ax.errorbar(x, y, yerr=counts_error, xerr=x_error, color='r', linestyle="None")
+                ax.errorbar(x, y, yerr=counts_error, color='r', linestyle="None")
+                # add_errors(ax, x, y, bin_width, counts_error, color='r')
+                # ax.errorbar(x, y, yerr=counts_error, color='r', linestyle="None")
+                if i == 0:
+                    top_line = np.sqrt(expected)
+                error_in_expected = top_line * (1 - thresholds[i])
                 add_errors(ax, x, expected, bin_width, error_in_expected, color='b')
-
                 axes1.plot(x, y, 'o', label=f'Cut = {thresholds[i]}', markersize=3)
 
                 # rt = np.array(rt)
@@ -325,6 +346,7 @@ def get_counts():
             ax.set_xlabel('Mean SR mass')
             ax.set_title(f'{label} Anomalies')
             ax.set_yscale('log')
+            ax.set_ylim([1, 100000])
 
         axes1.set_ylabel('Counts / Expected Counts')
         axes1.set_xlabel('Mean SR mass')
@@ -342,11 +364,6 @@ def get_counts():
         # axes2[j, 3].set_yscale('log')
         # axes2[j, 4].set_yscale('log')
 
-    signal_bins = np.sort(np.unique(np.concatenate((x - bin_width / 2, x + bin_width / 2))))
-    mass = get_mass_spectrum.ad['mjj']
-    for j in range(n_dopings):
-        label = dopings[j]
-        axes[j].hist(mass.iloc[:int(label)], bins=signal_bins, alpha=0.2, color='y')
     fig.savefig(f'{sv_dir}/images/counts_collated.png', bbox_inches='tight')
     fig.clf()
 
@@ -486,13 +503,22 @@ def figs_six_and_seven():
     #               ['cathode_match_CATHODE_match_0']
     #               # ['cathode_match_CATHODE_match_0'] 0 = all sideband data 100 epochs, 4 = restircted but 100 epochs
     # names = ['Curtains'] * 8 + ['Cathode'] * 8 + ['Idealised'] + ['Supervised'] + ['CATHODE_full']
+    # This is Curtains and Cathode as you will actually use them
     # This has CATHODE trained only for 100 epochs and taking the last model, not the best
     directories = [f'ot_fig7_OT_fig7_{i}' for i in range(0, 8)] + \
                   [f'cathode_match_CATHODE_match_4'] + \
                   ['idealised_class_cath_idealised_class_cath_0'] + \
-                  ['super_class_cath_super_class_cath_0'] + \
-                  ['cathode_match_CATHODE_match_0']
-    names = ['Curtains'] * 8 + ['Cathode'] + ['Idealised'] + ['Supervised'] + ['CATHODE_full']
+                  ['super_class_cath_super_class_cath_0']
+    names = ['Curtains'] * 8 + ['Cathode'] + ['Idealised'] + ['Supervised']
+    filename = 'fig_6_7'
+    # This is Curtains and cathode trained on the full sidebands
+    directories = ['curtains_match_CURTAINS_match_0'] + \
+                  [f'cathode_match_CATHODE_match_0'] + \
+                  ['idealised_class_cath_idealised_class_cath_0'] + \
+                  ['super_class_cath_super_class_cath_0']
+    names = ['Curtains'] + ['Cathode'] + ['Idealised'] + ['Supervised']
+    filename = 'fig_6_7_alt'
+
     # directories = ['classifier_local_local']
     # names = ['Cathode']
     reload = 1
@@ -519,7 +545,7 @@ def figs_six_and_seven():
             with open(f'{sv_dir}/images/fig_6_7.pkl', 'wb') as f:
                 pickle.dump(vals, f)
     else:
-        with open(f'{sv_dir}/images/fig_6_7.pkl', 'rb') as f:
+        with open(f'{sv_dir}/images/{filename}.pkl', 'rb') as f:
             vals = pickle.load(f)
 
     # Plot fig 6

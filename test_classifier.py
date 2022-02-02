@@ -60,7 +60,7 @@ def parse_args():
     parser.add_argument('--layer_norm', type=int, default=0, help='Apply layer norm?')
     parser.add_argument('--use_scheduler', type=int, default=1, help='Use cosine annealing of the learning rate?')
     parser.add_argument('--run_cathode_classifier', type=int, default=1, help='Use cathode classifier?')
-    parser.add_argument('--n_run', type=int, default=1, help='Number of classifiers to train.')
+    parser.add_argument('--n_run', type=int, default=2, help='Number of classifiers to train.')
 
     # Classifier settings
     parser.add_argument('--false_signal', type=int, default=0, help='Add random noise samples to the signal set?')

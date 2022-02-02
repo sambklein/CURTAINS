@@ -18,6 +18,7 @@ import torch.nn.functional as F
 import yaml
 
 from data.physics_datasets import ClassifierData
+from utils.io import on_cluster
 
 
 class Classifier(nn.Module):
@@ -270,9 +271,11 @@ def preds_from_models(model_path_list, X_test, save_dir, predict_on_samples=Fals
     return preds_matrix.squeeze()
 
 
-def counts_from_models(model_path_list, X_val, save_dir, anomaly_scores, thresholds=None):
+def counts_from_models(model_path_list, X_val, save_dir, anomaly_scores, thresholds=None, masses=None):
     if thresholds is None:
         thresholds = [0, 0.5, 0.8, 0.9, 0.95, 0.99, 0.999, 0.9999]
+    if masses is None:
+        masses = X_val[:, 0]
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda:0" if use_cuda else "cpu")
 
@@ -290,6 +293,7 @@ def counts_from_models(model_path_list, X_val, save_dir, anomaly_scores, thresho
     y_scores = np.mean(preds_matrix, axis=1, keepdims=True).squeeze()
 
     count = []
+    count_masses = []
     expected_count = []
     pass_rates = []
     mx = X_val[:, -2] == 0
@@ -299,17 +303,23 @@ def counts_from_models(model_path_list, X_val, save_dir, anomaly_scores, thresho
     for i, at in enumerate(thresholds):
         threshold = np.quantile(y_scores[:, mx], at, axis=1).reshape(-1, 1)
         expected_count += [np.sum(y_scores[:, mx] >= threshold, axis=1)]
-        count += [np.sum(y_scores[:, X_val[:, -2] == 1] >= threshold, axis=1)]
+        sr_mx = X_val[:, -2] == 1
+        count += [np.sum(y_scores[:, sr_mx] >= threshold, axis=1)]
+        y_mean = y_scores.mean(0)
+        mean_threshold = np.quantile(y_mean[mx], at)
+        count_masses += [masses[sr_mx][y_mean[sr_mx] >= mean_threshold]]
 
         signal_pass_rate = np.sum(anomaly_scores >= threshold, axis=1) / anomaly_scores.shape[1]
         # TODO this is a poor proxy for the BG rejection rate
         bg_pass_rate = np.sum(y_scores[:, mx] >= threshold, axis=1) / y_scores.shape[1]
         pass_rates += [np.array((signal_pass_rate, bg_pass_rate))]
     counts = np.array(count)
+    count_masses = np.array(count_masses)
     expected_counts = np.array(expected_count)
     pass_rates = np.array(pass_rates)
     print(f'Expected {expected_counts}.\n Measured {counts}.')
-    counts = {'counts': counts, 'expected_counts': expected_counts, 'pass_rates': pass_rates}
+    counts = {'counts': counts, 'count_masses': count_masses, 'expected_counts': expected_counts,
+              'pass_rates': pass_rates}
     with open(f'{save_dir}/counts_cathode.pkl', 'wb') as f:
         pickle.dump(counts, f)
     return preds_matrix
@@ -561,6 +571,10 @@ def get_auc(bg_template, sr_samples, sv_dir, name, anomaly_data=None, bg_truth_l
     batch_size = 128
     nepochs = 100
 
+    if not on_cluster():
+        batch_size = 1000
+        nepochs = 10
+
     def prepare_data(data):
         data = data.detach().cpu()
         if data_unscaler is not None:
@@ -630,7 +644,13 @@ def get_auc(bg_template, sr_samples, sv_dir, name, anomaly_data=None, bg_truth_l
 
     model_paths = minimum_validation_loss_models(model_dir, n_epochs=10)
     preds_matrix = preds_from_models(model_paths, X_test, model_dir)
-    _ = counts_from_models(model_paths, X_val, model_dir, preds_matrix, thresholds=thresholds)
+    if normalize: 
+        und = torch.tensor(X_val[:, :-2], dtype=torch.float32).roll(-1, 1)
+        und[:, -1] *= 1000
+        masses = stack.unpreprocess(und)[:, 0]
+    else:
+        masses = X_val[:, 0] * 1000
+    _ = counts_from_models(model_paths, X_val, model_dir, preds_matrix, thresholds=thresholds, masses=masses)
 
     match = re.match(r"([a-z]+)([0-9]+)", name, re.I)
     if match:
