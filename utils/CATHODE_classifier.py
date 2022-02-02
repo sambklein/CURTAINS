@@ -644,7 +644,7 @@ def get_auc(bg_template, sr_samples, sv_dir, name, anomaly_data=None, bg_truth_l
 
     model_paths = minimum_validation_loss_models(model_dir, n_epochs=10)
     preds_matrix = preds_from_models(model_paths, X_test, model_dir)
-    if normalize: 
+    if normalize:
         und = torch.tensor(X_val[:, :-2], dtype=torch.float32).roll(-1, 1)
         und[:, -1] *= 1000
         masses = stack.unpreprocess(und)[:, 0]
