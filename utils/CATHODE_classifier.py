@@ -571,7 +571,7 @@ def get_auc(bg_template, sr_samples, sv_dir, name, anomaly_data=None, bg_truth_l
     nepochs = 100
 
     if not on_cluster():
-        batch_size = 1000
+        batch_size = 128
         nepochs = 50
 
     def prepare_data(data):
