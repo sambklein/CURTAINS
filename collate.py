@@ -161,17 +161,17 @@ def get_counts():
     # The real hunt
     # name = 'OT_bump_two_hundred'
     # dd = 'curtains_bump'
-    # # A very nice hunt with bins of size 200
-    # name = 'OT_bump_centered'
-    # dd = 'curtains_bump_cfinal'
-    # filename = '200'
-    # bin_width = 200
+    # A very nice hunt with bins of size 200
+    name = 'OT_bump_centered'
+    dd = 'curtains_bump_cfinal'
+    filename = '200'
+    bin_width = 200
 
-    # With bins of size 100
-    name = 'OT_bump_100'
-    dd = 'curtains_bump_100_cfinal'
-    filename = '100'
-    bin_width = 100
+    # # With bins of size 100
+    # name = 'OT_bump_100'
+    # dd = 'curtains_bump_100_cfinal'
+    # filename = '100'
+    # bin_width = 100
 
     # # A cathode hunt
     # name = 'CATHODE_bump_scan_two_hundred'
@@ -181,7 +181,7 @@ def get_counts():
 
     # thresholds = [0, 0.5, 0.8, 0.9, 0.95, 0.99]
     thresholds = [0, 0.5, 0.8, 0.9, 0.95, 0.99, 0.999, 0.9999]
-    n_thresh_to_take = 7
+    n_thresh_to_take = 8
     nfolds = 5
 
     def get_mask(mass):
@@ -192,7 +192,7 @@ def get_counts():
         # return x_all / 100 % 2 == 1
         return [True] * mass.shape[0]
 
-    reload = 0
+    reload = 1
     cathode_classifier = 1
 
     if reload:
@@ -241,7 +241,9 @@ def get_counts():
             if passed:
                 args = get_args(f'{sv_dir}/images/{directory}')
                 x, expected, label = get_property(args)
-                # if (x == 3150) and (label == '500') and (name == 'OT_bump_100'):
+                # if (x == 3500) and (label == '1000') and (name == 'OT_bump_100'):
+                if (x == 3500) and (label == '1000'):
+                    print(directory)
                 rt = np.vstack((signal_pass_rate.mean(1), bg_pass_rate.mean(1)))
                 vals[label] += [np.hstack((x, *counts, error))]
                 rates[label] += [rt]
@@ -342,11 +344,15 @@ def get_counts():
                 rt = np.array(rt)
                 bins, bg_counts, ad_counts = get_mass_spectrum(int(label))
                 clr = clist[i]
+                fact = int(label) / ad_counts.sum()
+                ad_counts = fact * ad_counts
                 mx = np.digitize(xy[:, 0], bins=bins) - 1
-                total_signal = (rt[:, 0, i] * ad_counts[mx]).sum()
-                total_bg = (rt[:, 1, i] * bg_counts[mx]).sum()
+                total_signal = (rt[:, 0, i] * ad_counts[mx])
+                # total_bg = (rt[:, 1, i] * bg_counts[mx]).sum()
+                total_bg = (bg_counts[mx] * (1 - thresholds[i]))
                 significance[i] = np.sqrt(
-                    2 * ((total_signal + total_bg) * np.log(1 + total_signal / total_bg) - total_signal))
+                    2 * ((total_signal + total_bg) * np.log(1 + total_signal / total_bg) - total_signal).sum())
+                a = 0
                 # axes2[j, 0].bar(bins[mx], rt[:, 0, i] * ad_counts[mx], width=bin_width, color='None', edgecolor='r')
                 # axes2[j, 1].bar(bins[mx], rt[:, 1, i] * bg_counts[mx], width=bin_width, color='None', edgecolor='b')
                 # axes2[j, 2].bar(bins[mx], rt[:, 0, i] * ad_counts[mx], width=bin_width, color='None', edgecolor='r')
@@ -529,13 +535,13 @@ def figs_six_and_seven():
                   ['super_class_cath_super_class_cath_0']
     names = ['Curtains'] * 8 + ['Cathode'] + ['Idealised'] + ['Supervised']
     filename = 'fig_6_7'
-    # This is Curtains and cathode trained on the full sidebands
-    directories = ['curtains_match_CURTAINS_match_0'] + \
-                  [f'cathode_match_CATHODE_match_0'] + \
-                  ['idealised_class_cath_idealised_class_cath_0'] + \
-                  ['super_class_cath_super_class_cath_0']
-    names = ['Curtains'] + ['Cathode'] + ['Idealised'] + ['Supervised']
-    filename = 'fig_6_7_alt'
+    # # This is Curtains and cathode trained on the full sidebands
+    # directories = ['curtains_match_CURTAINS_match_0'] + \
+    #               [f'cathode_match_CATHODE_match_0'] + \
+    #               ['idealised_class_cath_idealised_class_cath_0'] + \
+    #               ['super_class_cath_super_class_cath_0']
+    # names = ['Curtains'] + ['Cathode'] + ['Idealised'] + ['Supervised']
+    # filename = 'fig_6_7_alt'
 
     # directories = ['classifier_local_local']
     # names = ['Cathode']
@@ -683,7 +689,7 @@ def figs_six_and_seven():
 
 
 if __name__ == '__main__':
-    get_counts()
-    # figs_six_and_seven()
+    # get_counts()
+    figs_six_and_seven()
     # get_sics()
     # get_max_sic()
