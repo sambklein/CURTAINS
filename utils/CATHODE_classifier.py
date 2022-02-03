@@ -314,7 +314,6 @@ def counts_from_models(model_path_list, X_val, save_dir, anomaly_scores, thresho
         bg_pass_rate = np.sum(y_scores[:, mx] >= threshold, axis=1) / y_scores.shape[1]
         pass_rates += [np.array((signal_pass_rate, bg_pass_rate))]
     counts = np.array(count)
-    count_masses = np.array(count_masses)
     expected_counts = np.array(expected_count)
     pass_rates = np.array(pass_rates)
     print(f'Expected {expected_counts}.\n Measured {counts}.')
@@ -579,8 +578,6 @@ def get_auc(bg_template, sr_samples, sv_dir, name, anomaly_data=None, bg_truth_l
         data = data.detach().cpu()
         if data_unscaler is not None:
             data = data_unscaler(data)
-        if mass_incl:
-            data = data[:, :-1]
         return data
 
     bg_template = prepare_data(bg_template)
@@ -590,6 +587,11 @@ def get_auc(bg_template, sr_samples, sv_dir, name, anomaly_data=None, bg_truth_l
         anomaly_data = prepare_data(anomaly_data)
 
     stack = torch.cat((bg_template, sr_samples, anomaly_data), 0)
+    if mass_incl:
+        masses = stack[:, -1].numpy()
+    else:
+        raise Exception('Must pass the mass at the moment.')
+
     if normalize:
         # TODO: make this a proper class that can do things just based on the training data to get the scaling info
         stack = ClassifierData(stack, 1)
@@ -621,7 +623,9 @@ def get_auc(bg_template, sr_samples, sv_dir, name, anomaly_data=None, bg_truth_l
     X_train = X_train.numpy()
     y_train = y_train.numpy()
 
-    X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.33)
+    indicies = np.arange(0, len(X_train))
+    X_train, X_val, y_train, y_val, train_index, val_index = train_test_split(X_train, y_train, indicies,
+                                                                               test_size=0.33)
 
     model_dir = os.path.join(sv_dir, f'models_{name}')
     os.makedirs(model_dir, exist_ok=True)
@@ -644,13 +648,7 @@ def get_auc(bg_template, sr_samples, sv_dir, name, anomaly_data=None, bg_truth_l
 
     model_paths = minimum_validation_loss_models(model_dir, n_epochs=10)
     preds_matrix = preds_from_models(model_paths, X_test, model_dir)
-    if normalize:
-        und = torch.tensor(X_val[:, :-2], dtype=torch.float32).roll(-1, 1)
-        und[:, -1] *= 1000
-        masses = stack.unpreprocess(und)[:, 0]
-    else:
-        masses = X_val[:, 0] * 1000
-    _ = counts_from_models(model_paths, X_val, model_dir, preds_matrix, thresholds=thresholds, masses=masses)
+    _ = counts_from_models(model_paths, X_val, model_dir, preds_matrix, thresholds=thresholds, masses=masses[val_index])
 
     match = re.match(r"([a-z]+)([0-9]+)", name, re.I)
     if match:

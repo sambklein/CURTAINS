@@ -8,6 +8,7 @@ from collections import defaultdict
 from copy import deepcopy
 
 import matplotlib.pyplot as plt
+import pandas as pd
 from matplotlib.pyplot import cm
 import numpy as np
 from scipy.interpolate import interp1d
@@ -160,7 +161,7 @@ def get_counts():
     # The real hunt
     # name = 'OT_bump_two_hundred'
     # dd = 'curtains_bump'
-    # # A very nice hunt
+    # # A very nice hunt with bins of size 200
     # name = 'OT_bump_centered'
     # dd = 'curtains_bump_cfinal'
     # filename = '200'
@@ -191,7 +192,7 @@ def get_counts():
         # return x_all / 100 % 2 == 1
         return [True] * mass.shape[0]
 
-    reload = 1
+    reload = 0
     cathode_classifier = 1
 
     if reload:
@@ -240,7 +241,8 @@ def get_counts():
             if passed:
                 args = get_args(f'{sv_dir}/images/{directory}')
                 x, expected, label = get_property(args)
-                rt = np.vstack((signal_pass_rate, bg_pass_rate))
+                # if (x == 3150) and (label == '500') and (name == 'OT_bump_100'):
+                rt = np.vstack((signal_pass_rate.mean(1), bg_pass_rate.mean(1)))
                 vals[label] += [np.hstack((x, *counts, error))]
                 rates[label] += [rt]
 
@@ -253,6 +255,11 @@ def get_counts():
             rates = pickle.load(f)
         with open(f'{sv_dir}/images/vals_info_{filename}.pkl', 'rb') as f:
             vals = pickle.load(f)
+
+    if len(rates['8000'][0]) == 16:
+        for key in rates.keys():
+            for i, arr in enumerate(rates[key]):
+                rates[key][i] = np.concatenate((arr[:8].mean(1)[np.newaxis, :], arr[8:].mean(1)[np.newaxis, :]), 0)
 
     # Start plotting different quantities
     dopings = sorted(set(vals.keys()))
@@ -275,16 +282,15 @@ def get_counts():
 
         def __call__(self, num):
             """Get the counts of BG events and Anomaly events in each bin."""
-            set_of_bins = [np.arange(3100, 4700, 200), np.arange(3200, 4800, 200)]
-            bins = np.arange(3200, 4600, 100)
-            n_bins = set_of_bins[0].shape[0] + set_of_bins[1].shape[0] - 2
-            dtype = np.float32
-            bg_counts = np.empty((n_bins,), dtype=dtype)
-            ad_counts = np.empty((n_bins,), dtype=dtype)
+            # TODO: what the fuck
+            if name == 'OT_bump_centered':
+                bins = np.unique(np.hstack([[i + 400, i + 600] for i in range(2600, 4000, 200)]))
+            else:
+                bins = np.unique(np.hstack([[i + 400, i + 500] for i in range(2600, 3800, 100)]))
+
             ad = self.ad.sample(frac=1).iloc[:num]
-            for i, bin in enumerate(set_of_bins):
-                bg_counts[i::2] = np.histogram(self.sm['mjj'], bins=bin)[0]
-                ad_counts[i::2] = np.histogram(ad['mjj'], bins=bin)[0]
+            bg_counts = np.histogram(self.sm['mjj'], bins=bins)[0]
+            ad_counts = np.histogram(ad['mjj'], bins=bins)[0]
             return bins, bg_counts, ad_counts
 
     get_mass_spectrum = MassSpectrum()
@@ -293,10 +299,13 @@ def get_counts():
     clist = plt.rcParams['axes.prop_cycle'].by_key()['color']
     mass = get_mass_spectrum.ad['mjj']
 
+    signicance_dict = {}
+
     for j in range(n_dopings):
         label = dopings[j]
         lst = vals[label]
         rt = rates[label]
+        significance = np.zeros(n_thresh_to_take)
         for i in range(n_thresh_to_take):
             # ax = axes[j, i]
             ax = axes[j]
@@ -306,6 +315,8 @@ def get_counts():
                 mx = get_mask(x_all)
                 x = xy[mx, 0]
                 y = xy[mx, i + 1]
+                if label == '333':
+                    a = 0
                 expected = xy[mx, i + 1 + len(thresholds)]
                 # make_steps(ax, x, y, bin_width, color='r', label='Measured')
                 ax.plot(x, y, marker='o', color='r', label='Measured', linestyle="None", markersize=3)
@@ -328,10 +339,14 @@ def get_counts():
                 add_errors(ax, x, expected, bin_width, error_in_expected, color='b')
                 axes1.plot(x, y, 'o', label=f'Cut = {thresholds[i]}', markersize=3)
 
-                # rt = np.array(rt)
-                # bins, bg_counts, ad_counts = get_mass_spectrum(int(label))
-                # clr = clist[i]
-                # mx = np.digitize(xy[:, 0], bins=bins) - 1
+                rt = np.array(rt)
+                bins, bg_counts, ad_counts = get_mass_spectrum(int(label))
+                clr = clist[i]
+                mx = np.digitize(xy[:, 0], bins=bins) - 1
+                total_signal = (rt[:, 0, i] * ad_counts[mx]).sum()
+                total_bg = (rt[:, 1, i] * bg_counts[mx]).sum()
+                significance[i] = np.sqrt(
+                    2 * ((total_signal + total_bg) * np.log(1 + total_signal / total_bg) - total_signal))
                 # axes2[j, 0].bar(bins[mx], rt[:, 0, i] * ad_counts[mx], width=bin_width, color='None', edgecolor='r')
                 # axes2[j, 1].bar(bins[mx], rt[:, 1, i] * bg_counts[mx], width=bin_width, color='None', edgecolor='b')
                 # axes2[j, 2].bar(bins[mx], rt[:, 0, i] * ad_counts[mx], width=bin_width, color='None', edgecolor='r')
@@ -342,14 +357,16 @@ def get_counts():
                 #                 width=100, label=f'Cut = {thresholds[i]}', color='None', edgecolor=clr)
 
             if i == 0:
-                ax.set_ylabel('Counts / Expected Counts')
-            ax.set_xlabel('Mean SR mass')
-            ax.set_title(f'{label} Anomalies')
+                ax.set_ylabel('Counts')
+            ax.set_xlabel(r'$m_{JJ}$ [GeV]')
+            # plt.rcParams['axes.titlepad'] = -14
+            ax.set_title(f'{label} injected signal', y=1.0, pad=-14)
             ax.set_yscale('log')
             ax.set_ylim([1, 100000])
 
-        axes1.set_ylabel('Counts / Expected Counts')
-        axes1.set_xlabel('Mean SR mass')
+        signicance_dict[label] = significance
+        axes1.set_ylabel('Counts')
+        axes1.set_xlabel(r'$m_{JJ}$ [GeV]')
         axes1.set_title(f'{label}')
         # axes1.set_yscale('log')
 
@@ -364,6 +381,7 @@ def get_counts():
         # axes2[j, 3].set_yscale('log')
         # axes2[j, 4].set_yscale('log')
 
+    pd.DataFrame.from_dict(signicance_dict).to_csv(f'{sv_dir}/images/rates_dict_{name}.csv')
     fig.savefig(f'{sv_dir}/images/counts_collated.png', bbox_inches='tight')
     fig.clf()
 
