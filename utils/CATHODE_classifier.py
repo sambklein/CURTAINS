@@ -625,7 +625,7 @@ def get_auc(bg_template, sr_samples, sv_dir, name, anomaly_data=None, bg_truth_l
 
     indicies = np.arange(0, len(X_train))
     X_train, X_val, y_train, y_val, train_index, val_index = train_test_split(X_train, y_train, indicies,
-                                                                               test_size=0.33)
+                                                                              test_size=0.33)
 
     model_dir = os.path.join(sv_dir, f'models_{name}')
     os.makedirs(model_dir, exist_ok=True)
@@ -648,6 +648,7 @@ def get_auc(bg_template, sr_samples, sv_dir, name, anomaly_data=None, bg_truth_l
 
     model_paths = minimum_validation_loss_models(model_dir, n_epochs=10)
     preds_matrix = preds_from_models(model_paths, X_test, model_dir)
+    # TODO: need an eval set.
     _ = counts_from_models(model_paths, X_val, model_dir, preds_matrix, thresholds=thresholds, masses=masses[val_index])
 
     match = re.match(r"([a-z]+)([0-9]+)", name, re.I)

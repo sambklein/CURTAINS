@@ -397,7 +397,7 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
     losses = np.concatenate(store_losses)[1::2]
     eval_epoch = np.argsort(losses.mean(0))[:n_av]
     # eval_epoch = [nepochs - 1, nepochs - 2]
-    eval_epoch = [nepochs - 1]
+    # eval_epoch = [nepochs - 1]
     print(f'Best epoch: {eval_epoch}. \nLoading and evaluating now.')
     models_to_load = [os.path.join(sv_dir, f'classifier_{fold}', f'{e}') for e in eval_epoch]
     split_inds = kfold.split(X, y)

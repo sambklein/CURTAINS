@@ -14,7 +14,7 @@ import numpy as np
 from scipy.interpolate import interp1d
 
 from data.data_loaders import get_data, load_curtains_pd
-from utils.io import get_top_dir
+from utils.io import get_top_dir, on_cluster
 
 
 def parse_args():
@@ -161,27 +161,38 @@ def get_counts():
     # The real hunt
     # name = 'OT_bump_two_hundred'
     # dd = 'curtains_bump'
-    # A very nice hunt with bins of size 200
-    name = 'OT_bump_centered'
-    dd = 'curtains_bump_cfinal'
-    filename = '200'
+
+    # # A very nice hunt with bins of size 200
+    # name = 'OT_bump_centered'
+    # dd = 'curtains_bump_cfinal'
+    # filename = '200'
+    # bin_width = 200
+    # n_runs = 40
+
+    # An idealised hunt
+    name = 'idealised_hunt_1000'
+    dd = 'idealised_hunt_1000'
+    filename = 'idealised_hunt_1000'
     bin_width = 200
+    n_runs = 8
 
     # # With bins of size 100
     # name = 'OT_bump_100'
     # dd = 'curtains_bump_100_cfinal'
     # filename = '100'
     # bin_width = 100
+    # n_runs = 64
 
     # # A cathode hunt
     # name = 'CATHODE_bump_scan_two_hundred'
     # dd = 'cathode_bump'
+    # n_runs = 40
 
-    directories = [f'{dd}_{name}_{i}' for i in range(0, 35)]
+    directories = [f'{dd}_{name}_{i}' for i in range(0, n_runs)]
 
     # thresholds = [0, 0.5, 0.8, 0.9, 0.95, 0.99]
     thresholds = [0, 0.5, 0.8, 0.9, 0.95, 0.99, 0.999, 0.9999]
-    n_thresh_to_take = 8
+    n_thresh_to_take = 7
     nfolds = 5
 
     def get_mask(mass):
@@ -193,7 +204,7 @@ def get_counts():
         return [True] * mass.shape[0]
 
     reload = 1
-    cathode_classifier = 1
+    cathode_classifier = 0
 
     if reload:
         # Gather saved quantities
@@ -204,12 +215,13 @@ def get_counts():
             try:
                 if cathode_classifier:
                     with open(
-                            f'{sv_dir}/images/{directory}/models_{name}_{i}Anomalies_no_eps/counts_cathode.pkl',
+                            f'{sv_dir}/images/{directory}/models_{name}_{i}Anomalies/counts_cathode.pkl',
                             'rb') as f:
                         info_dict = pickle.load(f)
                     true_counts = info_dict['counts']
                     if true_counts.ndim > 1:
-                        true_counts = true_counts.mean(1)
+                        # true_counts = true_counts.mean(1)
+                        true_counts = np.median(true_counts, axis=1)
                     # expected_counts = info_dict['expected_counts']
                     # expected_counts = expected_counts / 8
                     expected_counts = true_counts[0] * (1 - np.array(thresholds))
@@ -231,8 +243,11 @@ def get_counts():
                     signal_pass_rate = rate[:, 0]
                     bg_pass_rate = rate[:, 1]
                 else:
-                    signal_pass_rate = rate[:, 0].reshape(nfolds, len(thresholds)).mean(0)
-                    bg_pass_rate = rate[:, 1].reshape(nfolds, len(thresholds)).mean(0)
+                    # TODO sort this out
+                    # signal_pass_rate = rate[:, 0].reshape(nfolds, len(thresholds)).mean(0)
+                    # bg_pass_rate = rate[:, 1].reshape(nfolds, len(thresholds)).mean(0)
+                    signal_pass_rate = np.zeros((2, 8))
+                    bg_pass_rate = np.zeros((2, 8))
 
                 passed = 1
             except Exception as e:
@@ -242,8 +257,10 @@ def get_counts():
                 args = get_args(f'{sv_dir}/images/{directory}')
                 x, expected, label = get_property(args)
                 # if (x == 3500) and (label == '1000') and (name == 'OT_bump_100'):
-                if (x == 3500) and (label == '1000'):
-                    print(directory)
+                # if (x == 3500) and (label == '1000'):
+                # if (x == 3100) and (label == '1000'):
+                #     print(directory)
+                #     pdb.set_trace()
                 rt = np.vstack((signal_pass_rate.mean(1), bg_pass_rate.mean(1)))
                 vals[label] += [np.hstack((x, *counts, error))]
                 rates[label] += [rt]
@@ -258,10 +275,11 @@ def get_counts():
         with open(f'{sv_dir}/images/vals_info_{filename}.pkl', 'rb') as f:
             vals = pickle.load(f)
 
-    if len(rates['8000'][0]) == 16:
-        for key in rates.keys():
-            for i, arr in enumerate(rates[key]):
-                rates[key][i] = np.concatenate((arr[:8].mean(1)[np.newaxis, :], arr[8:].mean(1)[np.newaxis, :]), 0)
+    if not on_cluster():
+        if len(rates['8000'][0]) == 16:
+            for key in rates.keys():
+                for i, arr in enumerate(rates[key]):
+                    rates[key][i] = np.concatenate((arr[:8].mean(1)[np.newaxis, :], arr[8:].mean(1)[np.newaxis, :]), 0)
 
     # Start plotting different quantities
     dopings = sorted(set(vals.keys()))
@@ -341,18 +359,17 @@ def get_counts():
                 add_errors(ax, x, expected, bin_width, error_in_expected, color='b')
                 axes1.plot(x, y, 'o', label=f'Cut = {thresholds[i]}', markersize=3)
 
-                rt = np.array(rt)
-                bins, bg_counts, ad_counts = get_mass_spectrum(int(label))
-                clr = clist[i]
-                fact = int(label) / ad_counts.sum()
-                ad_counts = fact * ad_counts
-                mx = np.digitize(xy[:, 0], bins=bins) - 1
-                total_signal = (rt[:, 0, i] * ad_counts[mx])
-                # total_bg = (rt[:, 1, i] * bg_counts[mx]).sum()
-                total_bg = (bg_counts[mx] * (1 - thresholds[i]))
-                significance[i] = np.sqrt(
-                    2 * ((total_signal + total_bg) * np.log(1 + total_signal / total_bg) - total_signal).sum())
-                a = 0
+                # rt = np.array(rt)
+                # bins, bg_counts, ad_counts = get_mass_spectrum(int(label))
+                # clr = clist[i]
+                # fact = int(label) / ad_counts.sum()
+                # ad_counts = fact * ad_counts
+                # mx = np.digitize(xy[:, 0], bins=bins) - 1
+                # total_signal = (rt[:, 0, i] * ad_counts[mx])
+                # # total_bg = (rt[:, 1, i] * bg_counts[mx]).sum()
+                # total_bg = (bg_counts[mx] * (1 - thresholds[i]))
+                # significance[i] = np.sqrt(
+                #     2 * ((total_signal + total_bg) * np.log(1 + total_signal / total_bg) - total_signal).sum())
                 # axes2[j, 0].bar(bins[mx], rt[:, 0, i] * ad_counts[mx], width=bin_width, color='None', edgecolor='r')
                 # axes2[j, 1].bar(bins[mx], rt[:, 1, i] * bg_counts[mx], width=bin_width, color='None', edgecolor='b')
                 # axes2[j, 2].bar(bins[mx], rt[:, 0, i] * ad_counts[mx], width=bin_width, color='None', edgecolor='r')
@@ -531,7 +548,7 @@ def figs_six_and_seven():
     # This has CATHODE trained only for 100 epochs and taking the last model, not the best
     directories = [f'ot_fig7_OT_fig7_{i}' for i in range(0, 8)] + \
                   [f'cathode_match_CATHODE_match_4'] + \
-                  ['idealised_class_cath_idealised_class_cath_0'] + \
+                  ['idealised_class_feature_idealised_class_feature_0'] + \
                   ['super_class_cath_super_class_cath_0']
     names = ['Curtains'] * 8 + ['Cathode'] + ['Idealised'] + ['Supervised']
     filename = 'fig_6_7'
@@ -689,7 +706,7 @@ def figs_six_and_seven():
 
 
 if __name__ == '__main__':
-    # get_counts()
-    figs_six_and_seven()
+    get_counts()
+    # figs_six_and_seven()
     # get_sics()
     # get_max_sic()

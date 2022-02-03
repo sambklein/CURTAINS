@@ -202,7 +202,7 @@ def test_classifier():
 
     rates_sr_vs_transformed = {}
     rates_sr_qcd_vs_anomalies = {}
-    auc_info = get_auc(undoped_data, data_to_dope, sv_dir, nm + f'Anomalies',
+    auc_info = get_auc(undoped_data, data_to_dope, sv_dir, nm + f'Anomalies_no_eps',
                        anomaly_data=signal_anomalies.data.to(device),
                        sup_title=f'Idealised anomaly detector.', load=args.load, return_rates=True,
                        false_signal=args.false_signal, batch_size=args.batch_size, nepochs=args.nepochs, lr=args.lr,
