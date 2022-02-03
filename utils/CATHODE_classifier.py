@@ -606,18 +606,30 @@ def get_auc(bg_template, sr_samples, sv_dir, name, anomaly_data=None, bg_truth_l
 
     # First thing you need to do is put the mass first
     X_train = torch.cat((bg_template.roll(1, 1), sr_samples.roll(1, 1)), 0)
+    frac_eval = 0.1
+    n_train = len(X_train)
+    n_eval = int(frac_eval * n_train)
+    shuffle = torch.randperm(n_train)
+    X_train = X_train[shuffle]
     # Treat the BG templates as label zero
-    y_train = torch.cat((torch.zeros(len(bg_template)), torch.ones(len(sr_samples))), 0)
-    X_train = torch.cat((X_train, y_train.view(-1, 1), bg_truth_labels.view(-1, 1)), 1)
+    y = torch.cat((torch.zeros(len(bg_template)), torch.ones(len(sr_samples))), 0)[shuffle]
+    X_train = torch.cat((X_train, y.view(-1, 1), bg_truth_labels.view(-1, 1)), 1)
     X_train[:, 0] /= 1000
+
+    X_eval = X_train[:n_eval]
+    X_train = X_train[n_eval:]
+    y_eval = y[:n_eval]
+    y_train = y[n_eval:]
+    masses_eval = masses[shuffle][:n_eval]
 
     # Append additional signal
     # lbs = torch.ones(len(anomaly_data)).view(-1, 1)
+    # TODO: what happens if you don't include so many anomalies? There will be more than there is data now...
     lbs = torch.ones(len(anomaly_data)).view(-1, 1)
     add_anomalies = torch.cat((anomaly_data.roll(1, 1), lbs, lbs), 1)
-    X_test = torch.cat((X_train[y_train == 0], add_anomalies), 0).numpy()
+    X_test = torch.cat((X_eval[y_eval == 0], add_anomalies), 0).numpy()
     # Making this all ones means that they will all be treated as data, not trying to separate samples from data here...
-    y_test = torch.cat((torch.ones(sum(y_train == 0)).view(-1, 1), lbs)).numpy()[:, 0]
+    y_test = torch.cat((torch.ones(sum(y_eval == 0)).view(-1, 1), lbs)).numpy()[:, 0]
     X_test[:, -2] = y_test
 
     X_train = X_train.numpy()
@@ -648,8 +660,8 @@ def get_auc(bg_template, sr_samples, sv_dir, name, anomaly_data=None, bg_truth_l
 
     model_paths = minimum_validation_loss_models(model_dir, n_epochs=10)
     preds_matrix = preds_from_models(model_paths, X_test, model_dir)
-    # TODO: need an eval set.
-    _ = counts_from_models(model_paths, X_val, model_dir, preds_matrix, thresholds=thresholds, masses=masses[val_index])
+    _ = counts_from_models(model_paths, X_eval, model_dir, preds_matrix, thresholds=thresholds,
+                           masses=masses_eval)
 
     match = re.match(r"([a-z]+)([0-9]+)", name, re.I)
     if match:

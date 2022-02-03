@@ -300,11 +300,11 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
         thresholds = [0, 0.5, 0.8, 0.9, 0.95, 0.99, 0.999, 0.9999]
 
     tpr_c, fpr_c = None, None
-    # if (anomaly_data is not None) and run_cathode_classifier:
-    #     tpr_c, fpr_c = CATHODE_classifier.get_auc(bg_template, sr_samples, directory, name, anomaly_data=anomaly_data,
-    #                                               bg_truth_labels=bg_truth_labels, mass_incl=mass_incl, load=load,
-    #                                               normalize=normalize, batch_size=batch_size, nepochs=nepochs,
-    #                                               thresholds=thresholds, data_unscaler=data_unscaler, n_run=n_run)
+    if (anomaly_data is not None) and run_cathode_classifier:
+        tpr_c, fpr_c = CATHODE_classifier.get_auc(bg_template, sr_samples, directory, name, anomaly_data=anomaly_data,
+                                                  bg_truth_labels=bg_truth_labels, mass_incl=mass_incl, load=load,
+                                                  normalize=normalize, batch_size=batch_size, nepochs=nepochs,
+                                                  thresholds=thresholds, data_unscaler=data_unscaler, n_run=n_run)
 
     def prepare_data(data):
         data = data.detach().cpu()
