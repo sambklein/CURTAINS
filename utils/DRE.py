@@ -39,7 +39,7 @@ class SupervisedDataClass(Dataset):
         self.normed = False
         self.base_data = data
         self.base_labels = labels
-        self.weights = torch.ones_like(self.targets) 
+        self.weights = torch.ones_like(self.targets)
         self.update_weights = False
         if noise_generator is not None:
             self.update_data()
@@ -75,6 +75,8 @@ class SupervisedDataClass(Dataset):
                 self.normalize()
             if self.update_weights:
                 self.weights = class_weight.compute_sample_weight('balanced', y=self.targets.reshape(-1)).reshape(-1, 1)
+            else:
+                self.weights = torch.ones_like(self.targets)
 
     def _normalize(self, data_in):
         # return (data_in - self.min_vals) / (self.max_vals - self.min_vals)
@@ -252,14 +254,22 @@ def dope_data(truth, anomaly_data, beta):
     return anomaly_data, truth
 
 
-def get_datasets(train_index, test_index, false_signal, X, y, beta_add_noise, use_weights, bg_truth_labels):
-    X_train = X[train_index]
-    y_train = y[train_index]
-    X_val = X[test_index]
-    y_val = y[test_index]
+def get_datasets(train_index, valid_index, eval_index, false_signal, X, y, beta_add_noise, use_weights,
+                 bg_truth_labels):
+    def index_data(index):
+        return X[index], y[index]
+
+    X_train, y_train = index_data(train_index)
+    X_val, y_val = index_data(valid_index)
+    X_eval, y_eval = index_data(eval_index)
+
     # These will only be used at evaluation
     if bg_truth_labels is not None:
-        bg_truth_labels = bg_truth_labels[test_index]
+        bg_truth_val = bg_truth_labels[valid_index]
+        bg_truth_eval = bg_truth_labels[eval_index]
+    else:
+        bg_truth_val = None
+        bg_truth_eval = None
 
     if false_signal > 0:
         # Append a dummy noise sample to the
@@ -283,9 +293,10 @@ def get_datasets(train_index, test_index, false_signal, X, y, beta_add_noise, us
     weights = 'balance' if use_weights else None
     train_data = SupervisedDataClass(X_train, y_train, weights=weights, noise_generator=add_noise)
     valid_data = SupervisedDataClass(X_val, y_val, weights=weights, noise_generator=add_noise,
-                                     bg_labels=bg_truth_labels)
+                                     bg_labels=bg_truth_val)
+    eval_data = SupervisedDataClass(X_eval, y_eval, weights=weights, noise_generator=None, bg_labels=bg_truth_eval)
 
-    return train_data, valid_data
+    return train_data, valid_data, eval_data
 
 
 def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_truth_labels=None, mass_incl=True,
@@ -329,18 +340,60 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
     X, y = torch.cat((bg_template, sr_samples), 0).cpu().numpy(), torch.cat(
         (torch.zeros(len(bg_template)), torch.ones(len(sr_samples))), 0).view(-1, 1).cpu().numpy()
 
+    # inds_shuffle = np.random.permutation(np.arange(len(X)))
+    # X = X[inds_shuffle]
+    # y = y[inds_shuffle]
+    # bg_truth_labels = bg_truth_labels[inds_shuffle]
+    # n_test = int(0.2 * len(X))
+    # X_test = X[:n_test]
+    # X = X[n_test:]
+    # y_test = y[:n_test]
+    # y = y[n_test:]
+    # bg_truth_labels_test = bg_truth_labels[:n_test]
+    # bg_truth_labels =  bg_truth_labels[n_test:]
+    # The normlization works fine
+    # normalize = False
+    # temp = SupervisedDataClass(X, y)
+    # temp.get_and_set_norm_facts(normalize=True)
+    # X = temp.data.numpy()
+
     # Setting random_state to an integer means repeated calls yield the same result
     kfold = StratifiedKFold(n_splits=nfolds, shuffle=True, random_state=1)
-    # Cast to a list to iterate over object twice, safer than recalculating and not memory intensive
-    split_inds = kfold.split(X, y)
+
+    # Define a custom generator for getting train, validation, test splits
+    def kfold_gen(scikit_generator):
+        """
+        A generator that, given a scikit learn generator, will return groups of train, validation, test indicies
+        """
+        n = scikit_generator.get_n_splits()
+        indicies = np.array([arr[1] for arr in scikit_generator.split(X, y)], dtype=object)
+        count = 0
+        while count < n:
+            yield np.concatenate(indicies[0:3]).flatten().astype(np.int32), \
+                  indicies[3].astype(np.int32), \
+                  indicies[4].astype(np.int32)
+            count += 1
+            indicies = np.roll(indicies, 1, 0)
+
+    split_inds = kfold_gen(kfold)
+
+    # # A quick test to make sure that there is no overlap between evaluation, validation and training data
+    # for (t, v, e) in split_inds:
+    #     correct_length = len(v) + len(e)
+    #     print(len(np.unique(np.concatenate((v, e)))) == correct_length)
+    #     correct_length = len(t) + len(e)
+    #     print(len(np.unique(np.concatenate((t, e)))) == correct_length)
+
 
     store_losses = []
+    eval_store = []
 
     # Train the model
-    for fold, (train_index, test_index) in enumerate(split_inds):
+    for fold, (train_index, valid_index, eval_index) in enumerate(split_inds):
 
-        train_data, valid_data = get_datasets(train_index, test_index, false_signal, X, y, beta_add_noise, use_weights,
-                                              bg_truth_labels)
+        # The validation data will not be touched in the training loop
+        train_data, valid_data, _ = get_datasets(train_index, valid_index, eval_index, false_signal, X, y,
+                                                 beta_add_noise, use_weights, bg_truth_labels)
 
         if normalize:
             facts = train_data.get_and_set_norm_facts(normalize=True)
@@ -391,34 +444,36 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
         store_losses += [losses]
 
     # From the saved losses pick the best epoch
-    # TODO: number of epochs to take
-    n_av = 10
+    # TODO: select number of epochs to take and do proper bagging across selected epochs
+    n_av = 5
     # Take every second because the first is the training loss
     losses = np.concatenate(store_losses)[1::2]
     eval_epoch = np.argsort(losses.mean(0))[:n_av]
     # eval_epoch = [nepochs - 1, nepochs - 2]
     # eval_epoch = [nepochs - 1]
     print(f'Best epoch: {eval_epoch}. \nLoading and evaluating now.')
-    models_to_load = [os.path.join(sv_dir, f'classifier_{fold}', f'{e}') for e in eval_epoch]
-    split_inds = kfold.split(X, y)
+    split_inds = kfold_gen(kfold)
 
     info_dict = defaultdict(list)
     # Evaluate each model at the selected epoch
-    for fold, (train_index, test_index) in enumerate(split_inds):
+    for fold, (train_index, valid_index, eval_index) in enumerate(split_inds):
 
         # The classifier object does not need to be reinitialised here, only loaded
+        models_to_load = [os.path.join(sv_dir, f'classifier_{fold}', f'{e}') for e in eval_epoch]
         classifier.load(models_to_load)
 
-        train_data, valid_data = get_datasets(train_index, test_index, 0, X, y, 0.0, use_weights, bg_truth_labels)
+        # The training data is needed to get the scaling information
+        train_data, _, eval_data = get_datasets(train_index, valid_index, eval_index, 0, X, y, 0.0, use_weights,
+                                                bg_truth_labels)
 
         if normalize:
             facts = train_data.get_and_set_norm_facts(normalize=True)
-            valid_data.normalize(facts=facts)
+            eval_data.normalize(facts=facts)
 
         with torch.no_grad():
-            y_scores = classifier.predict(valid_data.data.to(device)).cpu().numpy()
+            y_scores = classifier.predict(eval_data.data.to(device)).cpu().numpy()
         info_dict['y_scores'] += [y_scores]
-        labels_test = valid_data.targets
+        labels_test = eval_data.targets
         info_dict['labels_test'] += [labels_test]
 
         # Plot the classifier distribution
@@ -429,19 +484,19 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
                     ad.normalize(facts=facts)
                 ad = ad.data
                 anomaly_scores = classifier.predict(ad.to(device)).cpu().numpy()
-            if valid_data.bg_labels is not None:
-                lbls_bg = valid_data.bg_labels
+            if eval_data.bg_labels is not None:
+                lbls_bg = eval_data.bg_labels
                 lbls = lbls_bg
                 bg_scores = y_scores[:, 0]
             else:
-                bg_scores = y_scores[valid_data.targets == 0]
+                bg_scores = y_scores[eval_data.targets == 0]
                 lbls_bg = np.zeros(len(bg_scores))
-                lbls = np.zeros(len(valid_data.data))
+                lbls = np.zeros(len(eval_data.data))
             # Get the background vs signal AUC if that is available
             info_dict['y_labels_1'] += [np.concatenate((np.ones(len(anomaly_scores)), lbls_bg))]
             info_dict['y_scores_1'] += [np.concatenate((anomaly_scores[:, 0], bg_scores))]
             # Get the background only AUC if that information is available
-            info_dict['y_labels_2'] += [valid_data.targets[lbls == 0]]
+            info_dict['y_labels_2'] += [eval_data.targets[lbls == 0]]
             info_dict['y_scores_2'] += [y_scores[lbls == 0]]
 
             # Calculate and plot some AUCs for the epoch
@@ -460,11 +515,11 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
             # template
             count = []
             expected_count = []
-            mx = valid_data.targets == 0
+            mx = eval_data.targets == 0
             for i, at in enumerate(thresholds):
                 threshold = np.quantile(y_scores[mx], at)
                 expected_count += [sum(y_scores[mx] >= threshold)]
-                count += [sum(y_scores[valid_data.targets == 1] >= threshold)]
+                count += [sum(y_scores[eval_data.targets == 1] >= threshold)]
                 if anomaly_bool:
                     signal_pass_rate = sum(anomaly_scores >= threshold) / len(anomaly_scores)
                     bg_pass_rate = sum(bg_scores[lbls_bg == 0] >= threshold) / len(y_scores)

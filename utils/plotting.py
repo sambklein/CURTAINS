@@ -282,10 +282,12 @@ def plot_rates_dict(sv_dir, rates_dict, title):
     ax.set_ylabel('Significance improvement')
     ax.set_xlabel('Signal efficiency (true positive rate)')
     ax.set_title(title)
+    y_max = min(20, ax.get_ylim()[1])
+    ax.set_ylim([0, y_max])
     # fig.tight_layout(rect=[0, 0, 0.9, 1])
     # lgd = fig.legend()
-    ax.set_aspect('equal')
-    fig.savefig(sv_dir + f'/{title}_sic.png', bbox_extra_artists=(lgd,), bbox_inches='tight')
+    # ax.set_aspect('equal')
+    fig.savefig(sv_dir + f'/{title}_sic.png')
 
 
 def get_windows_plot(bgspectra, anomalyspectra, woi, windows, sv_dir, frac):
