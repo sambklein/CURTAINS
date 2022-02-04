@@ -169,10 +169,17 @@ def get_counts():
     # bin_width = 200
     # n_runs = 40
 
-    # An idealised hunt
-    name = 'idealised_hunt_1000'
-    dd = 'idealised_hunt_1000'
-    filename = 'idealised_hunt_1000'
+    # # An idealised hunt
+    # name = 'idealised_hunt_1000'
+    # dd = 'idealised_hunt_1000'
+    # filename = 'idealised_hunt_1000'
+    # bin_width = 200
+    # n_runs = 8
+
+    # An idealised hunt including 1 + eps
+    name = 'idealised_hunt_noise'
+    dd = 'idealised_hunt_noise'
+    filename = 'idealised_hunt_noise'
     bin_width = 200
     n_runs = 8
 
@@ -452,8 +459,10 @@ def get_sics():
     # names = [f'{i}' for i in range(0, 64)]
     # directories = [f'test_clas_no_fs_classifier_settings_{i}' for i in range(0, 32)]
     # names = [f'{i}' for i in range(0, 32)]
-    directories = [f'super_slim_super_{i}' for i in range(0, 32)]
-    names = ['SUPER_test'] * 32
+    # directories = [f'super_slim_super_{i}' for i in range(0, 32)]
+    # names = ['SUPER_test'] * 32
+    directories = [f'test_seeds_f_test_seeds_f_{i}' for i in range(0, 10)]
+    names = ['seed'] * 32
 
     # Gather saved quantities
     vals = {}

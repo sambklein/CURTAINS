@@ -25,8 +25,10 @@ class Classifier(nn.Module):
             for model in self.base_model:
                 preds += [model(data)]
             preds = torch.cat(preds, 1)
-            # TODO: different kinds of averaging
             return preds.mean(1).view(-1, 1)
+            # Select classifiers at random to
+            # inds = np.arange(len(preds)) * preds.shape[1] + np.random.randint(0, 5, len(preds))
+            # return preds.flatten()[inds].view(-1, 1)
         else:
             return self.base_model(data)
 

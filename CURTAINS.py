@@ -240,10 +240,10 @@ else:
 
 # TODO: check the LR in particular!!
 # TODO: pass this as a .yml file
-classifier_args = {'false_signal': 2, 'batch_size': 1000, 'nepochs': args.classifier_epochs,
+classifier_args = {'false_signal': 0, 'batch_size': 128, 'nepochs': args.classifier_epochs,
                    'lr': 0.001, 'pure_noise': 0, 'beta_add_noise': args.beta_add_noise, 'drp': 0.0,
                    'normalize': True, 'data_unscaler': datasets.signalset.unnormalize, 'width': 32,
-                   'n_run': args.c_nruns}
+                   'n_run': args.c_nruns, 'use_scheduler': True}
 
 # Generate test data and preprocess etc
 post_process_curtains(curtain_runner, datasets, sup_title='NSF', signal_anomalies=signal_anomalies,

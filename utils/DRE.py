@@ -311,22 +311,25 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
         thresholds = [0, 0.5, 0.8, 0.9, 0.95, 0.99, 0.999, 0.9999]
 
     tpr_c, fpr_c = None, None
-    if (anomaly_data is not None) and run_cathode_classifier:
-        tpr_c, fpr_c = CATHODE_classifier.get_auc(bg_template, sr_samples, directory, name, anomaly_data=anomaly_data,
-                                                  bg_truth_labels=bg_truth_labels, mass_incl=mass_incl, load=load,
-                                                  normalize=normalize, batch_size=batch_size, nepochs=nepochs,
-                                                  thresholds=thresholds, data_unscaler=data_unscaler, n_run=n_run)
+    # if (anomaly_data is not None) and run_cathode_classifier:
+    #     tpr_c, fpr_c = CATHODE_classifier.get_auc(bg_template, sr_samples, directory, name, anomaly_data=anomaly_data,
+    #                                               bg_truth_labels=bg_truth_labels, mass_incl=mass_incl, load=load,
+    #                                               normalize=normalize, batch_size=batch_size, nepochs=nepochs,
+    #                                               thresholds=thresholds, data_unscaler=data_unscaler, n_run=n_run)
 
     def prepare_data(data):
         data = data.detach().cpu()
         if data_unscaler is not None:
             data = data_unscaler(data)
         if mass_incl:
+            mass = data[:, -1]
             data = data[:, :-1]
-        return data
+        else:
+            mass = None
+        return data, mass
 
-    bg_template = prepare_data(bg_template)
-    sr_samples = prepare_data(sr_samples)
+    bg_template, bg_mass = prepare_data(bg_template)
+    sr_samples, sr_mass = prepare_data(sr_samples)
 
     # Classifier hyperparameters
     if drp > 0:
@@ -335,27 +338,15 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
     sv_dir = os.path.join(directory, name)
     anomaly_bool = anomaly_data is not None
     if anomaly_bool:
-        anomaly_data = prepare_data(anomaly_data)
+        anomaly_data, ad_mass = prepare_data(anomaly_data)
 
     X, y = torch.cat((bg_template, sr_samples), 0).cpu().numpy(), torch.cat(
         (torch.zeros(len(bg_template)), torch.ones(len(sr_samples))), 0).view(-1, 1).cpu().numpy()
 
-    # inds_shuffle = np.random.permutation(np.arange(len(X)))
-    # X = X[inds_shuffle]
-    # y = y[inds_shuffle]
-    # bg_truth_labels = bg_truth_labels[inds_shuffle]
-    # n_test = int(0.2 * len(X))
-    # X_test = X[:n_test]
-    # X = X[n_test:]
-    # y_test = y[:n_test]
-    # y = y[n_test:]
-    # bg_truth_labels_test = bg_truth_labels[:n_test]
-    # bg_truth_labels =  bg_truth_labels[n_test:]
-    # The normlization works fine
-    # normalize = False
-    # temp = SupervisedDataClass(X, y)
-    # temp.get_and_set_norm_facts(normalize=True)
-    # X = temp.data.numpy()
+    if mass_incl:
+        masses = torch.cat((bg_mass, sr_mass), 0)
+    else:
+        masses = None
 
     # Setting random_state to an integer means repeated calls yield the same result
     kfold = StratifiedKFold(n_splits=nfolds, shuffle=True, random_state=1)
@@ -377,16 +368,8 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
 
     split_inds = kfold_gen(kfold)
 
-    # # A quick test to make sure that there is no overlap between evaluation, validation and training data
-    # for (t, v, e) in split_inds:
-    #     correct_length = len(v) + len(e)
-    #     print(len(np.unique(np.concatenate((v, e)))) == correct_length)
-    #     correct_length = len(t) + len(e)
-    #     print(len(np.unique(np.concatenate((t, e)))) == correct_length)
-
 
     store_losses = []
-    eval_store = []
 
     # Train the model
     for fold, (train_index, valid_index, eval_index) in enumerate(split_inds):
@@ -465,6 +448,7 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
         # The training data is needed to get the scaling information
         train_data, _, eval_data = get_datasets(train_index, valid_index, eval_index, 0, X, y, 0.0, use_weights,
                                                 bg_truth_labels)
+        eval_masses = masses[eval_index].reshape(-1, 1)
 
         if normalize:
             facts = train_data.get_and_set_norm_facts(normalize=True)
@@ -515,11 +499,14 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
             # template
             count = []
             expected_count = []
+            store_masses = []
             mx = eval_data.targets == 0
             for i, at in enumerate(thresholds):
                 threshold = np.quantile(y_scores[mx], at)
                 expected_count += [sum(y_scores[mx] >= threshold)]
                 count += [sum(y_scores[eval_data.targets == 1] >= threshold)]
+                ms_mx = eval_data.targets[:, 0] == 1
+                store_masses += [eval_masses[ms_mx][y_scores[ms_mx] >= threshold]]
                 if anomaly_bool:
                     signal_pass_rate = sum(anomaly_scores >= threshold) / len(anomaly_scores)
                     bg_pass_rate = sum(bg_scores[lbls_bg == 0] >= threshold) / len(y_scores)
@@ -527,6 +514,7 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
                     # pass_rates += [np.concatenate((signal_pass_rate, bg_pass_rate))]
                     info_dict['pass_rates'] += [np.ones(nfolds * len(thresholds))]
             info_dict['counts'] += [np.array(count)]
+            info_dict['masses'] += [store_masses]
             info_dict['expected_counts'] += [np.array(expected_count)]
 
     keys_to_cat = ['y_scores', 'labels_test', 'y_labels_1', 'y_scores_1', 'y_labels_2', 'y_scores_2']
