@@ -15,3 +15,4 @@ DATADIR=/srv/beegfs/scratch/groups/dpnc/atlas/CURTAINS,/srv/beegfs/scratch/group
 
 # launch Jupyter notebook
 srun singularity exec --nv -B $RUNDIR:/$RUNDIR,$DATADIR $IMGDIR jupyter notebook --no-browser --ip=$SLURMD_NODENAME --notebook-dir=$RUNDIR
+ 

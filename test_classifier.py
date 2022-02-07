@@ -28,7 +28,7 @@ def parse_args():
                         help='Choose the base output directory')
     parser.add_argument('-n', '--outputname', type=str, default='local',
                         help='Set the output name directory')
-    parser.add_argument('--load', type=int, default=0, help='Load a model?')
+    parser.add_argument('--load', type=int, default=1, help='Load a model?')
 
     # Multiple runs
     parser.add_argument('--shift_seed', type=int, default=0,
@@ -37,9 +37,9 @@ def parse_args():
     # Dataset parameters
     parser.add_argument('--dataset', type=str, default='curtains', help='The dataset to train on.')
     # parser.add_argument("--bins", type=str, default='2900,3100,3300,3700,3900,4100')
-    parser.add_argument("--bins", type=str, default='23000,3200,3400,3600,3800,4000')
-    parser.add_argument("--feature_type", type=int, default=3)
-    parser.add_argument("--doping", type=int, default=1000,
+    parser.add_argument("--bins", type=str, default='3000,3200,3400,3600,3800,4000')
+    parser.add_argument("--feature_type", type=int, default=12)
+    parser.add_argument("--doping", type=int, default=4000,
                         help='Raw number of signal events to be added into the entire bg spectra.')
     parser.add_argument("--split_data", type=int, default=2,
                         help='2 for idealised classifier, 3 for supervised.')
@@ -50,7 +50,7 @@ def parse_args():
                         help='The file to load and train against within  data_directory.')
 
     # Training parameters
-    parser.add_argument('--batch_size', type=int, default=256, help='Size of batch for training.')
+    parser.add_argument('--batch_size', type=int, default=128, help='Size of batch for training.')
     parser.add_argument('--nepochs', type=int, default=20, help='Number of epochs.')
     parser.add_argument('--lr', type=float, default=0.001, help='Classifier learning rate.')
     parser.add_argument('--wd', type=float, default=0.0, help='Weight Decay, set to None for ADAM.')
@@ -59,7 +59,7 @@ def parse_args():
     parser.add_argument('--depth', type=int, default=3, help='Depth of classifier to use.')
     parser.add_argument('--batch_norm', type=int, default=0, help='Apply batch norm?')
     parser.add_argument('--layer_norm', type=int, default=0, help='Apply layer norm?')
-    parser.add_argument('--use_scheduler', type=int, default=0, help='Use cosine annealing of the learning rate?')
+    parser.add_argument('--use_scheduler', type=int, default=1, help='Use cosine annealing of the learning rate?')
     parser.add_argument('--run_cathode_classifier', type=int, default=0, help='Use cathode classifier?')
     parser.add_argument('--n_run', type=int, default=2, help='Number of classifiers to train.')
 
@@ -68,6 +68,10 @@ def parse_args():
     parser.add_argument('--use_weight', type=int, default=0, help='Apply weights to the data?')
     parser.add_argument('--beta_add_noise', type=float, default=0.01,
                         help='The value of epsilon to use in the 1-e training.')
+    parser.add_argument('--cf_activ', type=str, default='relu',
+                        help='The value of epsilon to use in the 1-e training.')
+    parser.add_argument('--cf_norm', type=int, default=1,
+                        help='2 for normalization and 1 for standardization.')
 
     return parser.parse_args()
 
@@ -210,7 +214,8 @@ def test_classifier():
                        wd=args.wd, drp=args.drp, width=args.width, depth=args.depth, batch_norm=args.batch_norm,
                        layer_norm=args.layer_norm, use_scheduler=args.use_scheduler, use_weights=args.use_weight,
                        beta_add_noise=args.beta_add_noise, pure_noise=pure_noise, bg_truth_labels=bg_truth_labels,
-                       run_cathode_classifier=args.run_cathode_classifier, n_run=args.n_run)
+                       run_cathode_classifier=args.run_cathode_classifier, n_run=args.n_run, cf_activ=args.cf_activ,
+                       normalize=args.cf_norm)
 
     rates_sr_vs_transformed[f'0.0'] = auc_info[3]
     rates_sr_qcd_vs_anomalies[f'0.0'] = auc_info[2]

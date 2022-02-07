@@ -107,7 +107,7 @@ def add_contour(axes, i, j, data, sampled, x_bounds=None):
 
 
 def getFeaturePlot(original, sampled, nm, savedir, region, feature_names, input_sample=None, nbins=20, contour=True,
-                   n_sample_for_plot=-1, summary_writer=None, x_bounds=None):
+                   n_sample_for_plot=-1, summary_writer=None, x_bounds=None, show=False):
     if x_bounds is None:
         x_bounds = [-1.2, 1.2]
     if n_sample_for_plot > 0:
@@ -168,7 +168,10 @@ def getFeaturePlot(original, sampled, nm, savedir, region, feature_names, input_
     if summary_writer is not None:
         summary_writer.add_figure(tag=f'featurespread_{region}', figure=fig)
     fig.savefig(savedir + '/featurespread_{}_{}_{}.png'.format(region, nm, 'transformed_data'), bbox_inches="tight")
-    fig.clf()
+    if show:
+        return fig
+    else:
+        fig.clf()
 
 
 def getCrossFeaturePlot(model, original, sampled, nm, savedir, mass, feature_names):

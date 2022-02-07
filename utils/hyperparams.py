@@ -19,7 +19,8 @@ activations = {
     'leaky_relu': F.leaky_relu,
     'my_relu': my_relu,
     'sigmoid': F.sigmoid,
-    'tanh': torch.tanh
+    'tanh': torch.tanh,
+    'selu': nn.SELU()
 }
 
 recon_losses = {

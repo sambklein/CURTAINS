@@ -17,14 +17,15 @@ from models.nn.networks import dense_net
 from torch.utils.data import Dataset
 import torch
 
-from utils import CATHODE_classifier
+from utils import CATHODE_classifier, hyperparams
 from utils.plotting import add_error_hist, get_bins, hist_features
 from utils.torch_utils import sample_data
 from utils.training import Timer
 
 
 class SupervisedDataClass(Dataset):
-    def __init__(self, data, labels, weights=None, dtype=torch.float32, noise_generator=None, bg_labels=None):
+    def __init__(self, data, labels, weights=None, dtype=torch.float32, noise_generator=None, bg_labels=None,
+                 standardise=1):
         super(SupervisedDataClass, self).__init__()
         self.dtype = dtype
         if isinstance(data, torch.Tensor):
@@ -41,6 +42,7 @@ class SupervisedDataClass(Dataset):
         self.base_labels = labels
         self.weights = torch.ones_like(self.targets)
         self.update_weights = False
+        self.standardise = standardise
         if noise_generator is not None:
             self.update_data()
         if weights == 'balance':
@@ -56,9 +58,11 @@ class SupervisedDataClass(Dataset):
         return self.data.shape[0]
 
     def get_and_set_norm_facts(self, normalize=False):
-        # self.max_vals = self.data.max(0)[0]
-        # self.min_vals = self.data.min(0)[0]
-        self.max_vals, self.min_vals = list(torch.std_mean(self.data, dim=0))
+        if self.standardise:
+            self.max_vals, self.min_vals = list(torch.std_mean(self.data, dim=0))
+        else:
+            self.max_vals = self.data.max(0)[0]
+            self.min_vals = self.data.min(0)[0]
         if normalize:
             self.normalize()
         return self.max_vals, self.min_vals
@@ -79,13 +83,18 @@ class SupervisedDataClass(Dataset):
                 self.weights = torch.ones_like(self.targets)
 
     def _normalize(self, data_in):
-        # return (data_in - self.min_vals) / (self.max_vals - self.min_vals)
-        return (data_in - self.min_vals) / (self.max_vals + 1e-8)
+        if self.standardise == 1:
+            return (data_in - self.min_vals) / (self.max_vals + 1e-8)
+        else:
+            return (data_in - self.min_vals) / (self.max_vals - self.min_vals)
 
     def _unnormalize(self, data_in):
-        # return (data_in - self.min_vals) / (self.max_vals - self.min_vals)
-        stds, means = self.max_vals, self.min_vals
-        return data_in * (stds + 1e-8) + means
+        if self.standardise == 1:
+            stds, means = self.max_vals, self.min_vals
+            data_out = data_in * (stds + 1e-8) + means
+        else:
+            data_out = (data_in - self.min_vals) / (self.max_vals - self.min_vals)
+        return data_out
 
     def normalize(self, data_in=None, facts=None):
         data_passed = data_in is not None
@@ -116,10 +125,10 @@ class SupervisedDataClass(Dataset):
         return data_in
 
 
-def get_net(batch_norm=False, layer_norm=False, width=32, depth=2, dropout=0.0):
+def get_net(batch_norm=False, layer_norm=False, width=32, depth=2, dropout=0.0, cf_activ=torch.relu):
     def net_maker(nfeatures, nclasses):
         return dense_net(nfeatures, nclasses, layers=[width] * depth, batch_norm=batch_norm, layer_norm=layer_norm,
-                         drp=dropout, context_features=None)
+                         drp=dropout, context_features=None, int_activ=cf_activ)
 
     return net_maker
 
@@ -255,7 +264,7 @@ def dope_data(truth, anomaly_data, beta):
 
 
 def get_datasets(train_index, valid_index, eval_index, false_signal, X, y, beta_add_noise, use_weights,
-                 bg_truth_labels):
+                 bg_truth_labels, standardise):
     def index_data(index):
         return X[index], y[index]
 
@@ -291,10 +300,12 @@ def get_datasets(train_index, valid_index, eval_index, false_signal, X, y, beta_
         add_noise = None
 
     weights = 'balance' if use_weights else None
-    train_data = SupervisedDataClass(X_train, y_train, weights=weights, noise_generator=add_noise)
+    train_data = SupervisedDataClass(X_train, y_train, weights=weights, noise_generator=add_noise,
+                                     standardise=standardise)
     valid_data = SupervisedDataClass(X_val, y_val, weights=weights, noise_generator=add_noise,
-                                     bg_labels=bg_truth_val)
-    eval_data = SupervisedDataClass(X_eval, y_eval, weights=weights, noise_generator=None, bg_labels=bg_truth_eval)
+                                     bg_labels=bg_truth_val, standardise=standardise)
+    eval_data = SupervisedDataClass(X_eval, y_eval, weights=weights, noise_generator=None, bg_labels=bg_truth_eval,
+                                    standardise=standardise)
 
     return train_data, valid_data, eval_data
 
@@ -303,7 +314,7 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
             sup_title='', load=False, return_rates=False, false_signal=1, normalize=True, batch_size=1000, nepochs=100,
             lr=0.0001, wd=0.001, drp=0.0, width=32, depth=3, batch_norm=False, layer_norm=False, use_scheduler=True,
             use_weights=True, thresholds=None, beta_add_noise=0.1, pure_noise=False, nfolds=5, data_unscaler=None,
-            run_cathode_classifier=True, n_run=1):
+            run_cathode_classifier=True, n_run=1, cf_activ=torch.relu):
     """
     bg_truth_labels 0 = known anomaly, 1 = known background, -1 = unknown/sampled/transformed sample
     """
@@ -311,6 +322,7 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
         thresholds = [0, 0.5, 0.8, 0.9, 0.95, 0.99, 0.999, 0.9999]
 
     tpr_c, fpr_c = None, None
+
     # if (anomaly_data is not None) and run_cathode_classifier:
     #     tpr_c, fpr_c = CATHODE_classifier.get_auc(bg_template, sr_samples, directory, name, anomaly_data=anomaly_data,
     #                                               bg_truth_labels=bg_truth_labels, mass_incl=mass_incl, load=load,
@@ -368,7 +380,6 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
 
     split_inds = kfold_gen(kfold)
 
-
     store_losses = []
 
     # Train the model
@@ -376,25 +387,29 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
 
         # The validation data will not be touched in the training loop
         train_data, valid_data, _ = get_datasets(train_index, valid_index, eval_index, false_signal, X, y,
-                                                 beta_add_noise, use_weights, bg_truth_labels)
+                                                 beta_add_noise, use_weights, bg_truth_labels, normalize)
 
         if normalize:
             facts = train_data.get_and_set_norm_facts(normalize=True)
             valid_data.normalize(facts=facts)
 
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        net = get_net(batch_norm=batch_norm, layer_norm=layer_norm, width=width, depth=depth, dropout=drp)
+        net = get_net(batch_norm=batch_norm, layer_norm=layer_norm, width=width, depth=depth, dropout=drp,
+                      cf_activ=hyperparams.activations[cf_activ])
         classifier = Classifier(net, train_data.nfeatures, 1, name, directory=directory,
                                 activation=torch.sigmoid).to(device)
 
         # Make an optimizer object
         if (wd is None) or (wd == 0.):
             optimizer = torch.optim.Adam(classifier.parameters(), lr=lr)
+            # optimizer = torch.optim.NAdam(classifier.parameters(), lr=lr)
         else:
             optimizer = torch.optim.AdamW(classifier.parameters(), lr=lr, weight_decay=wd)
         if use_scheduler:
             max_step = int(nepochs * np.ceil(len(train_data.data) / batch_size))
-            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, max_step, 0)
+            # TODO: pass this, set to one by default
+            periods = 1
+            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, max_step / periods, 0)
         else:
             scheduler = None
 
@@ -427,7 +442,6 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
         store_losses += [losses]
 
     # From the saved losses pick the best epoch
-    # TODO: select number of epochs to take and do proper bagging across selected epochs
     n_av = 5
     # Take every second because the first is the training loss
     losses = np.concatenate(store_losses)[1::2]
@@ -447,7 +461,7 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
 
         # The training data is needed to get the scaling information
         train_data, _, eval_data = get_datasets(train_index, valid_index, eval_index, 0, X, y, 0.0, use_weights,
-                                                bg_truth_labels)
+                                                bg_truth_labels, normalize)
         eval_masses = masses[eval_index].reshape(-1, 1)
 
         if normalize:
@@ -479,6 +493,9 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
             # Get the background vs signal AUC if that is available
             info_dict['y_labels_1'] += [np.concatenate((np.ones(len(anomaly_scores)), lbls_bg))]
             info_dict['y_scores_1'] += [np.concatenate((anomaly_scores[:, 0], bg_scores))]
+            # # Same evaluation as above but ignoring the holdout data
+            # info_dict['y_labels_1'] += [lbls_bg]
+            # info_dict['y_scores_1'] += [bg_scores]
             # Get the background only AUC if that information is available
             info_dict['y_labels_2'] += [eval_data.targets[lbls == 0]]
             info_dict['y_scores_2'] += [y_scores[lbls == 0]]
@@ -498,6 +515,7 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
             # Count the number of events that are left in the signal region after a certain cut on the background
             # template
             count = []
+            count_bg = []
             expected_count = []
             store_masses = []
             mx = eval_data.targets == 0
@@ -505,6 +523,7 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
                 threshold = np.quantile(y_scores[mx], at)
                 expected_count += [sum(y_scores[mx] >= threshold)]
                 count += [sum(y_scores[eval_data.targets == 1] >= threshold)]
+                count_bg += [sum(y_scores[eval_data.bg_labels == 1] >= threshold)]
                 ms_mx = eval_data.targets[:, 0] == 1
                 store_masses += [eval_masses[ms_mx][y_scores[ms_mx] >= threshold]]
                 if anomaly_bool:
@@ -516,8 +535,10 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
             info_dict['counts'] += [np.array(count)]
             info_dict['masses'] += [store_masses]
             info_dict['expected_counts'] += [np.array(expected_count)]
+            info_dict['sig_counts'] += [np.array(count_bg)]
+            print(count_bg)
 
-    keys_to_cat = ['y_scores', 'labels_test', 'y_labels_1', 'y_scores_1', 'y_labels_2', 'y_scores_2']
+    keys_to_cat = ['y_scores', 'labels_test', 'y_labels_1', 'y_scores_1', 'y_labels_2', 'y_scores_2', 'sig_counts']
     for key in keys_to_cat:
         if key in info_dict.keys():
             info_dict[key] = np.concatenate(info_dict[key])
@@ -526,16 +547,20 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
     fpr, tpr, _ = roc_curve(info_dict['labels_test'], info_dict['y_scores'])
     roc_auc = auc(fpr, tpr)
 
-    # # Plot the classifier output distributions
-    # fig, ax = plt.subplots()
-    # d1 = info_dict['y_scores_1']
-    # bins = get_bins(d1)
-    # plt_kwargs = {'bins': bins, 'alpha': 0.8, 'histtype': 'step', 'density': True}
-    # ax.hist(d1, label='Anomalies', **plt_kwargs)
-    # ax.hist(info_dict['y_scores'][info_dict['labels_test'] == 0], label='Train Label 0', **plt_kwargs)
-    # ax.hist(info_dict['y_scores'][info_dict['labels_test'] == 1], label='Train Label 1', **plt_kwargs)
-    # fig.legend()
-    # fig.savefig(os.path.join(sv_dir, 'classifier_outputs.png'))
+    # Plot the classifier output distributions
+    fig, ax = plt.subplots()
+    d1 = info_dict['y_scores_1']
+    bins = get_bins(d1, nbins=80)
+    plt_kwargs = {'bins': bins, 'alpha': 0.8, 'histtype': 'step'}
+    def get_weight(fact):
+        return np.ones_like(fact) / np.sum(fact)
+    ax.hist(d1, label='Anomalies', weights=get_weight(d1), **plt_kwargs)
+    s1 = info_dict['y_scores'][info_dict['labels_test'] == 0]
+    ax.hist(s1, weights=get_weight(s1), label='Train Label 0', **plt_kwargs)
+    s2 = info_dict['y_scores'][info_dict['labels_test'] == 1]
+    ax.hist(s2, weights=get_weight(s2), label='Train Label 1', **plt_kwargs)
+    fig.legend()
+    fig.savefig(os.path.join(sv_dir, 'classifier_outputs.png'))
 
     if anomaly_bool:
         lmx = np.isfinite(info_dict['y_scores_1'])
@@ -561,9 +586,10 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
         counts = np.array(info_dict['counts'])
         if anomaly_bool:
             pass_rates = np.array(info_dict['pass_rates'])
-        print(f'Expected {np.sum(info_dict["expected_counts"], 0)}.\n Measured {np.sum(counts, 0)}.')
+        print(f'Expected {np.sum(info_dict["expected_counts"], 0)}.\n Measured {np.sum(counts, 0)}.\n')
+        print(f'Signal counts {np.sum(info_dict["sig_counts"], 0)}..')
         counts = {'counts': info_dict['counts'], 'expected_counts': info_dict["expected_counts"],
-                  'pass_rates': info_dict['pass_rates']}
+                  'pass_rates': info_dict['pass_rates'], 'masses': info_dict['masses']}
 
     # Plot a roc curve
     fig, ax = plt.subplots(1, 1, figsize=(5, 5))

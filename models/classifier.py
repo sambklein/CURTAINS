@@ -51,7 +51,7 @@ class Classifier(nn.Module):
         if prediction.isnan().any():
             raise Exception('Classifier has diverged.')
         self.loss = self.loss_object(prediction, target.to(device), weight=weight.to(device))
-        # self.loss = self.weighted_loss(prediction, target.to(device), 0.1)
+        # self.loss = self.weighted_loss(prediction, target.to(device), 1.2)
         if return_pred:
             return self.loss, prediction
         else:

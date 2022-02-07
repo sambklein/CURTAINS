@@ -227,14 +227,18 @@ else:
 torch.set_default_tensor_type('torch.FloatTensor')
 
 # Fit the model
-if args.load:
+def load_curtains():
     if args.model_name is not None:
         nm = args.model_name
     else:
         nm = exp_name
     path = get_top_dir() + f'/data/saved_models/model_{nm}'
     curtain_runner.load(path)
+if args.load == 1:
+    load_curtains()
 else:
+    if args.load == 2:
+        load_curtains()
     fit(curtain_runner, optimizer, datasets.trainset, n_epochs, bsize, writer, schedulers=scheduler,
         schedulers_epoch_end=reduce_lr_inn, gclip=args.gclip, shuffle_epoch_end=args.shuffle, load_best=args.load_best)
 

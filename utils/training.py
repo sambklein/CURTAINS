@@ -251,9 +251,9 @@ def fit(model, optimizers, dataset, n_epochs, batch_size, writer, schedulers=Non
             valset.shuffle()
             # This is just to ensure that we don't have more data than will fit in a given batch size
             trainset.data = trainset.data[:ntrain - (ntrain % batch_size), :]
-            training_data = torch.utils.data.DataLoader(trainset, batch_size=batch_size, shuffle=True,
+            training_data = torch.utils.data.DataLoader(trainset, batch_size=batch_size, shuffle=False,
                                                         num_workers=n_work)
-            val_data = torch.utils.data.DataLoader(valset, batch_size=batch_size, shuffle=True, num_workers=n_work)
+            val_data = torch.utils.data.DataLoader(valset, batch_size=batch_size, shuffle=False, num_workers=n_work)
 
         # Stop the timer
         timer.stop()

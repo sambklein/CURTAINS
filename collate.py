@@ -162,12 +162,13 @@ def get_counts():
     # name = 'OT_bump_two_hundred'
     # dd = 'curtains_bump'
 
-    # # A very nice hunt with bins of size 200
-    # name = 'OT_bump_centered'
-    # dd = 'curtains_bump_cfinal'
-    # filename = '200'
-    # bin_width = 200
-    # n_runs = 40
+    # A very nice hunt with bins of size 200
+    name = 'OT_bump_centered'
+    dd = 'curtains_bump_cfinal'
+    filename = '200'
+    bin_width = 200
+    n_runs = 40
+    y_max = 500000
 
     # # An idealised hunt
     # name = 'idealised_hunt_1000'
@@ -176,12 +177,12 @@ def get_counts():
     # bin_width = 200
     # n_runs = 8
 
-    # An idealised hunt including 1 + eps
-    name = 'idealised_hunt_noise'
-    dd = 'idealised_hunt_noise'
-    filename = 'idealised_hunt_noise'
-    bin_width = 200
-    n_runs = 8
+    # # An idealised hunt including 1 + eps
+    # name = 'idealised_hunt_noise'
+    # dd = 'idealised_hunt_noise'
+    # filename = 'idealised_hunt_noise'
+    # bin_width = 200
+    # n_runs = 8
 
     # # With bins of size 100
     # name = 'OT_bump_100'
@@ -189,11 +190,20 @@ def get_counts():
     # filename = '100'
     # bin_width = 100
     # n_runs = 64
+    # y_max = 100000
 
+    # TODO: why did this fail so badly?
     # # A cathode hunt
     # name = 'CATHODE_bump_scan_two_hundred'
     # dd = 'cathode_bump'
+    # filename = 'cathy_200'
+    # bin_width = 200
+    # y_max = 500000
     # n_runs = 40
+
+    reload = 0
+    cathode_classifier = 0
+    new_width = 50
 
     directories = [f'{dd}_{name}_{i}' for i in range(0, n_runs)]
 
@@ -210,13 +220,11 @@ def get_counts():
         # return x_all / 100 % 2 == 1
         return [True] * mass.shape[0]
 
-    reload = 1
-    cathode_classifier = 0
-
     if reload:
         # Gather saved quantities
         vals = defaultdict(list)
         rates = defaultdict(list)
+        masses = defaultdict(list)
         get_property = PropertiesHandler()
         for i, directory in enumerate(directories):
             try:
@@ -233,7 +241,7 @@ def get_counts():
                     # expected_counts = expected_counts / 8
                     expected_counts = true_counts[0] * (1 - np.array(thresholds))
                 else:
-                    with open(f'{sv_dir}/images/{directory}/counts.pkl', 'rb') as f:
+                    with open(f'{sv_dir}/images/{directory}/counts_no_eps.pkl', 'rb') as f:
                         # with open(f'{sv_dir}/images/{directory}/counts_no_eps.pkl', 'rb') as f:
                         info_dict = pickle.load(f)
                     true_counts = np.sum(info_dict['counts'], 0)
@@ -265,28 +273,33 @@ def get_counts():
                 x, expected, label = get_property(args)
                 # if (x == 3500) and (label == '1000') and (name == 'OT_bump_100'):
                 # if (x == 3500) and (label == '1000'):
-                # if (x == 3100) and (label == '1000'):
-                #     print(directory)
+                if (x == 3100):
+                    print(directory)
                 #     pdb.set_trace()
                 rt = np.vstack((signal_pass_rate.mean(1), bg_pass_rate.mean(1)))
                 vals[label] += [np.hstack((x, *counts, error))]
                 rates[label] += [rt]
+                masses[label] += [info_dict['masses']]
 
             with open(f'{sv_dir}/images/rates_info_{filename}.pkl', 'wb') as f:
                 pickle.dump(rates, f)
             with open(f'{sv_dir}/images/vals_info_{filename}.pkl', 'wb') as f:
                 pickle.dump(vals, f)
+            with open(f'{sv_dir}/images/masses_info_{filename}.pkl', 'wb') as f:
+                pickle.dump(masses, f)
     else:
         with open(f'{sv_dir}/images/rates_info_{filename}.pkl', 'rb') as f:
             rates = pickle.load(f)
         with open(f'{sv_dir}/images/vals_info_{filename}.pkl', 'rb') as f:
             vals = pickle.load(f)
+        with open(f'{sv_dir}/images/masses_info_{filename}.pkl', 'rb') as f:
+            masses = pickle.load(f)
 
-    if not on_cluster():
-        if len(rates['8000'][0]) == 16:
-            for key in rates.keys():
-                for i, arr in enumerate(rates[key]):
-                    rates[key][i] = np.concatenate((arr[:8].mean(1)[np.newaxis, :], arr[8:].mean(1)[np.newaxis, :]), 0)
+    # if not on_cluster():
+    #     if len(rates['8000'][0]) == 16:
+    #         for key in rates.keys():
+    #             for i, arr in enumerate(rates[key]):
+    #                 rates[key][i] = np.concatenate((arr[:8].mean(1)[np.newaxis, :], arr[8:].mean(1)[np.newaxis, :]), 0)
 
     # Start plotting different quantities
     dopings = sorted(set(vals.keys()))
@@ -327,10 +340,12 @@ def get_counts():
     mass = get_mass_spectrum.ad['mjj']
 
     signicance_dict = {}
+    half_width = int(bin_width / 2)
 
     for j in range(n_dopings):
         label = dopings[j]
         lst = vals[label]
+        lst_masses = masses[label]
         rt = rates[label]
         significance = np.zeros(n_thresh_to_take)
         for i in range(n_thresh_to_take):
@@ -342,15 +357,29 @@ def get_counts():
                 mx = get_mask(x_all)
                 x = xy[mx, 0]
                 y = xy[mx, i + 1]
-                if label == '333':
-                    a = 0
                 expected = xy[mx, i + 1 + len(thresholds)]
+                x_e = xy[mx, 0]
+
+                mass_y = np.concatenate([m[j][i].numpy() for m in lst_masses for j in range(5)])
+                if new_width is not None:
+                    # Define new bin centers
+                    min_mass = min(x_all) - half_width
+                    max_mass = max(x_all) + half_width
+                    new_bins = np.arange(min_mass, max_mass, new_width)
+                    bin_width = new_width
+                    y, _ = np.histogram(mass_y, bins=new_bins)
+                    x = np.convolve(new_bins, np.ones(2), 'valid') / 2
+                    x_e = x
+                    if i == 0:
+                        raw_top = y
+                    expected = raw_top * (1 - thresholds[i])
+
                 # make_steps(ax, x, y, bin_width, color='r', label='Measured')
-                ax.plot(x, y, marker='o', color='r', label='Measured', linestyle="None", markersize=3)
-                make_steps(ax, x, expected, bin_width, color='b', label='Expected', drop_bars=False)
+                ax.plot(x, y, marker='o', color='r', label='Observed', linestyle="None", markersize=3)
+                make_steps(ax, x_e, expected, bin_width, color='b', label='Expected', drop_bars=False)
                 if i == 0:
                     signal_bins = np.sort(np.unique(np.concatenate((x - bin_width / 2, x + bin_width / 2))))
-                    ax.hist(mass.iloc[:int(label)], bins=signal_bins, alpha=0.2, color='y', label='Anomalies')
+                    ax.hist(mass.iloc[:int(label)], bins=signal_bins, alpha=0.2, color='y', label=f'{label} signal')
                     handles, labels = ax.get_legend_handles_labels()
                     # fig.legend(handles, labels, loc='upper left', bbox_to_anchor=(0.9, 0.89), frameon=False)
                     ax.legend(handles, labels, frameon=False, loc='upper right')
@@ -363,20 +392,20 @@ def get_counts():
                 if i == 0:
                     top_line = np.sqrt(expected)
                 error_in_expected = top_line * (1 - thresholds[i])
-                add_errors(ax, x, expected, bin_width, error_in_expected, color='b')
+                add_errors(ax, x_e, expected, bin_width, error_in_expected, color='b')
                 axes1.plot(x, y, 'o', label=f'Cut = {thresholds[i]}', markersize=3)
 
-                # rt = np.array(rt)
-                # bins, bg_counts, ad_counts = get_mass_spectrum(int(label))
-                # clr = clist[i]
-                # fact = int(label) / ad_counts.sum()
-                # ad_counts = fact * ad_counts
-                # mx = np.digitize(xy[:, 0], bins=bins) - 1
-                # total_signal = (rt[:, 0, i] * ad_counts[mx])
-                # # total_bg = (rt[:, 1, i] * bg_counts[mx]).sum()
-                # total_bg = (bg_counts[mx] * (1 - thresholds[i]))
-                # significance[i] = np.sqrt(
-                #     2 * ((total_signal + total_bg) * np.log(1 + total_signal / total_bg) - total_signal).sum())
+                rt = np.array(rt)
+                bins, bg_counts, ad_counts = get_mass_spectrum(int(label))
+                clr = clist[i]
+                fact = int(label) / ad_counts.sum()
+                ad_counts = fact * ad_counts
+                mx = np.digitize(xy[:, 0], bins=bins) - 1
+                total_signal = (rt[:, 0, i] * ad_counts[mx])
+                # total_bg = (rt[:, 1, i] * bg_counts[mx]).sum()
+                total_bg = (bg_counts[mx] * (1 - thresholds[i]))
+                significance[i] = np.sqrt(
+                    2 * ((total_signal + total_bg) * np.log(1 + total_signal / total_bg) - total_signal).sum())
                 # axes2[j, 0].bar(bins[mx], rt[:, 0, i] * ad_counts[mx], width=bin_width, color='None', edgecolor='r')
                 # axes2[j, 1].bar(bins[mx], rt[:, 1, i] * bg_counts[mx], width=bin_width, color='None', edgecolor='b')
                 # axes2[j, 2].bar(bins[mx], rt[:, 0, i] * ad_counts[mx], width=bin_width, color='None', edgecolor='r')
@@ -387,12 +416,12 @@ def get_counts():
                 #                 width=100, label=f'Cut = {thresholds[i]}', color='None', edgecolor=clr)
 
             if i == 0:
-                ax.set_ylabel('Counts')
+                ax.set_ylabel('Events / bin')
             ax.set_xlabel(r'$m_{JJ}$ [GeV]')
             # plt.rcParams['axes.titlepad'] = -14
-            ax.set_title(f'{label} injected signal', y=1.0, pad=-14)
+            # ax.set_title(f'{label} injected signal', y=1.0, pad=-14)
             ax.set_yscale('log')
-            ax.set_ylim([1, 100000])
+            ax.set_ylim([1, y_max])
 
         signicance_dict[label] = significance
         axes1.set_ylabel('Counts')
@@ -578,10 +607,12 @@ def figs_six_and_seven():
         vals = defaultdict(list)
         for i, directory in enumerate(directories):
             try:
-                with open(f'{sv_dir}/images/{directory}/tpr_cathode.pkl', 'rb') as f:
-                    tpr_l = pickle.load(f)
-                with open(f'{sv_dir}/images/{directory}/fpr_cathode.npy', 'rb') as f:
-                    fpr_l = pickle.load(f)
+                # with open(f'{sv_dir}/images/{directory}/tpr_cathode.pkl', 'rb') as f:
+                #     tpr_l = pickle.load(f)
+                # with open(f'{sv_dir}/images/{directory}/fpr_cathode.npy', 'rb') as f:
+                #     fpr_l = pickle.load(f)
+                with open(f'{sv_dir}/images/{directory}/rates.pkl', 'rb') as f:
+                    fpr_l, tpr_l = pickle.load(f)[0]['0.0']
                 passed = 1
             except Exception as e:
                 print(e)
@@ -613,7 +644,8 @@ def figs_six_and_seven():
             fpr_list = lst[2].values()
             # tpr = np.array(lst[1].values())
             # fpr = np.array(lst[2].values())
-        except:
+        except Exception as e:
+            print(e)
             fpr_list = [lst[1]]
             tpr_list = [lst[2]]
         data = defaultdict(list)

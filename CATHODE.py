@@ -89,7 +89,7 @@ parser.add_argument('--gclip', type=int, default=None,
                     help='The value to clip the gradient by.')
 parser.add_argument('--nbins', type=int, default=10,
                     help='The number of bins to use in each spline transformation.')
-parser.add_argument('--load_best', type=int, default=0, help='Load the model that has the best validation score.')
+parser.add_argument('--load_best', type=int, default=1, help='Load the model that has the best validation score.')
 parser.add_argument('--det_beta', type=float, default=0.1, help='Factor to multiply determinant by in the loss.')
 parser.add_argument('--sample_m_train', type=int, default=0, help='Use mass sampler during training?')
 parser.add_argument('--oversample', type=int, default=4,
@@ -218,10 +218,10 @@ else:
         schedulers_epoch_end=reduce_lr_inn, gclip=args.gclip, shuffle_epoch_end=args.shuffle, load_best=args.load_best)
 
 # TODO: pass inputs to this dictionary as args.
-classifier_args = {'false_signal': 2, 'batch_size': 1000, 'nepochs': args.classifier_epochs,
+classifier_args = {'false_signal': 0, 'batch_size': 128, 'nepochs': args.classifier_epochs,
                    'lr': 0.001, 'pure_noise': 0, 'beta_add_noise': args.beta_add_noise, 'drp': 0.0,
                    'normalize': True, 'data_unscaler': datasets.signalset.unnormalize, 'width': 32,
-                   'n_run': args.c_nruns}
+                   'n_run': args.c_nruns, 'use_scheduler': True}
 
 # Generate test data and preprocess etc
 post_process_curtains(cathode, datasets, sup_title='NSF', signal_anomalies=signal_anomalies,
