@@ -3,6 +3,7 @@ import colorsys
 
 import numpy
 import numpy as np
+import os
 import torch
 from matplotlib import pyplot as plt  # , pyplot  # , pyplot
 
@@ -367,3 +368,19 @@ def plot_delta_mass(deltas, true_deltas=None, name=None, alpha=0.5, bins=50):
         name = f'{get_top_dir()}/images/delta_mass.png'
     plt.savefig(name)
     fig.clf()
+
+def plot_losses(train, valid, sv_dir):
+    fig, ax = plt.subplots()
+    t_mean = 0
+    v_mean = 0
+    alpha = 0.2
+    for t, v in zip(train, valid):
+        ax.plot(t, color='b', alpha=alpha)
+        ax.plot(v, color='r', alpha=alpha)
+        t_mean += t
+        v_mean += v
+    n_folds = len(train)
+    ax.plot(t_mean / n_folds, color='b', label='train')
+    ax.plot(v_mean / n_folds, color='r', label='valid')
+    fig.legend()
+    fig.savefig(os.path.join(sv_dir, 'training.png'))

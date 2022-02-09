@@ -157,6 +157,7 @@ def get_counts():
     args = parse_args()
 
     sv_dir = os.path.join(get_top_dir())
+    add_dict = None
 
     # The real hunt
     # name = 'OT_bump_two_hundred'
@@ -169,6 +170,7 @@ def get_counts():
     bin_width = 200
     n_runs = 40
     y_max = 500000
+    add_dict = [f'no_dope_ot_OT_no_dope_{i}' for i in range(0, 8)]
 
     # # An idealised hunt
     # name = 'idealised_hunt_1000'
@@ -201,11 +203,13 @@ def get_counts():
     # y_max = 500000
     # n_runs = 40
 
-    reload = 0
+    reload = 1
     cathode_classifier = 0
-    new_width = 50
+    new_width = 100
 
     directories = [f'{dd}_{name}_{i}' for i in range(0, n_runs)]
+    if add_dict is not None:
+        directories += add_dict
 
     # thresholds = [0, 0.5, 0.8, 0.9, 0.95, 0.99]
     thresholds = [0, 0.5, 0.8, 0.9, 0.95, 0.99, 0.999, 0.9999]
@@ -360,7 +364,8 @@ def get_counts():
                 expected = xy[mx, i + 1 + len(thresholds)]
                 x_e = xy[mx, 0]
 
-                mass_y = np.concatenate([m[j][i].numpy() for m in lst_masses for j in range(5)])
+                # mass_y = np.concatenate([m[j][i].numpy() for m in lst_masses for j in range(5)])
+                mass_y = np.concatenate([m[0][i] for m in lst_masses])
                 if new_width is not None:
                     # Define new bin centers
                     min_mass = min(x_all) - half_width
@@ -395,17 +400,17 @@ def get_counts():
                 add_errors(ax, x_e, expected, bin_width, error_in_expected, color='b')
                 axes1.plot(x, y, 'o', label=f'Cut = {thresholds[i]}', markersize=3)
 
-                rt = np.array(rt)
-                bins, bg_counts, ad_counts = get_mass_spectrum(int(label))
-                clr = clist[i]
-                fact = int(label) / ad_counts.sum()
-                ad_counts = fact * ad_counts
-                mx = np.digitize(xy[:, 0], bins=bins) - 1
-                total_signal = (rt[:, 0, i] * ad_counts[mx])
-                # total_bg = (rt[:, 1, i] * bg_counts[mx]).sum()
-                total_bg = (bg_counts[mx] * (1 - thresholds[i]))
-                significance[i] = np.sqrt(
-                    2 * ((total_signal + total_bg) * np.log(1 + total_signal / total_bg) - total_signal).sum())
+                # rt = np.array(rt)
+                # bins, bg_counts, ad_counts = get_mass_spectrum(int(label))
+                # clr = clist[i]
+                # fact = int(label) / ad_counts.sum()
+                # ad_counts = fact * ad_counts
+                # mx = np.digitize(xy[:, 0], bins=bins) - 1
+                # total_signal = (rt[:, 0, i] * ad_counts[mx])
+                # # total_bg = (rt[:, 1, i] * bg_counts[mx]).sum()
+                # total_bg = (bg_counts[mx] * (1 - thresholds[i]))
+                # significance[i] = np.sqrt(
+                #     2 * ((total_signal + total_bg) * np.log(1 + total_signal / total_bg) - total_signal).sum())
                 # axes2[j, 0].bar(bins[mx], rt[:, 0, i] * ad_counts[mx], width=bin_width, color='None', edgecolor='r')
                 # axes2[j, 1].bar(bins[mx], rt[:, 1, i] * bg_counts[mx], width=bin_width, color='None', edgecolor='b')
                 # axes2[j, 2].bar(bins[mx], rt[:, 0, i] * ad_counts[mx], width=bin_width, color='None', edgecolor='r')
@@ -584,12 +589,16 @@ def figs_six_and_seven():
     # names = ['Curtains'] * 8 + ['Cathode'] * 8 + ['Idealised'] + ['Supervised'] + ['CATHODE_full']
     # This is Curtains and Cathode as you will actually use them
     # This has CATHODE trained only for 100 epochs and taking the last model, not the best
-    directories = [f'ot_fig7_OT_fig7_{i}' for i in range(0, 8)] + \
-                  [f'cathode_match_CATHODE_match_4'] + \
-                  ['idealised_class_feature_idealised_class_feature_0'] + \
-                  ['super_class_cath_super_class_cath_0']
-    names = ['Curtains'] * 8 + ['Cathode'] + ['Idealised'] + ['Supervised']
-    filename = 'fig_6_7'
+    # directories = [f'ot_fig7_OT_fig7_{i}' for i in range(0, 8)] + \
+    #               [f'cathode_match_CATHODE_match_4'] + \
+    #               ['idealised_class_feature_idealised_class_feature_0'] + \
+    #               ['super_class_cath_super_class_cath_0']
+    # names = ['Curtains'] * 8 + ['Cathode'] + ['Idealised'] + ['Supervised']
+    # filename = 'fig_6_7'
+    # This has some 1 + eps mixed in
+    directories = [f'ot_fig7_200_OT_fig7_200_5_C_F7_{i}' for i in range(0, 16)]
+    names = ['Curtains'] * 16
+    filename = 'fig_6_7_joint'
     # # This is Curtains and cathode trained on the full sidebands
     # directories = ['curtains_match_CURTAINS_match_0'] + \
     #               [f'cathode_match_CATHODE_match_0'] + \
@@ -747,7 +756,7 @@ def figs_six_and_seven():
 
 
 if __name__ == '__main__':
-    get_counts()
-    # figs_six_and_seven()
+    # get_counts()
+    figs_six_and_seven()
     # get_sics()
     # get_max_sic()

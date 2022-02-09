@@ -89,7 +89,7 @@ parser.add_argument('--gclip', type=int, default=None,
                     help='The value to clip the gradient by.')
 parser.add_argument('--nbins', type=int, default=10,
                     help='The number of bins to use in each spline transformation.')
-parser.add_argument('--load_best', type=int, default=1, help='Load the model that has the best validation score.')
+parser.add_argument('--load_best', type=int, default=0, help='Load the model that has the best validation score.')
 parser.add_argument('--det_beta', type=float, default=0.1, help='Factor to multiply determinant by in the loss.')
 parser.add_argument('--sample_m_train', type=int, default=0, help='Use mass sampler during training?')
 parser.add_argument('--oversample', type=int, default=4,

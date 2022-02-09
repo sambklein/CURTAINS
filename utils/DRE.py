@@ -18,7 +18,7 @@ from torch.utils.data import Dataset
 import torch
 
 from utils import CATHODE_classifier, hyperparams
-from utils.plotting import add_error_hist, get_bins, hist_features
+from utils.plotting import add_error_hist, get_bins, hist_features, plot_rates_dict, plot_losses
 from utils.torch_utils import sample_data
 from utils.training import Timer
 
@@ -232,7 +232,7 @@ def fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, n_
         ax[2].plot(max_sic_tpr, label='Max SIC tpr')
         ax[2].legend()
         [ax[i].set_xlabel('epochs') for i in range(3)]
-        fig.savefig(sv_dir + f'Training_{fold}.png')
+        fig.savefig(f'{classifier_dir}/training_{fold}.png')
 
     if load_best:
         best_epoch = np.argmin(valid_loss)
@@ -314,7 +314,7 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
             sup_title='', load=False, return_rates=False, false_signal=1, normalize=True, batch_size=1000, nepochs=100,
             lr=0.0001, wd=0.001, drp=0.0, width=32, depth=3, batch_norm=False, layer_norm=False, use_scheduler=True,
             use_weights=True, thresholds=None, beta_add_noise=0.1, pure_noise=False, nfolds=5, data_unscaler=None,
-            run_cathode_classifier=True, n_run=1, cf_activ=torch.relu):
+            run_cathode_classifier=True, n_run=1, cf_activ='relu'):
     """
     bg_truth_labels 0 = known anomaly, 1 = known background, -1 = unknown/sampled/transformed sample
     """
@@ -443,15 +443,20 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
 
     # From the saved losses pick the best epoch
     n_av = 5
+
     # Take every second because the first is the training loss
-    losses = np.concatenate(store_losses)[1::2]
-    eval_epoch = np.argsort(losses.mean(0))[:n_av]
+    losses = np.concatenate(store_losses)
+    train_loss = losses[0::2]
+    val_loss = losses[1::2]
+    plot_losses(train_loss, val_loss, sv_dir)
+    eval_epoch = np.argsort(val_loss.mean(0))[:n_av]
     # eval_epoch = [nepochs - 1, nepochs - 2]
     # eval_epoch = [nepochs - 1]
     print(f'Best epoch: {eval_epoch}. \nLoading and evaluating now.')
     split_inds = kfold_gen(kfold)
 
     info_dict = defaultdict(list)
+    rates_dict = {}
     # Evaluate each model at the selected epoch
     for fold, (train_index, valid_index, eval_index) in enumerate(split_inds):
 
@@ -472,7 +477,7 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
             y_scores = classifier.predict(eval_data.data.to(device)).cpu().numpy()
         info_dict['y_scores'] += [y_scores]
         labels_test = eval_data.targets
-        info_dict['labels_test'] += [labels_test]
+        info_dict['labels_test'] += [labels_test.cpu().numpy()]
 
         # Plot the classifier distribution
         if anomaly_bool:
@@ -483,84 +488,105 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
                 ad = ad.data
                 anomaly_scores = classifier.predict(ad.to(device)).cpu().numpy()
             if eval_data.bg_labels is not None:
-                lbls_bg = eval_data.bg_labels
+                lbls_bg = eval_data.bg_labels.cpu().numpy()
                 lbls = lbls_bg
                 bg_scores = y_scores[:, 0]
             else:
-                bg_scores = y_scores[eval_data.targets == 0]
+                # TODO: the evaluation here is bad
+                # bg_scores = y_scores[eval_data.targets == 0]
+                bg_scores = eval_data.targets.cpu().numpy()
                 lbls_bg = np.zeros(len(bg_scores))
                 lbls = np.zeros(len(eval_data.data))
             # Get the background vs signal AUC if that is available
-            info_dict['y_labels_1'] += [np.concatenate((np.ones(len(anomaly_scores)), lbls_bg))]
-            info_dict['y_scores_1'] += [np.concatenate((anomaly_scores[:, 0], bg_scores))]
+            data_mx = lbls_bg != -1
+            info_dict['y_labels_1'] += [np.concatenate((np.ones(len(anomaly_scores)), lbls_bg[data_mx]))]
+            # TODO: does this work?
+            # info_dict['y_scores_1'] += [np.concatenate((anomaly_scores[:, 0], bg_scores))]
+            info_dict['y_scores_1'] += [np.concatenate((anomaly_scores.reshape(-1, 1),
+                                                        bg_scores[data_mx].reshape(-1, 1)))[:, 0]]
             # # Same evaluation as above but ignoring the holdout data
             # info_dict['y_labels_1'] += [lbls_bg]
             # info_dict['y_scores_1'] += [bg_scores]
             # Get the background only AUC if that information is available
-            info_dict['y_labels_2'] += [eval_data.targets[lbls == 0]]
+            info_dict['y_labels_2'] += [eval_data.targets.cpu().numpy()[lbls == 0]]
             info_dict['y_scores_2'] += [y_scores[lbls == 0]]
 
-            # Calculate and plot some AUCs for the epoch
-            fpr, tpr, _ = roc_curve(info_dict['y_labels_1'][-1], info_dict['y_scores_1'][-1])
-            roc_auc_1 = roc_auc_score(info_dict['y_labels_1'][-1], info_dict['y_scores_1'][-1])
-            roc_auc_2 = roc_auc_score(info_dict['y_labels_2'][-1], info_dict['y_scores_2'][-1])
-            roc_auc_3 = roc_auc_score(labels_test, y_scores)
-            with open(os.path.join(sv_dir, f'classifier_info_{fold}.txt'), 'w') as f:
-                f.write(f'SR vs transformed {roc_auc_2} \n')
-                f.write(f'SR QCD vs SR anomalies {roc_auc_1} \n')
-                f.write(f'Classification on training {roc_auc_3} \n')
+            info_dict['masses_folds'] += [eval_masses.cpu().numpy()]
+            info_dict['bg_labels'] += [lbls_bg]
 
-        # Calculate the expected and real counts that pass a certain threshold of the classifier
-        if return_rates:
-            # Count the number of events that are left in the signal region after a certain cut on the background
-            # template
-            count = []
-            count_bg = []
-            expected_count = []
-            store_masses = []
-            mx = eval_data.targets == 0
-            for i, at in enumerate(thresholds):
-                threshold = np.quantile(y_scores[mx], at)
-                expected_count += [sum(y_scores[mx] >= threshold)]
-                count += [sum(y_scores[eval_data.targets == 1] >= threshold)]
-                count_bg += [sum(y_scores[eval_data.bg_labels == 1] >= threshold)]
-                ms_mx = eval_data.targets[:, 0] == 1
-                store_masses += [eval_masses[ms_mx][y_scores[ms_mx] >= threshold]]
-                if anomaly_bool:
-                    signal_pass_rate = sum(anomaly_scores >= threshold) / len(anomaly_scores)
-                    bg_pass_rate = sum(bg_scores[lbls_bg == 0] >= threshold) / len(y_scores)
-                    # TODO fix the pass rates
-                    # pass_rates += [np.concatenate((signal_pass_rate, bg_pass_rate))]
-                    info_dict['pass_rates'] += [np.ones(nfolds * len(thresholds))]
-            info_dict['counts'] += [np.array(count)]
-            info_dict['masses'] += [store_masses]
-            info_dict['expected_counts'] += [np.array(expected_count)]
-            info_dict['sig_counts'] += [np.array(count_bg)]
-            print(count_bg)
+            # # Calculate and plot some AUCs for the epoch
+            # fpr, tpr, _ = roc_curve(info_dict['y_labels_1'][-1], info_dict['y_scores_1'][-1])
+            # rates_dict[f'{fold}'] = [fpr, tpr]
+            # roc_auc_1 = roc_auc_score(info_dict['y_labels_1'][-1], info_dict['y_scores_1'][-1])
+            # roc_auc_2 = roc_auc_score(info_dict['y_labels_2'][-1], info_dict['y_scores_2'][-1])
+            # roc_auc_3 = roc_auc_score(labels_test, y_scores)
+            # with open(os.path.join(sv_dir, f'classifier_info_{fold}.txt'), 'w') as f:
+            #     f.write(f'SR vs transformed {roc_auc_2} \n')
+            #     f.write(f'SR QCD vs SR anomalies {roc_auc_1} \n')
+            #     f.write(f'Classification on training {roc_auc_3} \n')
 
-    keys_to_cat = ['y_scores', 'labels_test', 'y_labels_1', 'y_scores_1', 'y_labels_2', 'y_scores_2', 'sig_counts']
+    plot_rates_dict(sv_dir, rates_dict, 'folds')
+
+    keys_to_cat = ['y_scores', 'labels_test', 'y_labels_1', 'y_scores_1', 'y_labels_2', 'y_scores_2', 'masses_folds',
+                   'bg_labels']
     for key in keys_to_cat:
         if key in info_dict.keys():
             info_dict[key] = np.concatenate(info_dict[key])
+
+    # Calculate the expected and real counts that pass a certain threshold of the classifier
+    if return_rates:
+        # Count the number of events that are left in the signal region after a certain cut on the background
+        # template
+        count = []
+        count_signal = []
+        expected_count = []
+        store_masses = []
+        mx = info_dict['labels_test'] == 0
+        y_scores = info_dict['y_scores']
+        for i, at in enumerate(thresholds):
+            threshold = np.quantile(y_scores[mx], at)
+            expected_count += [np.sum(y_scores[mx] >= threshold)]
+            count += [np.sum(y_scores[info_dict['labels_test'] == 1] >= threshold)]
+            count_signal += [np.sum(y_scores[info_dict['bg_labels'] == 1] >= threshold)]
+            ms_mx = info_dict['labels_test'] == 1
+            store_masses += [info_dict['masses_folds'][ms_mx][y_scores[ms_mx] >= threshold]]
+            if anomaly_bool:
+                signal_pass_rate = np.sum(info_dict['y_scores_1'][info_dict['y_labels_1'] == 1] >= threshold) / np.sum(
+                    info_dict['y_labels_1'] == 1)
+                bg_pass_rate = np.sum(info_dict['y_scores_1'][info_dict['y_labels_1'] == 0] >= threshold) / np.sum(
+                    info_dict['y_labels_1'] == 0)
+                # TODO fix the pass rates
+                info_dict['pass_rates'] += [np.array((signal_pass_rate, bg_pass_rate))]
+                # info_dict['pass_rates'] += [np.ones(nfolds * len(thresholds))]
+        info_dict['counts'] += [np.array(count)]
+        info_dict['masses'] += [store_masses]
+        info_dict['expected_counts'] += [np.array(expected_count)]
+        info_dict['sig_counts'] += [np.array(count_signal)]
 
     # fpr, tpr, _ = roc_curve(labels_test, y_scores)
     fpr, tpr, _ = roc_curve(info_dict['labels_test'], info_dict['y_scores'])
     roc_auc = auc(fpr, tpr)
 
-    # Plot the classifier output distributions
-    fig, ax = plt.subplots()
-    d1 = info_dict['y_scores_1']
-    bins = get_bins(d1, nbins=80)
-    plt_kwargs = {'bins': bins, 'alpha': 0.8, 'histtype': 'step'}
-    def get_weight(fact):
-        return np.ones_like(fact) / np.sum(fact)
-    ax.hist(d1, label='Anomalies', weights=get_weight(d1), **plt_kwargs)
-    s1 = info_dict['y_scores'][info_dict['labels_test'] == 0]
-    ax.hist(s1, weights=get_weight(s1), label='Train Label 0', **plt_kwargs)
-    s2 = info_dict['y_scores'][info_dict['labels_test'] == 1]
-    ax.hist(s2, weights=get_weight(s2), label='Train Label 1', **plt_kwargs)
-    fig.legend()
-    fig.savefig(os.path.join(sv_dir, 'classifier_outputs.png'))
+    # # Plot the classifier output distributions
+    # fig, ax = plt.subplots()
+    # d1 = info_dict['y_scores_1']
+    # bins = get_bins(d1, nbins=80)
+    # plt_kwargs = {'bins': bins, 'alpha': 0.8, 'histtype': 'step'}
+    #
+    # def get_weight(fact):
+    #     return np.ones_like(fact) / np.sum(fact)
+    #
+    # ax.hist(d1, label='Anomalies', weights=get_weight(d1), **plt_kwargs)
+    # s1 = info_dict['y_scores'][info_dict['labels_test'] == 0]
+    # ax.hist(s1, weights=get_weight(s1), label='Train Label 0', **plt_kwargs)
+    # lbls_mx = info_dict['labels_test'] == 1
+    # s2 = info_dict['y_scores'][lbls_mx]
+    # # Mask out the anomalies
+    # s2 = s2[info_dict['bg_labels'].reshape(-1, 1)[lbls_mx] == 0]
+    # ax.hist(s2, weights=get_weight(s2), label='Train Label 1', **plt_kwargs)
+    # ax.set_yscale('log')
+    # fig.legend()
+    # fig.savefig(os.path.join(sv_dir, 'classifier_outputs.png'))
 
     if anomaly_bool:
         lmx = np.isfinite(info_dict['y_scores_1'])
@@ -586,8 +612,8 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
         counts = np.array(info_dict['counts'])
         if anomaly_bool:
             pass_rates = np.array(info_dict['pass_rates'])
-        print(f'Expected {np.sum(info_dict["expected_counts"], 0)}.\n Measured {np.sum(counts, 0)}.\n')
-        print(f'Signal counts {np.sum(info_dict["sig_counts"], 0)}..')
+        print(f'Expected {np.sum(info_dict["expected_counts"], 0)}.\n Measured {np.sum(counts, 0)}.')
+        print(f'Signal counts {np.sum(info_dict["sig_counts"], 0)}.')
         counts = {'counts': info_dict['counts'], 'expected_counts': info_dict["expected_counts"],
                   'pass_rates': info_dict['pass_rates'], 'masses': info_dict['masses']}
 
