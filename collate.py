@@ -158,19 +158,31 @@ def get_counts():
 
     sv_dir = os.path.join(get_top_dir())
     add_dict = None
+    no_eps = True
 
     # The real hunt
     # name = 'OT_bump_two_hundred'
     # dd = 'curtains_bump'
 
+    # # A very nice hunt with bins of size 200
+    # name = 'OT_bump_centered'
+    # dd = 'curtains_bump_cfinal'
+    # filename = '200'
+    # bin_width = 200
+    # n_runs = 40
+    # y_max = 500000
+    # add_dict = [f'no_dope_ot_OT_no_dope_{i}' for i in range(0, 8)]
+
     # A very nice hunt with bins of size 200
-    name = 'OT_bump_centered'
-    dd = 'curtains_bump_cfinal'
+    # curtains_bump_cfinal_OT_bump_centered_0_bump_200_0
+    name = 'bump_200'
+    dd = 'curtains_bump_cfinal_OT_bump_centered'
     filename = '200'
     bin_width = 200
     n_runs = 40
     y_max = 500000
-    add_dict = [f'no_dope_ot_OT_no_dope_{i}' for i in range(0, 8)]
+    no_eps = False
+    add_dict = [f'{dd}_{i}_{name}_{i}' for i in range(0, n_runs)]
 
     # # An idealised hunt
     # name = 'idealised_hunt_1000'
@@ -194,7 +206,7 @@ def get_counts():
     # n_runs = 64
     # y_max = 100000
 
-    # TODO: why did this fail so badly?
+    # # TODO: why did this fail so badly?
     # # A cathode hunt
     # name = 'CATHODE_bump_scan_two_hundred'
     # dd = 'cathode_bump'
@@ -245,7 +257,11 @@ def get_counts():
                     # expected_counts = expected_counts / 8
                     expected_counts = true_counts[0] * (1 - np.array(thresholds))
                 else:
-                    with open(f'{sv_dir}/images/{directory}/counts_no_eps.pkl', 'rb') as f:
+                    nm = f'{sv_dir}/images/{directory}/counts'
+                    if no_eps:
+                        nm+= '_no_eps'
+                    nm += '.pkl'
+                    with open( nm, 'rb') as f:
                         # with open(f'{sv_dir}/images/{directory}/counts_no_eps.pkl', 'rb') as f:
                         info_dict = pickle.load(f)
                     true_counts = np.sum(info_dict['counts'], 0)
@@ -595,10 +611,29 @@ def figs_six_and_seven():
     #               ['super_class_cath_super_class_cath_0']
     # names = ['Curtains'] * 8 + ['Cathode'] + ['Idealised'] + ['Supervised']
     # filename = 'fig_6_7'
-    # This has some 1 + eps mixed in
-    directories = [f'ot_fig7_200_OT_fig7_200_5_C_F7_{i}' for i in range(0, 16)]
-    names = ['Curtains'] * 16
-    filename = 'fig_6_7_joint'
+
+    # # This has some 1 + eps mixed in
+    # directories = [f'ot_fig7_200_OT_fig7_200_{i}_C_F7_{i}' for i in range(0, 8)] + \
+    #               [f'ot_fig7_200_OT_fig7_200_{i}_C_F7_{i + 8}' for i in range(0, 8)]
+    # # These names are reall Curtains and Curtains 1 + ep
+    # names = ['Cathode'] * 8 + ['Curtains'] * 8
+    # filename = 'fig_6_7_joint'
+
+    # This is restricted sidebands
+    directories = [f'ot_fig7_200_OT_fig7_200_{i}_C_F7_{i}' for i in range(0, 8)] + \
+                  [f'cathode_fig7_200_CATHODE_fig7_200_{i}_Cathode_F7_{i}' for i in range(0, 8)] + \
+                  [f'super_class_200_super_class_200_{i}' for i in range(0, 8)] + \
+                  [f'ideal_class_200_ideal_class_200_{i}' for i in range(0, 8)]
+
+    # This is no oversampling
+    directories = [f'ot_fig7_200_OT_fig7_200_{i}_C_F7_match_{i}' for i in range(0, 8)] + \
+                  [f'cathode_fig7_200_CATHODE_fig7_200_{i}_Cathode_F7_{i}' for i in range(0, 8)] + \
+                  [f'super_class_200_super_class_200_{i}' for i in range(0, 8)] + \
+                  [f'ideal_class_200_ideal_class_200_{i}' for i in range(0, 8)]
+    # These names are really Curtains and Curtains 1 + ep
+    names = ['Curtains'] * 8 + ['Cathode'] * 8 + ['Supervised'] * 8 + ['Idealised'] * 8
+    filename = 'fig_6_7'
+
     # # This is Curtains and cathode trained on the full sidebands
     # directories = ['curtains_match_CURTAINS_match_0'] + \
     #               [f'cathode_match_CATHODE_match_0'] + \
@@ -630,9 +665,11 @@ def figs_six_and_seven():
             if passed:
                 args = get_args(f'{sv_dir}/images/{directory}')
                 label = f'{args["doping"]}'
+                if label == '1000':
+                    print(directory)
                 vals[label] += [[names[i], tpr_l, fpr_l]]
 
-            with open(f'{sv_dir}/images/fig_6_7.pkl', 'wb') as f:
+            with open(f'{sv_dir}/images/{filename}.pkl', 'wb') as f:
                 pickle.dump(vals, f)
     else:
         with open(f'{sv_dir}/images/{filename}.pkl', 'rb') as f:
@@ -647,16 +684,8 @@ def figs_six_and_seven():
     clrs = {'Curtains': 'r', 'Cathode': 'b', 'Idealised': 'g', 'Supervised': 'k', 'CATHODE_full': 'y'}
     for lst in data:
         label = lst[0]
-        try:
-            # TODO: when there are multiple runs with different seeds averages etc will need to be taken.
-            tpr_list = lst[1].values()
-            fpr_list = lst[2].values()
-            # tpr = np.array(lst[1].values())
-            # fpr = np.array(lst[2].values())
-        except Exception as e:
-            print(e)
-            fpr_list = [lst[1]]
-            tpr_list = [lst[2]]
+        fpr_list = [lst[2]]
+        tpr_list = [lst[1]]
         data = defaultdict(list)
         for tpr, fpr in zip(tpr_list, fpr_list):
             fpr_mx = fpr != 0.
@@ -724,8 +753,8 @@ def figs_six_and_seven():
         for values in lst:
             nm = values[0]
             # TODO: when there are multiple runs with different seeds averages etc will need to be taken.
-            tpr_list = values[1].values()
-            fpr_list = values[2].values()
+            tpr_list = [values[1]]
+            fpr_list = [values[2]]
             for tpr, fpr in zip(tpr_list, fpr_list):
                 ax = axes[0]
                 ax1 = axes[1]
@@ -740,9 +769,10 @@ def figs_six_and_seven():
     ax.set_xticks(dvs)
     pad = 0.05
     ax.set_xlim(dvs[-1] + pad, dvs[0] - pad)
+    ax.set_ylim(0.95, 8)
     # ax1.set_xlabel('Signal efficiency')
     # ax1.set_ylabel('Rejection (1 / false positive rate)')
-    # ax1.set_yscale('log')
+    ax.set_yscale('log')
     # feature_type, bins = label.split('__')
     # ax.set_title(f'Feature type{feature_type}, Bins {bins}')
 

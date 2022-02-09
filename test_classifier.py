@@ -28,7 +28,7 @@ def parse_args():
                         help='Choose the base output directory')
     parser.add_argument('-n', '--outputname', type=str, default='local',
                         help='Set the output name directory')
-    parser.add_argument('--load', type=int, default=1, help='Load a model?')
+    parser.add_argument('--load', type=int, default=0, help='Load a model?')
 
     # Multiple runs
     parser.add_argument('--shift_seed', type=int, default=0,
@@ -36,18 +36,21 @@ def parse_args():
 
     # Dataset parameters
     parser.add_argument('--dataset', type=str, default='curtains', help='The dataset to train on.')
-    parser.add_argument("--bins", type=str, default='2900,3100,3300,3700,3900,4100')
-    # parser.add_argument("--bins", type=str, default='3000,3200,3400,3600,3800,4000')
-    parser.add_argument("--feature_type", type=int, default=12)
+    # parser.add_argument("--bins", type=str, default='2900,3100,3300,3700,3900,4100')
+    parser.add_argument("--bins", type=str, default='3000,3200,3400,3600,3800,4000')
+    parser.add_argument("--feature_type", type=int, default=3)
     parser.add_argument("--doping", type=int, default=1000,
                         help='Raw number of signal events to be added into the entire bg spectra.')
     parser.add_argument("--split_data", type=int, default=1,
                         help='2 for idealised classifier, 3 for supervised.')
+
     parser.add_argument("--data_directory", type=str,
                         default='/home/users/k/kleins/MLproject/CURTAINS/images/ot_fig7_200_OT_fig7_200_7',
                         help='The directory within which to search for data.')
     parser.add_argument("--data_file", type=str, default='SB2_to_SR_samples.npy',
                         help='The file to load and train against within data_directory.')
+    parser.add_argument("--nx_oversample", type=int, default=-1,
+                        help='The number of times to oversample relative to the number of events in the signal region.')
 
     # Training parameters
     parser.add_argument('--batch_size', type=int, default=128, help='Size of batch for training.')
@@ -55,7 +58,7 @@ def parse_args():
     parser.add_argument('--lr', type=float, default=0.001, help='Classifier learning rate.')
     parser.add_argument('--wd', type=float, default=0.0, help='Weight Decay, set to None for ADAM.')
     parser.add_argument('--drp', type=float, default=0.0, help='Dropout to apply.')
-    parser.add_argument('--width', type=int, default=64, help='Width to use for the classifier.')
+    parser.add_argument('--width', type=int, default=32, help='Width to use for the classifier.')
     parser.add_argument('--depth', type=int, default=3, help='Depth of classifier to use.')
     parser.add_argument('--batch_norm', type=int, default=0, help='Apply batch norm?')
     parser.add_argument('--layer_norm', type=int, default=0, help='Apply layer norm?')
@@ -82,7 +85,6 @@ def test_classifier():
     # If a data directory is passed, load the log and set the args appropriately.
     # This allows samples to be loaded and a classifier to be trained against them.
     if (args.data_directory != 'none') and (args.split_data == 1):
-        print(os.path.join(args.data_directory, '*.json'))
         exp_info = glob.glob(os.path.join(args.data_directory, '*.json'))[0]
         with open(exp_info, "r") as file_name:
             json_dict = json.load(file_name)
@@ -136,6 +138,10 @@ def test_classifier():
         ad, ad_out = mx_data(ad, sr_bin)
         data_to_dope = pd.concat((sm, ad)).to_numpy()
         undoped_data = bg_template[~np.isnan(bg_template).any(axis=1)]
+        if args.nx_oversample > 0:
+            mx_inds = np.random.permutation(np.arange(0, len(undoped_data)))
+            undoped_data = undoped_data[mx_inds]
+            undoped_data = undoped_data[:int(args.nx_oversample * len(data_to_dope))]
         bg_truth_labels = torch.cat((
             -torch.ones(len(undoped_data)),
             torch.zeros(len(sm)),

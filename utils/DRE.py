@@ -492,16 +492,13 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
                 lbls = lbls_bg
                 bg_scores = y_scores[:, 0]
             else:
-                # TODO: the evaluation here is bad
-                # bg_scores = y_scores[eval_data.targets == 0]
-                bg_scores = eval_data.targets.cpu().numpy()
+                bg_scores = y_scores[eval_data.targets == 0]
+                # bg_scores = eval_data.targets.cpu().numpy()
                 lbls_bg = np.zeros(len(bg_scores))
                 lbls = np.zeros(len(eval_data.data))
             # Get the background vs signal AUC if that is available
             data_mx = lbls_bg != -1
             info_dict['y_labels_1'] += [np.concatenate((np.ones(len(anomaly_scores)), lbls_bg[data_mx]))]
-            # TODO: does this work?
-            # info_dict['y_scores_1'] += [np.concatenate((anomaly_scores[:, 0], bg_scores))]
             info_dict['y_scores_1'] += [np.concatenate((anomaly_scores.reshape(-1, 1),
                                                         bg_scores[data_mx].reshape(-1, 1)))[:, 0]]
             # # Same evaluation as above but ignoring the holdout data
@@ -547,7 +544,7 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
             threshold = np.quantile(y_scores[mx], at)
             expected_count += [np.sum(y_scores[mx] >= threshold)]
             count += [np.sum(y_scores[info_dict['labels_test'] == 1] >= threshold)]
-            count_signal += [np.sum(y_scores[info_dict['bg_labels'] == 1] >= threshold)]
+            # count_signal += [np.sum(y_scores[info_dict['bg_labels'] == 1] >= threshold)]
             ms_mx = info_dict['labels_test'] == 1
             store_masses += [info_dict['masses_folds'][ms_mx][y_scores[ms_mx] >= threshold]]
             if anomaly_bool:
