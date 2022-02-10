@@ -28,7 +28,7 @@ def parse_args():
                         help='Choose the base output directory')
     parser.add_argument('-n', '--outputname', type=str, default='local',
                         help='Set the output name directory')
-    parser.add_argument('--load', type=int, default=0, help='Load a model?')
+    parser.add_argument('--load', type=int, default=1, help='Load a model?')
 
     # Multiple runs
     parser.add_argument('--shift_seed', type=int, default=0,
@@ -54,9 +54,9 @@ def parse_args():
 
     # Training parameters
     parser.add_argument('--batch_size', type=int, default=128, help='Size of batch for training.')
-    parser.add_argument('--nepochs', type=int, default=1, help='Number of epochs.')
+    parser.add_argument('--nepochs', type=int, default=20, help='Number of epochs.')
     parser.add_argument('--lr', type=float, default=0.001, help='Classifier learning rate.')
-    parser.add_argument('--wd', type=float, default=0.0, help='Weight Decay, set to None for ADAM.')
+    parser.add_argument('--wd', type=float, default=0.1, help='Weight Decay, set to None for ADAM.')
     parser.add_argument('--drp', type=float, default=0.0, help='Dropout to apply.')
     parser.add_argument('--width', type=int, default=32, help='Width to use for the classifier.')
     parser.add_argument('--depth', type=int, default=3, help='Depth of classifier to use.')
@@ -64,7 +64,7 @@ def parse_args():
     parser.add_argument('--layer_norm', type=int, default=0, help='Apply layer norm?')
     parser.add_argument('--use_scheduler', type=int, default=1, help='Use cosine annealing of the learning rate?')
     parser.add_argument('--run_cathode_classifier', type=int, default=0, help='Use cathode classifier?')
-    parser.add_argument('--n_run', type=int, default=2, help='Number of classifiers to train.')
+    parser.add_argument('--n_run', type=int, default=10, help='Number of classifiers to train.')
 
     # Classifier settings
     parser.add_argument('--false_signal', type=int, default=0, help='Add random noise samples to the signal set?')

@@ -384,3 +384,15 @@ def plot_losses(train, valid, sv_dir):
     ax.plot(v_mean / n_folds, color='r', label='valid')
     fig.legend()
     fig.savefig(os.path.join(sv_dir, 'training.png'))
+
+def add_classifier_outputs(ax, d1, s1, s2):
+    bins = get_bins(d1, nbins=80)
+    plt_kwargs = {'bins': bins, 'alpha': 0.8, 'histtype': 'step'}
+
+    def get_weight(fact):
+        return np.ones_like(fact) / np.sum(fact)
+
+    ax.hist(d1, label='Anomalies', weights=get_weight(d1), **plt_kwargs)
+    ax.hist(s1, weights=get_weight(s1), label='Train Label 0', **plt_kwargs)
+    ax.hist(s2, weights=get_weight(s2), label='Train Label 1', **plt_kwargs)
+    ax.set_yscale('log')

@@ -173,16 +173,16 @@ def get_counts():
     # y_max = 500000
     # add_dict = [f'no_dope_ot_OT_no_dope_{i}' for i in range(0, 8)]
 
-    # A very nice hunt with bins of size 200, with the classifier retrained multiple times
-    # curtains_bump_cfinal_OT_bump_centered_0_bump_200_0
-    name = 'bump_200'
-    dd = 'curtains_bump_cfinal_OT_bump_centered'
-    filename = '200'
-    bin_width = 200
-    n_runs = 40
-    y_max = 500000
-    no_eps = False
-    add_dict = [f'{dd}_{i}_{name}_{i}' for i in range(0, n_runs)]
+    # # A very nice hunt with bins of size 200, with the classifier retrained multiple times
+    # # curtains_bump_cfinal_OT_bump_centered_0_bump_200_0
+    # name = 'bump_200'
+    # dd = 'curtains_bump_cfinal_OT_bump_centered'
+    # filename = '200'
+    # bin_width = 200
+    # n_runs = 40
+    # y_max = 500000
+    # no_eps = False
+    # add_dict = [f'{dd}_{i}_{name}_{i}' for i in range(0, n_runs)]
 
     # # An alternate bump hunt with bins of size 200
     # # curtains_bump_cfinal_OT_bump_centered_0_bump_200_0
@@ -194,6 +194,17 @@ def get_counts():
     # y_max = 500000
     # no_eps = True
     # add_dict = []
+
+    # A very nice hunt with bins of size 200, with the classifier retrained multiple times
+    # curtains_bump_cfinal_OT_bump_centered_0_bump_200_0
+    name = 'bump_200_alt'
+    dd = 'curtains_bump_two_OT_bump_two'
+    filename = '200_alt_from_testc'
+    bin_width = 200
+    n_runs = 40
+    y_max = 500000
+    no_eps = False
+    add_dict = [f'{dd}_{i}_{name}_{i}' for i in range(0, n_runs)]
 
     # # A cathode bump hunt
     # # curtains_bump_cfinal_OT_bump_centered_0_bump_200_0
@@ -228,18 +239,10 @@ def get_counts():
     # n_runs = 64
     # y_max = 100000
 
-    # # TODO: why did this fail so badly?
-    # # A cathode hunt
-    # name = 'CATHODE_bump_scan_two_hundred'
-    # dd = 'cathode_bump'
-    # filename = 'cathy_200'
-    # bin_width = 200
-    # y_max = 500000
-    # n_runs = 40
-
     reload = 1
     cathode_classifier = 0
-    new_width = 200
+    # new_width = 200
+    new_width = None
 
     directories = [f'{dd}_{name}_{i}' for i in range(0, n_runs)]
     if add_dict is not None:
@@ -281,13 +284,14 @@ def get_counts():
                 else:
                     nm = f'{sv_dir}/images/{directory}/counts'
                     if no_eps:
-                        nm+= '_no_eps'
+                        nm += '_no_eps'
                     nm += '.pkl'
-                    with open( nm, 'rb') as f:
+                    with open(nm, 'rb') as f:
                         # with open(f'{sv_dir}/images/{directory}/counts_no_eps.pkl', 'rb') as f:
                         info_dict = pickle.load(f)
-                    pdb.set_trace()
-                    true_counts = np.mean(info_dict['counts'], 0)
+                    if not isinstance(info_dict, list):
+                        info_dict = [info_dict]
+                    true_counts = np.mean([id['counts'] for id in info_dict], 0).squeeze()
                     # expected_counts = np.sum(info_dict['expected_counts'], 0) / 8
                     expected_counts = true_counts[0] * (1 - np.array(thresholds))
 
@@ -296,7 +300,7 @@ def get_counts():
                 # error = counts * (np.sqrt(expected_counts) / expected_counts + np.sqrt(true_counts) / true_counts)
                 error = np.zeros_like(counts)
                 counts = [true_counts, expected_counts]
-                rate = info_dict['pass_rates']
+                rate = np.mean([id['pass_rates'] for id in info_dict], 0)
                 if cathode_classifier:
                     signal_pass_rate = rate[:, 0].mean(1)
                     bg_pass_rate = rate[:, 1].mean(1)
@@ -320,7 +324,9 @@ def get_counts():
                 rt = np.vstack((signal_pass_rate, bg_pass_rate))
                 vals[label] += [np.hstack((x, *counts, error))]
                 rates[label] += [rt]
-                masses[label] += [info_dict['masses']]
+                # TODO: how to handle this when multiple classifiers have run?
+                # masses[label] += [info_dict['masses']]
+                masses[label] += [0]
 
             with open(f'{sv_dir}/images/rates_info_{filename}.pkl', 'wb') as f:
                 pickle.dump(rates, f)
@@ -364,7 +370,7 @@ def get_counts():
         def __call__(self, num):
             """Get the counts of BG events and Anomaly events in each bin."""
             # TODO: what the fuck
-            if name in ['OT_bump_centered', 'bump_200']:
+            if name in ['OT_bump_centered', 'bump_200', 'OT_bump_two', 'bump_200_alt']:
                 bins = np.unique(np.hstack([[i + 400, i + 600] for i in range(2600, 4200, 200)]))
             else:
                 bins = np.unique(np.hstack([[i + 400, i + 500] for i in range(2600, 3800, 100)]))
@@ -401,9 +407,9 @@ def get_counts():
                 expected = xy[mx, i + 1 + len(thresholds)]
                 x_e = xy[mx, 0]
 
-                # mass_y = np.concatenate([m[j][i].numpy() for m in lst_masses for j in range(5)])
-                mass_y = np.concatenate([m[0][i] for m in lst_masses])
                 if new_width is not None:
+                    # mass_y = np.concatenate([m[j][i].numpy() for m in lst_masses for j in range(5)])
+                    mass_y = np.concatenate([m[0][i] for m in lst_masses])
                     # Define new bin centers
                     min_mass = min(x_all) - half_width
                     max_mass = max(x_all) + half_width
@@ -437,17 +443,17 @@ def get_counts():
                 add_errors(ax, x_e, expected, bin_width, error_in_expected, color='b')
                 axes1.plot(x, y, 'o', label=f'Cut = {thresholds[i]}', markersize=3)
 
-                # rt = np.array(rt)
-                # bins, bg_counts, ad_counts = get_mass_spectrum(int(label))
-                # clr = clist[i]
-                # fact = int(label) / ad_counts.sum()
-                # ad_counts = fact * ad_counts
-                # mx = np.digitize(xy[:, 0], bins=bins) - 1
-                # total_signal = (rt[:, 0, i] * ad_counts[mx])
-                # # total_bg = (rt[:, 1, i] * bg_counts[mx]).sum()
-                # total_bg = (bg_counts[mx] * (1 - thresholds[i]))
-                # significance[i] = np.sqrt(
-                #     2 * ((total_signal + total_bg) * np.log(1 + total_signal / total_bg) - total_signal).sum())
+                rt = np.array(rt)
+                bins, bg_counts, ad_counts = get_mass_spectrum(int(label))
+                clr = clist[i]
+                fact = int(label) / ad_counts.sum()
+                ad_counts = fact * ad_counts
+                mx = np.digitize(xy[:, 0], bins=bins) - 1
+                total_signal = (rt[:, 0, i] * ad_counts[mx])
+                # total_bg = (rt[:, 1, i] * bg_counts[mx]).sum()
+                total_bg = (bg_counts[mx] * (1 - thresholds[i]))
+                significance[i] = np.sqrt(
+                    2 * ((total_signal + total_bg) * np.log(1 + total_signal / total_bg) - total_signal).sum())
                 # axes2[j, 0].bar(bins[mx], rt[:, 0, i] * ad_counts[mx], width=bin_width, color='None', edgecolor='r')
                 # axes2[j, 1].bar(bins[mx], rt[:, 1, i] * bg_counts[mx], width=bin_width, color='None', edgecolor='b')
                 # axes2[j, 2].bar(bins[mx], rt[:, 0, i] * ad_counts[mx], width=bin_width, color='None', edgecolor='r')
@@ -645,17 +651,16 @@ def figs_six_and_seven():
     #               [f'cathode_fig7_200_CATHODE_fig7_200_{i}_Cathode_F7_{i}' for i in range(0, 8)] + \
     #               [f'super_class_200_super_class_200_{i}' for i in range(0, 8)] + \
     #               [f'ideal_class_200_ideal_class_200_{i}' for i in range(0, 8)]
-    names = ['Curtains'] * 8 + ['Cathode'] * 8 + ['Supervised'] * 8 + ['Idealised'] * 8
-    filename = 'fig_6_7'
+    # names = ['Curtains'] * 8 + ['Cathode'] * 8 + ['Supervised'] * 8 + ['Idealised'] * 8
+    # filename = 'fig_6_7'
 
-    # # This is full sidebands, TODO 1 here will give you the same features as CATHODE used
-    # directories = ['curtains_match_200_CURTAINS_match_200_0'] + \
-    #               ['cathode_match_200_CATHODE_match_200_0'] + \
-    #               [f'super_class_200_super_class_200_{i}' for i in range(0, 8)] + \
-    #               [f'ideal_class_200_ideal_class_200_{i}' for i in range(0, 8)]
+    # This is full sidebands, TODO 1 here will give you the same features as CATHODE used
+    directories = ['curtains_match_200_CURTAINS_match_200_0'] + \
+                  ['cathode_match_200_CATHODE_match_200_0'] + \
+                  [f'super_class_200_super_class_200_{i}' for i in range(0, 8)] + \
+                  [f'ideal_class_200_ideal_class_200_{i}' for i in range(0, 8)]
     names = ['Curtains'] + ['Cathode'] + ['Supervised'] * 8 + ['Idealised'] * 8
     filename = 'fig_6_7_unrestricted'
-
 
     # # This is Curtains and cathode trained on the full sidebands
     # directories = ['curtains_match_CURTAINS_match_0'] + \
@@ -668,6 +673,8 @@ def figs_six_and_seven():
     # directories = ['classifier_local_local']
     # names = ['Cathode']
     reload = 1
+    plot_individual_lines = False
+    quart = 0
 
     if reload:
         # Gather saved quantities
@@ -686,6 +693,8 @@ def figs_six_and_seven():
                 for f, t in the_dict.values():
                     fpr_l += [f]
                     tpr_l += [t]
+                if i == 15:
+                    pdb.set_trace()
                 passed = 1
             except Exception as e:
                 print(e)
@@ -733,13 +742,14 @@ def figs_six_and_seven():
             data['tpr'] += [tpr_nz]
             data['rejection'] += [1 / fpr_nz]
             data['interp_sic'] += [interp1d(tpr_nz, sic, fill_value="extrapolate")]
-            ax_six[1].plot(tpr_nz, sic, linewidth=2, linestyle=line, color=color, alpha=alpha)
-            ax_six[0].plot(tpr_nz, data['rejection'][-1], linewidth=2, linestyle=line, color=color,
-                           alpha=alpha)
-            # ax_six[1].plot(1 / fpr_nz, sic, linewidth=2, label=label, linestyle=line, color=color, alpha=alpha)
+            if plot_individual_lines:
+                ax_six[1].plot(tpr_nz, sic, linewidth=2, linestyle=line, color=color, alpha=alpha)
+                ax_six[0].plot(tpr_nz, data['rejection'][-1], linewidth=2, linestyle=line, color=color,
+                               alpha=alpha)
+            # ax_six[1].plot(fpr_nz, sic, linewidth=2, label=label, linestyle=line, color=color, alpha=alpha)
+            # ax_six[1].set_xscale('log')
             # ax_six[0].plot(tpr_nz, data['rejection'][-1], linewidth=2, label=label, linestyle=line, color=color,
             #                alpha=alpha)
-            ax_six[1].set_ylim(0, max_sic)
         if label != 'random':
             mtp = np.concatenate(data['tpr'])
             min_tpr, max_tpr = mtp.min(), mtp.max()
@@ -747,8 +757,24 @@ def figs_six_and_seven():
             host = []
             for func in data['interp_sic']:
                 host += [func(tprs)]
-            mean_sic = np.vstack(host).mean(0)
+            host = np.vstack(host)
+            if quart:
+                mean_sic = np.median(host, 0)
+            else:
+                mean_sic = host.mean(0)
             ax_six[1].plot(tprs, mean_sic, linewidth=2, label=label, linestyle=line, color=color)
+            if not plot_individual_lines:
+                if quart:
+                    lb = np.quantile(host, 0.16, axis=0)
+                    ub = np.quantile(host, 0.84, axis=0)
+                else:
+                    error = host.std(0)
+                    lb = mean_sic - error
+                    ub = mean_sic + error
+                ax_six[1].fill_between(tprs, lb, ub, alpha=alpha, linewidth=2,
+                                       linestyle=line, color=color)
+
+        ax_six[1].set_ylim(0, max_sic)
 
     ax_six[1].set_xlabel('Signal efficiency')
     ax_six[1].set_ylabel('Significance improvement')
@@ -762,6 +788,7 @@ def figs_six_and_seven():
     fig_six.legend(*zip(*unique), loc='upper left', bbox_to_anchor=(0.9, 0.89), frameon=False)
     fig_six.savefig(f'{sv_dir}/images/figure_six.png', bbox_inches='tight')
     fig_six.clf()
+    print('Fig 6 done.')
 
     # Plot fig 7
     runs = sorted(set(vals.keys()))
@@ -815,7 +842,7 @@ def figs_six_and_seven():
 
 
 if __name__ == '__main__':
-    # get_counts()
-    figs_six_and_seven()
+    get_counts()
+    # figs_six_and_seven()
     # get_sics()
     # get_max_sic()

@@ -18,7 +18,7 @@ from torch.utils.data import Dataset
 import torch
 
 from utils import CATHODE_classifier, hyperparams
-from utils.plotting import add_error_hist, get_bins, hist_features, plot_rates_dict, plot_losses
+from utils.plotting import add_error_hist, get_bins, hist_features, plot_rates_dict, plot_losses, add_classifier_outputs
 from utils.torch_utils import sample_data
 from utils.training import Timer
 
@@ -458,6 +458,8 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
     info_dict = defaultdict(list)
     rates_dict = {}
     # Evaluate each model at the selected epoch
+    # Plot the classifier output distributions
+    fig, ax = plt.subplots(1, nfolds, figsize=(5 * nfolds + 2, 7))
     for fold, (train_index, valid_index, eval_index) in enumerate(split_inds):
 
         # The classifier object does not need to be reinitialised here, only loaded
@@ -507,6 +509,22 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
 
             info_dict['masses_folds'] += [eval_masses.cpu().numpy()]
             info_dict['bg_labels'] += [lbls_bg]
+
+            # Plot classifier outputs per fold
+            d1 = info_dict['y_scores_1'][-1]
+            s1 = info_dict['y_scores'][-1][info_dict['labels_test'][-1] == 0]
+            lbls_mx = info_dict['labels_test'][-1] == 1
+            s2 = info_dict['y_scores'][-1][lbls_mx]
+            # Mask out the anomalies
+            s2 = s2[info_dict['bg_labels'][-1].reshape(-1, 1)[lbls_mx] == 0]
+            add_classifier_outputs(ax[fold], d1, s1, s2)
+
+            # Calculate and plot some AUCs for the epoch
+            fpr, tpr, _ = roc_curve(info_dict['y_labels_1'][-1], info_dict['y_scores_1'][-1])
+            rates_dict[f'{fold}'] = [fpr, tpr]
+
+    fig.legend()
+    fig.savefig(os.path.join(sv_dir, 'folds_classifier_outputs.png'))
 
     plot_rates_dict(sv_dir, rates_dict, 'folds')
 
