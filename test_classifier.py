@@ -41,7 +41,7 @@ def parse_args():
     parser.add_argument("--feature_type", type=int, default=3)
     parser.add_argument("--doping", type=int, default=1000,
                         help='Raw number of signal events to be added into the entire bg spectra.')
-    parser.add_argument("--split_data", type=int, default=1,
+    parser.add_argument("--split_data", type=int, default=2,
                         help='2 for idealised classifier, 3 for supervised.')
 
     parser.add_argument("--data_directory", type=str,
@@ -54,7 +54,7 @@ def parse_args():
 
     # Training parameters
     parser.add_argument('--batch_size', type=int, default=128, help='Size of batch for training.')
-    parser.add_argument('--nepochs', type=int, default=20, help='Number of epochs.')
+    parser.add_argument('--nepochs', type=int, default=1, help='Number of epochs.')
     parser.add_argument('--lr', type=float, default=0.001, help='Classifier learning rate.')
     parser.add_argument('--wd', type=float, default=0.0, help='Weight Decay, set to None for ADAM.')
     parser.add_argument('--drp', type=float, default=0.0, help='Dropout to apply.')
@@ -98,9 +98,6 @@ def test_classifier():
         args.outputdir = args.data_directory.split("/")[-1]
 
     seed = 42 + args.shift_seed
-    torch.manual_seed(seed)
-    np.random.seed(seed)
-    random.seed(seed)
 
     top_dir = get_top_dir()
     sv_dir = top_dir + f'/images/{args.outputdir}_{args.outputname}/'
@@ -116,11 +113,12 @@ def test_classifier():
 
     # Load the data and dope appropriately
     sm = load_curtains_pd(feature_type=args.feature_type)
-    sm = sm.sample(frac=1).dropna()
     ad = load_curtains_pd(sm='WZ_allhad_pT', feature_type=args.feature_type)
     # ad = ad.sample(frac=1).dropna()
     ad = ad.dropna()
     bg_truth_labels = None
+
+    sm = sm.sample(frac=1).dropna()
 
     # Bin the data
     def mx_data(data, bins):
@@ -215,27 +213,36 @@ def test_classifier():
 
     rates_sr_vs_transformed = {}
     rates_sr_qcd_vs_anomalies = {}
-    auc_info = get_auc(undoped_data, data_to_dope, sv_dir, nm + f'Anomalies_no_eps',
-                       anomaly_data=signal_anomalies.data.to(device),
-                       sup_title=f'Idealised anomaly detector.', load=args.load, return_rates=True,
-                       false_signal=args.false_signal, batch_size=args.batch_size, nepochs=args.nepochs, lr=args.lr,
-                       wd=args.wd, drp=args.drp, width=args.width, depth=args.depth, batch_norm=args.batch_norm,
-                       layer_norm=args.layer_norm, use_scheduler=args.use_scheduler, use_weights=args.use_weight,
-                       beta_add_noise=args.beta_add_noise, pure_noise=pure_noise, bg_truth_labels=bg_truth_labels,
-                       run_cathode_classifier=args.run_cathode_classifier, n_run=args.n_run, cf_activ=args.cf_activ,
-                       normalize=args.cf_norm)
+    counts = []
+    for i in range(args.n_run):
+        torch.manual_seed(seed + i)
+        np.random.seed(seed + i)
+        random.seed(seed + i)
 
-    rates_sr_vs_transformed[f'0.0'] = auc_info[3]
-    rates_sr_qcd_vs_anomalies[f'0.0'] = auc_info[2]
+        run_dir = f'{sv_dir}run_{i}/'
+        # os.makedirs(run_dir, exist_ok=True)
+        auc_info = get_auc(undoped_data, data_to_dope, run_dir, nm + f'Anomalies_no_eps',
+                           anomaly_data=signal_anomalies.data.to(device),
+                           sup_title=f'Idealised anomaly detector.', load=args.load, return_rates=True,
+                           false_signal=args.false_signal, batch_size=args.batch_size, nepochs=args.nepochs, lr=args.lr,
+                           wd=args.wd, drp=args.drp, width=args.width, depth=args.depth, batch_norm=args.batch_norm,
+                           layer_norm=args.layer_norm, use_scheduler=args.use_scheduler, use_weights=args.use_weight,
+                           beta_add_noise=args.beta_add_noise, pure_noise=pure_noise, bg_truth_labels=bg_truth_labels,
+                           run_cathode_classifier=args.run_cathode_classifier, n_run=args.n_run, cf_activ=args.cf_activ,
+                           normalize=args.cf_norm)
+
+        rates_sr_vs_transformed[f'{i}'] = auc_info[3]
+        rates_sr_qcd_vs_anomalies[f'{i}'] = auc_info[2]
+        counts += [auc_info[-1]]
 
     with open(f'{sv_dir}/counts.pkl', 'wb') as f:
-        pickle.dump(auc_info[-1], f)
-
-    plot_rates_dict(sv_dir, rates_sr_qcd_vs_anomalies, 'SR QCD vs SR Anomalies')
-    plot_rates_dict(sv_dir, rates_sr_vs_transformed, 'T(SB12) vs SR')
+        pickle.dump(counts, f)
 
     with open(f'{sv_dir}/rates.pkl', 'wb') as f:
         pickle.dump([rates_sr_qcd_vs_anomalies, rates_sr_vs_transformed], f)
+
+    plot_rates_dict(sv_dir, rates_sr_qcd_vs_anomalies, 'SR QCD vs SR Anomalies')
+    plot_rates_dict(sv_dir, rates_sr_vs_transformed, 'T(SB12) vs SR')
 
 
 if __name__ == '__main__':

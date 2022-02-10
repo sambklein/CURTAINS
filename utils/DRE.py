@@ -501,26 +501,12 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
             info_dict['y_labels_1'] += [np.concatenate((np.ones(len(anomaly_scores)), lbls_bg[data_mx]))]
             info_dict['y_scores_1'] += [np.concatenate((anomaly_scores.reshape(-1, 1),
                                                         bg_scores[data_mx].reshape(-1, 1)))[:, 0]]
-            # # Same evaluation as above but ignoring the holdout data
-            # info_dict['y_labels_1'] += [lbls_bg]
-            # info_dict['y_scores_1'] += [bg_scores]
             # Get the background only AUC if that information is available
             info_dict['y_labels_2'] += [eval_data.targets.cpu().numpy()[lbls == 0]]
             info_dict['y_scores_2'] += [y_scores[lbls == 0]]
 
             info_dict['masses_folds'] += [eval_masses.cpu().numpy()]
             info_dict['bg_labels'] += [lbls_bg]
-
-            # # Calculate and plot some AUCs for the epoch
-            # fpr, tpr, _ = roc_curve(info_dict['y_labels_1'][-1], info_dict['y_scores_1'][-1])
-            # rates_dict[f'{fold}'] = [fpr, tpr]
-            # roc_auc_1 = roc_auc_score(info_dict['y_labels_1'][-1], info_dict['y_scores_1'][-1])
-            # roc_auc_2 = roc_auc_score(info_dict['y_labels_2'][-1], info_dict['y_scores_2'][-1])
-            # roc_auc_3 = roc_auc_score(labels_test, y_scores)
-            # with open(os.path.join(sv_dir, f'classifier_info_{fold}.txt'), 'w') as f:
-            #     f.write(f'SR vs transformed {roc_auc_2} \n')
-            #     f.write(f'SR QCD vs SR anomalies {roc_auc_1} \n')
-            #     f.write(f'Classification on training {roc_auc_3} \n')
 
     plot_rates_dict(sv_dir, rates_dict, 'folds')
 
@@ -552,9 +538,7 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
                     info_dict['y_labels_1'] == 1)
                 bg_pass_rate = np.sum(info_dict['y_scores_1'][info_dict['y_labels_1'] == 0] >= threshold) / np.sum(
                     info_dict['y_labels_1'] == 0)
-                # TODO fix the pass rates
                 info_dict['pass_rates'] += [np.array((signal_pass_rate, bg_pass_rate))]
-                # info_dict['pass_rates'] += [np.ones(nfolds * len(thresholds))]
         info_dict['counts'] += [np.array(count)]
         info_dict['masses'] += [store_masses]
         info_dict['expected_counts'] += [np.array(expected_count)]

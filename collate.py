@@ -173,7 +173,7 @@ def get_counts():
     # y_max = 500000
     # add_dict = [f'no_dope_ot_OT_no_dope_{i}' for i in range(0, 8)]
 
-    # A very nice hunt with bins of size 200
+    # A very nice hunt with bins of size 200, with the classifier retrained multiple times
     # curtains_bump_cfinal_OT_bump_centered_0_bump_200_0
     name = 'bump_200'
     dd = 'curtains_bump_cfinal_OT_bump_centered'
@@ -183,6 +183,28 @@ def get_counts():
     y_max = 500000
     no_eps = False
     add_dict = [f'{dd}_{i}_{name}_{i}' for i in range(0, n_runs)]
+
+    # # An alternate bump hunt with bins of size 200
+    # # curtains_bump_cfinal_OT_bump_centered_0_bump_200_0
+    # name = 'OT_bump_two'
+    # dd = 'curtains_bump_two'
+    # filename = '200_alt'
+    # bin_width = 100
+    # n_runs = 48
+    # y_max = 500000
+    # no_eps = True
+    # add_dict = []
+
+    # # A cathode bump hunt
+    # # curtains_bump_cfinal_OT_bump_centered_0_bump_200_0
+    # name = 'Cathode_bump_two'
+    # dd = 'cathode_bump_two'
+    # filename = '200_alt'
+    # bin_width = 100
+    # n_runs = 48
+    # y_max = 500000
+    # no_eps = True
+    # add_dict = []
 
     # # An idealised hunt
     # name = 'idealised_hunt_1000'
@@ -217,7 +239,7 @@ def get_counts():
 
     reload = 1
     cathode_classifier = 0
-    new_width = 100
+    new_width = 200
 
     directories = [f'{dd}_{name}_{i}' for i in range(0, n_runs)]
     if add_dict is not None:
@@ -264,7 +286,8 @@ def get_counts():
                     with open( nm, 'rb') as f:
                         # with open(f'{sv_dir}/images/{directory}/counts_no_eps.pkl', 'rb') as f:
                         info_dict = pickle.load(f)
-                    true_counts = np.sum(info_dict['counts'], 0)
+                    pdb.set_trace()
+                    true_counts = np.mean(info_dict['counts'], 0)
                     # expected_counts = np.sum(info_dict['expected_counts'], 0) / 8
                     expected_counts = true_counts[0] * (1 - np.array(thresholds))
 
@@ -275,14 +298,12 @@ def get_counts():
                 counts = [true_counts, expected_counts]
                 rate = info_dict['pass_rates']
                 if cathode_classifier:
+                    signal_pass_rate = rate[:, 0].mean(1)
+                    bg_pass_rate = rate[:, 1].mean(1)
+                else:
+                    rate = np.array(rate)
                     signal_pass_rate = rate[:, 0]
                     bg_pass_rate = rate[:, 1]
-                else:
-                    # TODO sort this out
-                    # signal_pass_rate = rate[:, 0].reshape(nfolds, len(thresholds)).mean(0)
-                    # bg_pass_rate = rate[:, 1].reshape(nfolds, len(thresholds)).mean(0)
-                    signal_pass_rate = np.zeros((2, 8))
-                    bg_pass_rate = np.zeros((2, 8))
 
                 passed = 1
             except Exception as e:
@@ -296,7 +317,7 @@ def get_counts():
                 if (x == 3100):
                     print(directory)
                 #     pdb.set_trace()
-                rt = np.vstack((signal_pass_rate.mean(1), bg_pass_rate.mean(1)))
+                rt = np.vstack((signal_pass_rate, bg_pass_rate))
                 vals[label] += [np.hstack((x, *counts, error))]
                 rates[label] += [rt]
                 masses[label] += [info_dict['masses']]
@@ -343,8 +364,8 @@ def get_counts():
         def __call__(self, num):
             """Get the counts of BG events and Anomaly events in each bin."""
             # TODO: what the fuck
-            if name == 'OT_bump_centered':
-                bins = np.unique(np.hstack([[i + 400, i + 600] for i in range(2600, 4000, 200)]))
+            if name in ['OT_bump_centered', 'bump_200']:
+                bins = np.unique(np.hstack([[i + 400, i + 600] for i in range(2600, 4200, 200)]))
             else:
                 bins = np.unique(np.hstack([[i + 400, i + 500] for i in range(2600, 3800, 100)]))
 
@@ -619,20 +640,22 @@ def figs_six_and_seven():
     # names = ['Cathode'] * 8 + ['Curtains'] * 8
     # filename = 'fig_6_7_joint'
 
-    # This is restricted sidebands
-    directories = [f'ot_fig7_200_OT_fig7_200_{i}_C_F7_{i}' for i in range(0, 8)] + \
-                  [f'cathode_fig7_200_CATHODE_fig7_200_{i}_Cathode_F7_{i}' for i in range(0, 8)] + \
-                  [f'super_class_200_super_class_200_{i}' for i in range(0, 8)] + \
-                  [f'ideal_class_200_ideal_class_200_{i}' for i in range(0, 8)]
-
-    # This is no oversampling
-    directories = [f'ot_fig7_200_OT_fig7_200_{i}_C_F7_match_{i}' for i in range(0, 8)] + \
-                  [f'cathode_fig7_200_CATHODE_fig7_200_{i}_Cathode_F7_{i}' for i in range(0, 8)] + \
-                  [f'super_class_200_super_class_200_{i}' for i in range(0, 8)] + \
-                  [f'ideal_class_200_ideal_class_200_{i}' for i in range(0, 8)]
-    # These names are really Curtains and Curtains 1 + ep
+    # # This is restricted sidebands
+    # directories = [f'ot_fig7_200_OT_fig7_200_{i}_C_F7_{i}' for i in range(0, 8)] + \
+    #               [f'cathode_fig7_200_CATHODE_fig7_200_{i}_Cathode_F7_{i}' for i in range(0, 8)] + \
+    #               [f'super_class_200_super_class_200_{i}' for i in range(0, 8)] + \
+    #               [f'ideal_class_200_ideal_class_200_{i}' for i in range(0, 8)]
     names = ['Curtains'] * 8 + ['Cathode'] * 8 + ['Supervised'] * 8 + ['Idealised'] * 8
     filename = 'fig_6_7'
+
+    # # This is full sidebands, TODO 1 here will give you the same features as CATHODE used
+    # directories = ['curtains_match_200_CURTAINS_match_200_0'] + \
+    #               ['cathode_match_200_CATHODE_match_200_0'] + \
+    #               [f'super_class_200_super_class_200_{i}' for i in range(0, 8)] + \
+    #               [f'ideal_class_200_ideal_class_200_{i}' for i in range(0, 8)]
+    names = ['Curtains'] + ['Cathode'] + ['Supervised'] * 8 + ['Idealised'] * 8
+    filename = 'fig_6_7_unrestricted'
+
 
     # # This is Curtains and cathode trained on the full sidebands
     # directories = ['curtains_match_CURTAINS_match_0'] + \
@@ -656,7 +679,13 @@ def figs_six_and_seven():
                 # with open(f'{sv_dir}/images/{directory}/fpr_cathode.npy', 'rb') as f:
                 #     fpr_l = pickle.load(f)
                 with open(f'{sv_dir}/images/{directory}/rates.pkl', 'rb') as f:
-                    fpr_l, tpr_l = pickle.load(f)[0]['0.0']
+                    the_dict = pickle.load(f)[0]
+                # Separate out the fpr and tpr from the dictionary
+                the_dict.pop('random', None)
+                fpr_l, tpr_l = [], []
+                for f, t in the_dict.values():
+                    fpr_l += [f]
+                    tpr_l += [t]
                 passed = 1
             except Exception as e:
                 print(e)
@@ -679,13 +708,13 @@ def figs_six_and_seven():
     fig_six, ax_six = plt.subplots(1, 2, figsize=(14, 5))
     # We make this figure for this doping level
     data = deepcopy(vals['1000'])
-    data += [['random', np.linspace(0, 1, 50), np.linspace(0, 1, 50)]]
+    data += [['random', [np.linspace(0, 1, 50)], [np.linspace(0, 1, 50)]]]
     max_sic = 20
     clrs = {'Curtains': 'r', 'Cathode': 'b', 'Idealised': 'g', 'Supervised': 'k', 'CATHODE_full': 'y'}
     for lst in data:
         label = lst[0]
-        fpr_list = [lst[2]]
-        tpr_list = [lst[1]]
+        fpr_list = lst[2]
+        tpr_list = lst[1]
         data = defaultdict(list)
         for tpr, fpr in zip(tpr_list, fpr_list):
             fpr_mx = fpr != 0.
@@ -704,8 +733,8 @@ def figs_six_and_seven():
             data['tpr'] += [tpr_nz]
             data['rejection'] += [1 / fpr_nz]
             data['interp_sic'] += [interp1d(tpr_nz, sic, fill_value="extrapolate")]
-            ax_six[1].plot(tpr_nz, sic, linewidth=2, label=label, linestyle=line, color=color, alpha=alpha)
-            ax_six[0].plot(tpr_nz, data['rejection'][-1], linewidth=2, label=label, linestyle=line, color=color,
+            ax_six[1].plot(tpr_nz, sic, linewidth=2, linestyle=line, color=color, alpha=alpha)
+            ax_six[0].plot(tpr_nz, data['rejection'][-1], linewidth=2, linestyle=line, color=color,
                            alpha=alpha)
             # ax_six[1].plot(1 / fpr_nz, sic, linewidth=2, label=label, linestyle=line, color=color, alpha=alpha)
             # ax_six[0].plot(tpr_nz, data['rejection'][-1], linewidth=2, label=label, linestyle=line, color=color,
@@ -753,8 +782,8 @@ def figs_six_and_seven():
         for values in lst:
             nm = values[0]
             # TODO: when there are multiple runs with different seeds averages etc will need to be taken.
-            tpr_list = [values[1]]
-            fpr_list = [values[2]]
+            tpr_list = values[1]
+            fpr_list = values[2]
             for tpr, fpr in zip(tpr_list, fpr_list):
                 ax = axes[0]
                 ax1 = axes[1]
