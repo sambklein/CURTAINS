@@ -52,7 +52,7 @@ parser.add_argument("--feature_type", type=int, default=13)
 ## Names for saving
 parser.add_argument('-n', type=str, default='cathode', help='The name with which to tag saved outputs.')
 parser.add_argument('-d', type=str, default='NSF_CATHODE', help='Directory to save contents into.')
-parser.add_argument('--load', type=int, default=0, help='Whether or not to load a model.')
+parser.add_argument('--load', type=int, default=1, help='Whether or not to load a model.')
 parser.add_argument('--cathode_load', type=int, default=0, help='Load SR samples directly.')
 parser.add_argument('--model_name', type=str, default=None, help='Saved name of model to load.')
 parser.add_argument('--load_classifiers', type=int, default=0, help='Whether or not to load a model.')
@@ -70,7 +70,7 @@ parser.add_argument('--coupling_width', type=int, default=64,
 parser.add_argument('--coupling_depth', type=int, default=3,
                     help='Depth of network used to learn transformer parameters.')
 
-parser.add_argument('--batch_size', type=int, default=10, help='Size of batch for training.')
+parser.add_argument('--batch_size', type=int, default=100, help='Size of batch for training.')
 parser.add_argument('--epochs', type=int, default=1,
                     help='The number of epochs to train for.')
 parser.add_argument('--nstack', type=int, default='3',
@@ -98,7 +98,7 @@ parser.add_argument('--oversample', type=int, default=4,
 ## Classifier training
 parser.add_argument('--beta_add_noise', type=float, default=0.01,
                     help='The value of epsilon to use in the 1-e training.')
-parser.add_argument('--classifier_epochs', type=int, default=1,
+parser.add_argument('--classifier_epochs', type=int, default=0,
                     help='The value of epsilon to use in the 1-e training.')
 parser.add_argument('--c_nruns', type=int, default=1, help='Number of classifiers to run.')
 
@@ -115,7 +115,7 @@ parser.add_argument('--n_sample', type=int, default=1000,
                     help='The number of features to use when calculating contours in the feature plots.')
 parser.add_argument('--light', type=int, default=3,
                     help='We do not always want to plot everything and calculate all of the ROC plots.')
-parser.add_argument('--plot', type=int, default=1, help='Plot all feature dists?')
+parser.add_argument('--plot', type=int, default=0, help='Plot all feature dists?')
 
 ## reproducibility
 parser.add_argument('--seed', type=int, default=1638128,

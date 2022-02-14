@@ -24,9 +24,9 @@ def parse_args():
     parser = argparse.ArgumentParser()
 
     # Saving
-    parser.add_argument('-d', '--outputdir', type=str, default='classifier_local',
+    parser.add_argument('-d', '--outputdir', type=str, default='classifier_local_two',
                         help='Choose the base output directory')
-    parser.add_argument('-n', '--outputname', type=str, default='local',
+    parser.add_argument('-n', '--outputname', type=str, default='local_t',
                         help='Set the output name directory')
     parser.add_argument('--load', type=int, default=1, help='Load a model?')
 
@@ -36,13 +36,19 @@ def parse_args():
 
     # Dataset parameters
     parser.add_argument('--dataset', type=str, default='curtains', help='The dataset to train on.')
+    # parser.add_argument("--bins", type=str, default='2900,3100,3200,3800,3900,4100')
     # parser.add_argument("--bins", type=str, default='2900,3100,3300,3700,3900,4100')
     parser.add_argument("--bins", type=str, default='3000,3200,3400,3600,3800,4000')
     parser.add_argument("--feature_type", type=int, default=3)
     parser.add_argument("--doping", type=int, default=1000,
                         help='Raw number of signal events to be added into the entire bg spectra.')
-    parser.add_argument("--split_data", type=int, default=2,
+    # parser.add_argument("--doping", type=int, default=1800,
+    #                     help='Raw number of signal events to be added into the entire bg spectra.')
+    parser.add_argument("--split_data", type=int, default=3,
                         help='2 for idealised classifier, 3 for supervised.')
+    parser.add_argument("--match_idealised", type=int, default=1,
+                        help='If set to 1 only provide as many signal samples as there are in the idealised training'
+                             'to the supervised training.')
 
     parser.add_argument("--data_directory", type=str,
                         default='/home/users/k/kleins/MLproject/CURTAINS/images/ot_fig7_200_OT_fig7_200_7',
@@ -56,7 +62,7 @@ def parse_args():
     parser.add_argument('--batch_size', type=int, default=128, help='Size of batch for training.')
     parser.add_argument('--nepochs', type=int, default=20, help='Number of epochs.')
     parser.add_argument('--lr', type=float, default=0.001, help='Classifier learning rate.')
-    parser.add_argument('--wd', type=float, default=0.1, help='Weight Decay, set to None for ADAM.')
+    parser.add_argument('--wd', type=float, default=0.0, help='Weight Decay, set to None for ADAM.')
     parser.add_argument('--drp', type=float, default=0.0, help='Dropout to apply.')
     parser.add_argument('--width', type=int, default=32, help='Width to use for the classifier.')
     parser.add_argument('--depth', type=int, default=3, help='Depth of classifier to use.')
@@ -64,11 +70,11 @@ def parse_args():
     parser.add_argument('--layer_norm', type=int, default=0, help='Apply layer norm?')
     parser.add_argument('--use_scheduler', type=int, default=1, help='Use cosine annealing of the learning rate?')
     parser.add_argument('--run_cathode_classifier', type=int, default=0, help='Use cathode classifier?')
-    parser.add_argument('--n_run', type=int, default=10, help='Number of classifiers to train.')
+    parser.add_argument('--n_run', type=int, default=2, help='Number of classifiers to train.')
 
     # Classifier settings
     parser.add_argument('--false_signal', type=int, default=0, help='Add random noise samples to the signal set?')
-    parser.add_argument('--use_weight', type=int, default=0, help='Apply weights to the data?')
+    parser.add_argument('--use_weight', type=int, default=1, help='Apply weights to the data?')
     parser.add_argument('--beta_add_noise', type=float, default=0.01,
                         help='The value of epsilon to use in the 1-e training.')
     parser.add_argument('--cf_activ', type=str, default='relu',
@@ -77,6 +83,11 @@ def parse_args():
                         help='2 for normalization and 1 for standardization.')
 
     return parser.parse_args()
+
+def reset_seed(seed):
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
 
 
 def test_classifier():
@@ -97,7 +108,8 @@ def test_classifier():
         bg_template = np.concatenate((sb1_samples, sb2_samples))
         args.outputdir = args.data_directory.split("/")[-1]
 
-    seed = 42 + args.shift_seed
+    seed = 1638128 + args.shift_seed
+    reset_seed(seed)
 
     top_dir = get_top_dir()
     sv_dir = top_dir + f'/images/{args.outputdir}_{args.outputname}/'
@@ -114,11 +126,10 @@ def test_classifier():
     # Load the data and dope appropriately
     sm = load_curtains_pd(feature_type=args.feature_type)
     ad = load_curtains_pd(sm='WZ_allhad_pT', feature_type=args.feature_type)
-    # ad = ad.sample(frac=1).dropna()
-    ad = ad.dropna()
     bg_truth_labels = None
 
     sm = sm.sample(frac=1).dropna()
+    ad = ad.sample(frac=1).dropna()
 
     # Bin the data
     def mx_data(data, bins):
@@ -130,6 +141,7 @@ def test_classifier():
         # Select the data
         ad_extra = ad.iloc[args.doping:].to_numpy()
         ad = ad.iloc[:args.doping]
+        # ad = ad.sample(frac=1, random_state=seed)
         # Bin the data
         sr_bin = [curtains_bins[2], curtains_bins[3]]
         sm, sm_out = mx_data(sm, sr_bin)
@@ -151,6 +163,7 @@ def test_classifier():
         # Split the anomalies into two so that the doping fraction is the same (SR will be split into two)
         ad_extra = ad.iloc[int(args.doping / 2):]
         ad = ad.iloc[:int(args.doping / 2)]
+        ad = ad.sample(frac=1, random_state=seed)
 
         sr_bin = [curtains_bins[2], curtains_bins[3]]
         sm, sm_out = mx_data(sm, sr_bin)
@@ -170,6 +183,9 @@ def test_classifier():
         ad_extra = ad_extra.iloc[n_to_bg:].to_numpy()
 
         ndata = int(len(sm) / 2)
+        print(len(ad) / ndata * 100)
+        print(len(ad))
+        print(ndata)
         mx_ind = np.random.permutation(np.arange(0, ndata + len(ad)))
         data_to_dope = pd.concat((sm.iloc[:ndata], ad)).to_numpy()[mx_ind]
         bg_truth = torch.cat((torch.zeros(len(sm.iloc[:ndata])),
@@ -184,15 +200,29 @@ def test_classifier():
     else:
         # Supervised classifier
         sr_bin = [curtains_bins[2], curtains_bins[3]]
+
+        if args.match_idealised:
+            ad_extra = ad.iloc[int(args.doping / 2):]
+            ad = ad.iloc[:int(args.doping / 2)]
+
         sm, _ = mx_data(sm, sr_bin)
         ad, _ = mx_data(ad, sr_bin)
-        ntake = int(3 * ad.shape[0] / 4)
-        ad_extra = ad.iloc[ntake:]
-        ad = ad.iloc[:ntake]
-        ad_extra, _ = mx_data(ad_extra, sr_bin)
+
+        if args.match_idealised:
+            ad_extra, _ = mx_data(ad_extra, sr_bin)
+        else:
+            ntake = int(3 * ad.shape[0] / 4)
+            ad_extra = ad.iloc[ntake:]
+            ad = ad.iloc[:ntake]
+
         data_to_dope = ad.to_numpy()
         undoped_data = sm.to_numpy()
         ad_extra = ad_extra.to_numpy()
+
+        # bg_truth_labels = torch.cat((
+        #     torch.zeros(len(undoped_data)),
+        #     torch.zeros(len(data_to_dope))
+        # ))
 
     dtype = torch.float32
 
@@ -220,7 +250,6 @@ def test_classifier():
         random.seed(seed + i)
 
         run_dir = f'{sv_dir}run_{i}/'
-        # os.makedirs(run_dir, exist_ok=True)
         auc_info = get_auc(undoped_data, data_to_dope, run_dir, nm + f'Anomalies_no_eps',
                            anomaly_data=signal_anomalies.data.to(device),
                            sup_title=f'Idealised anomaly detector.', load=args.load, return_rates=True,
@@ -232,8 +261,11 @@ def test_classifier():
                            normalize=args.cf_norm)
 
         rates_sr_vs_transformed[f'{i}'] = auc_info[3]
-        rates_sr_qcd_vs_anomalies[f'{i}'] = auc_info[2]
-        counts += [auc_info[-1]]
+        sr_qcd_rates = auc_info[5]
+        sr_qcd_rates.pop('random', None)
+        for rate in sr_qcd_rates:
+            rates_sr_qcd_vs_anomalies[f'{i}_{rate}'] = sr_qcd_rates[rate]
+        counts += [auc_info[4]]
 
     with open(f'{sv_dir}/counts.pkl', 'wb') as f:
         pickle.dump(counts, f)

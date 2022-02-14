@@ -172,7 +172,6 @@ def signalMassSampler(masses, edge1, edge2, getStatus=False, plt_sv_dir=None, sc
 
     # parameters for the dijet function - move this outside of the function, if the
     # script complains about repeated parameters. Shouldn't be an issue.
-    # TODO: remove the while loop, this removes the need for it.
     lb = 0.0
     p1 = zfit.Parameter('p1', 100., lower_limit=lb)
     p2 = zfit.Parameter('p2', 10., lower_limit=lb)

@@ -405,7 +405,7 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
     # Validation set one, SB2 to one mass bin higher
     get_maps('SB2', high_mass_training, {'OB2': datasets.validationset})
     auc_dict = {}
-    if not light_job or (light_job == 3):
+    if not light_job:
         # AUC for OB2 vs T(SB2)
         print('SB2 from OB2')
         ob2_samples = get_transformed(high_mass_training, lm=datasets.mass_bins[4], hm=datasets.mass_bins[5],

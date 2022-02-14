@@ -51,7 +51,7 @@ class Classifier(nn.Module):
         if prediction.isnan().any():
             raise Exception('Classifier has diverged.')
         self.loss = self.loss_object(prediction, target.to(device), weight=weight.to(device))
-        # self.loss = self.weighted_loss(prediction, target.to(device), 1.2)
+        # self.loss = self.weighted_loss(prediction, target.to(device), 0.8)
         if return_pred:
             return self.loss, prediction
         else:
@@ -70,7 +70,7 @@ class Classifier(nn.Module):
         else:
             self.base_model.load_state_dict(torch.load(path))
 
-    def round_sf(self, x, nsf): 
+    def round_sf(self, x, nsf):
         if x:
             x = round(x, nsf - (int(np.floor(np.log10(abs(x)))) - 1))
         return x

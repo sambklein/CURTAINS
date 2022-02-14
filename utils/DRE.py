@@ -320,6 +320,9 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
     """
     if thresholds is None:
         thresholds = [0, 0.5, 0.8, 0.9, 0.95, 0.99, 0.999, 0.9999]
+    if bg_truth_labels is None:
+        bg_truth_labels = torch.cat((torch.zeros(len(bg_template)),
+                                     torch.ones(len(sr_samples))))
 
     tpr_c, fpr_c = None, None
 
@@ -449,10 +452,10 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
     train_loss = losses[0::2]
     val_loss = losses[1::2]
     plot_losses(train_loss, val_loss, sv_dir)
-    eval_epoch = np.argsort(val_loss.mean(0))[:n_av]
-    # eval_epoch = [nepochs - 1, nepochs - 2]
-    # eval_epoch = [nepochs - 1]
-    print(f'Best epoch: {eval_epoch}. \nLoading and evaluating now.')
+    # eval_epoch = np.argsort(val_loss.mean(0))[:n_av]
+    # # eval_epoch = [nepochs - 1, nepochs - 2]
+    # # eval_epoch = [nepochs - 1]
+    # print(f'Best epoch: {eval_epoch}. \nLoading and evaluating now.')
     split_inds = kfold_gen(kfold)
 
     info_dict = defaultdict(list)
@@ -461,6 +464,13 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
     # Plot the classifier output distributions
     fig, ax = plt.subplots(1, nfolds, figsize=(5 * nfolds + 2, 7))
     for fold, (train_index, valid_index, eval_index) in enumerate(split_inds):
+
+        # TODO: this was set to the last epoch for 'paper' trainings
+        # n_av = 5
+        # eval_epoch = np.argsort(val_loss[fold])[:n_av]
+        eval_epoch = [nepochs - 1]
+        # eval_epoch = [10]
+        print(f'Best epoch: {eval_epoch}. \nLoading and evaluating now.')
 
         # The classifier object does not need to be reinitialised here, only loaded
         models_to_load = [os.path.join(sv_dir, f'classifier_{fold}', f'{e}') for e in eval_epoch]
@@ -497,12 +507,14 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
                 bg_scores = y_scores[eval_data.targets == 0]
                 # bg_scores = eval_data.targets.cpu().numpy()
                 lbls_bg = np.zeros(len(bg_scores))
-                lbls = np.zeros(len(eval_data.data))
+                lbls = lbls_bg
             # Get the background vs signal AUC if that is available
             data_mx = lbls_bg != -1
             info_dict['y_labels_1'] += [np.concatenate((np.ones(len(anomaly_scores)), lbls_bg[data_mx]))]
             info_dict['y_scores_1'] += [np.concatenate((anomaly_scores.reshape(-1, 1),
                                                         bg_scores[data_mx].reshape(-1, 1)))[:, 0]]
+            # info_dict['y_labels_1'] += [lbls_bg[data_mx]]
+            # info_dict['y_scores_1'] += [bg_scores[data_mx]]
             # Get the background only AUC if that information is available
             info_dict['y_labels_2'] += [eval_data.targets.cpu().numpy()[lbls == 0]]
             info_dict['y_scores_2'] += [y_scores[lbls == 0]]
@@ -523,13 +535,50 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
             fpr, tpr, _ = roc_curve(info_dict['y_labels_1'][-1], info_dict['y_scores_1'][-1])
             rates_dict[f'{fold}'] = [fpr, tpr]
 
+            # Get the sic value
+            fpr_nz = fpr[fpr != 0]
+            tpr_nz = tpr[fpr != 0]
+            sic = tpr_nz / fpr_nz ** 0.5
+            print(f'Max SIC: {np.max(sic)}')
+            if np.max(sic) < 2:
+                a = 0
+
+            # # Calculate the expected and real counts that pass a certain threshold of the classifier
+            # if return_rates:
+            #     # Count the number of events that are left in the signal region after a certain cut on the background
+            #     # template
+            #     count = []
+            #     count_bg = []
+            #     expected_count = []
+            #     store_masses = []
+            #     mx = eval_data.targets == 0
+            #     for i, at in enumerate(thresholds):
+            #         threshold = np.quantile(y_scores[mx], at)
+            #         expected_count += [sum(y_scores[mx] >= threshold)]
+            #         count += [sum(y_scores[eval_data.targets == 1] >= threshold)]
+            #         count_bg += [sum(y_scores[eval_data.bg_labels == 1] >= threshold)]
+            #         ms_mx = eval_data.targets[:, 0] == 1
+            #         store_masses += [eval_masses[ms_mx][y_scores[ms_mx] >= threshold]]
+            #         if anomaly_bool:
+            #             signal_pass_rate = np.sum(
+            #                 info_dict['y_scores_1'][-1][info_dict['y_labels_1'][-1] == 1] >= threshold) / np.sum(
+            #                 info_dict['y_labels_1'][-1] == 1)
+            #             bg_pass_rate = np.sum(
+            #                 info_dict['y_scores_1'][-1][info_dict['y_labels_1'][-1] == 0] >= threshold) / np.sum(
+            #                 info_dict['y_labels_1'][-1] == 0)
+            #             info_dict['pass_rates'] += [np.array((signal_pass_rate, bg_pass_rate))]
+            #     info_dict['counts'] += [np.array(count)]
+            #     info_dict['masses'] += [store_masses]
+            #     info_dict['expected_counts'] += [np.array(expected_count)]
+            #     info_dict['sig_counts'] += [np.array(count_bg)]
+
     fig.legend()
     fig.savefig(os.path.join(sv_dir, 'folds_classifier_outputs.png'))
 
     plot_rates_dict(sv_dir, rates_dict, 'folds')
 
     keys_to_cat = ['y_scores', 'labels_test', 'y_labels_1', 'y_scores_1', 'y_labels_2', 'y_scores_2', 'masses_folds',
-                   'bg_labels']
+                   'bg_labels', 'sig_counts']
     for key in keys_to_cat:
         if key in info_dict.keys():
             info_dict[key] = np.concatenate(info_dict[key])
@@ -609,11 +658,11 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
 
     if return_rates:
         counts = np.array(info_dict['counts'])
-        if anomaly_bool:
-            pass_rates = np.array(info_dict['pass_rates'])
-        print(f'Expected {np.sum(info_dict["expected_counts"], 0)}.\n Measured {np.sum(counts, 0)}.')
+        measured = np.sum(counts, 0)
+        print(f'Expected {np.sum(info_dict["expected_counts"], 0)}.\n Measured {measured}.')
         print(f'Signal counts {np.sum(info_dict["sig_counts"], 0)}.')
-        counts = {'counts': info_dict['counts'], 'expected_counts': info_dict["expected_counts"],
+        counts = {'counts': measured, 'counts_sep': info_dict['counts'],
+                  'expected_counts': info_dict["expected_counts"],
                   'pass_rates': info_dict['pass_rates'], 'masses': info_dict['masses']}
 
     # Plot a roc curve
@@ -633,7 +682,7 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
 
     if return_rates:
         if anomaly_bool:
-            return roc_auc, [fpr, tpr], [fpr1, tpr1], [fpr2, tpr2], counts
+            return roc_auc, [fpr, tpr], [fpr1, tpr1], [fpr2, tpr2], counts, rates_dict
         else:
             return roc_auc, [fpr, tpr]
     else:

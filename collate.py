@@ -195,13 +195,35 @@ def get_counts():
     # no_eps = True
     # add_dict = []
 
-    # A very nice hunt with bins of size 200, with the classifier retrained multiple times
+    # # A very nice hunt with bins of size 200, with the classifier retrained multiple times
+    # # curtains_bump_cfinal_OT_bump_centered_0_bump_200_0
+    # name = 'bump_200_alt'
+    # dd = 'curtains_bump_two_OT_bump_two'
+    # filename = '200_alt_from_testc'
+    # bin_width = 200
+    # n_runs = 40
+    # y_max = 500000
+    # no_eps = False
+    # add_dict = [f'{dd}_{i}_{name}_{i}' for i in range(0, n_runs)]
+
+    # # Alt classifier, alt bump hunt
+    # # curtains_bump_cfinal_OT_bump_centered_0_bump_200_0
+    # name = 'bump_200_alt_nc'
+    # dd = 'curtains_bump_two_OT_bump_two'
+    # filename = '200_alt_alt_from_testc'
+    # bin_width = 200
+    # n_runs = 48
+    # y_max = 500000
+    # no_eps = False
+    # add_dict = [f'{dd}_{i}_{name}_{i}' for i in range(0, n_runs)]
+
+    # Alt classifier, alt bump hunt
     # curtains_bump_cfinal_OT_bump_centered_0_bump_200_0
-    name = 'bump_200_alt'
+    name = 'bump_200_alt_final'
     dd = 'curtains_bump_two_OT_bump_two'
-    filename = '200_alt_from_testc'
+    filename = '200_alt_alt_from_testc_final'
     bin_width = 200
-    n_runs = 40
+    n_runs = 48
     y_max = 500000
     no_eps = False
     add_dict = [f'{dd}_{i}_{name}_{i}' for i in range(0, n_runs)]
@@ -241,8 +263,8 @@ def get_counts():
 
     reload = 1
     cathode_classifier = 0
-    # new_width = 200
-    new_width = None
+    new_width = 100
+    # new_width = None
 
     directories = [f'{dd}_{name}_{i}' for i in range(0, n_runs)]
     if add_dict is not None:
@@ -320,13 +342,12 @@ def get_counts():
                 # if (x == 3500) and (label == '1000'):
                 if (x == 3100):
                     print(directory)
-                #     pdb.set_trace()
                 rt = np.vstack((signal_pass_rate, bg_pass_rate))
                 vals[label] += [np.hstack((x, *counts, error))]
                 rates[label] += [rt]
                 # TODO: how to handle this when multiple classifiers have run?
-                # masses[label] += [info_dict['masses']]
-                masses[label] += [0]
+                masses[label] += [[id['masses'] for id in info_dict]]
+                # masses[label] += [0]
 
             with open(f'{sv_dir}/images/rates_info_{filename}.pkl', 'wb') as f:
                 pickle.dump(rates, f)
@@ -370,7 +391,8 @@ def get_counts():
         def __call__(self, num):
             """Get the counts of BG events and Anomaly events in each bin."""
             # TODO: what the fuck
-            if name in ['OT_bump_centered', 'bump_200', 'OT_bump_two', 'bump_200_alt']:
+            if name in ['OT_bump_centered', 'bump_200', 'OT_bump_two',
+                        'bump_200_alt', 'bump_200_alt_nc', 'bump_200_alt_final']:
                 bins = np.unique(np.hstack([[i + 400, i + 600] for i in range(2600, 4200, 200)]))
             else:
                 bins = np.unique(np.hstack([[i + 400, i + 500] for i in range(2600, 3800, 100)]))
@@ -409,13 +431,19 @@ def get_counts():
 
                 if new_width is not None:
                     # mass_y = np.concatenate([m[j][i].numpy() for m in lst_masses for j in range(5)])
-                    mass_y = np.concatenate([m[0][i] for m in lst_masses])
+                    n_models = len(lst_masses[0])
+                    this_layer = []
+                    for bin in lst_masses:
+                        for sub_bin in bin:
+                            this_layer += [np.concatenate([m[i].numpy() for m in sub_bin])]
+                    mass_y = np.concatenate(this_layer)
                     # Define new bin centers
                     min_mass = min(x_all) - half_width
                     max_mass = max(x_all) + half_width
                     new_bins = np.arange(min_mass, max_mass, new_width)
                     bin_width = new_width
                     y, _ = np.histogram(mass_y, bins=new_bins)
+                    y = y / n_models
                     x = np.convolve(new_bins, np.ones(2), 'valid') / 2
                     x_e = x
                     if i == 0:
@@ -443,17 +471,18 @@ def get_counts():
                 add_errors(ax, x_e, expected, bin_width, error_in_expected, color='b')
                 axes1.plot(x, y, 'o', label=f'Cut = {thresholds[i]}', markersize=3)
 
-                rt = np.array(rt)
-                bins, bg_counts, ad_counts = get_mass_spectrum(int(label))
-                clr = clist[i]
-                fact = int(label) / ad_counts.sum()
-                ad_counts = fact * ad_counts
-                mx = np.digitize(xy[:, 0], bins=bins) - 1
-                total_signal = (rt[:, 0, i] * ad_counts[mx])
-                # total_bg = (rt[:, 1, i] * bg_counts[mx]).sum()
-                total_bg = (bg_counts[mx] * (1 - thresholds[i]))
-                significance[i] = np.sqrt(
-                    2 * ((total_signal + total_bg) * np.log(1 + total_signal / total_bg) - total_signal).sum())
+                # rt = np.array(rt)
+                # bins, bg_counts, ad_counts = get_mass_spectrum(int(label))
+                # clr = clist[i]
+                # fact = int(label) / ad_counts.sum()
+                # ad_counts = fact * ad_counts
+                # mx = np.digitize(xy[:, 0], bins=bins) - 1
+                # total_signal = (rt[:, 0, i] * ad_counts[mx])
+                # # total_bg = (rt[:, 1, i] * bg_counts[mx]).sum()
+                # total_bg = (bg_counts[mx] * (1 - thresholds[i]))
+                # significance[i] = np.sqrt(
+                #     2 * ((total_signal + total_bg) * np.log(1 + total_signal / total_bg) - total_signal).sum())
+
                 # axes2[j, 0].bar(bins[mx], rt[:, 0, i] * ad_counts[mx], width=bin_width, color='None', edgecolor='r')
                 # axes2[j, 1].bar(bins[mx], rt[:, 1, i] * bg_counts[mx], width=bin_width, color='None', edgecolor='b')
                 # axes2[j, 2].bar(bins[mx], rt[:, 0, i] * ad_counts[mx], width=bin_width, color='None', edgecolor='r')
@@ -593,7 +622,6 @@ def get_sics():
             tpr = values[1][1]
             ax = axes[j, 1]
             ax1 = axes[j, 0]
-            # pdb.set_trace()
             fpr_mx = fpr != 0.
             fpr_nz = fpr[fpr_mx]
             tpr_nz = tpr[fpr_mx]
@@ -623,6 +651,8 @@ def get_sics():
 
 def figs_six_and_seven():
     sv_dir = get_top_dir()
+    fig_6_doping = '1000'
+
     # directories = [f'ot_fig7_OT_fig7_{i}' for i in range(0, 8)] + \
     #               [f'cathode_fig7_CATHODE_fig7_{i}' for i in range(0, 8)] + \
     #               ['idealised_class_cath_idealised_class_cath_0'] + \
@@ -650,28 +680,38 @@ def figs_six_and_seven():
     # directories = [f'ot_fig7_200_OT_fig7_200_{i}_C_F7_{i}' for i in range(0, 8)] + \
     #               [f'cathode_fig7_200_CATHODE_fig7_200_{i}_Cathode_F7_{i}' for i in range(0, 8)] + \
     #               [f'super_class_200_super_class_200_{i}' for i in range(0, 8)] + \
-    #               [f'ideal_class_200_ideal_class_200_{i}' for i in range(0, 8)]
-    # names = ['Curtains'] * 8 + ['Cathode'] * 8 + ['Supervised'] * 8 + ['Idealised'] * 8
+    #               [f'ideal_class_200_ideal_class_200_{i}' for i in range(0, 8)] + \
+    #               [f'ot_fig7_200_hd_OT_fig7_200_hd_{i}_fig_6_hd_{i}' for i in range(0, 4)] + \
+    #               [f'cathode_fig7_200_hd_CATHODE_fig7_200_hd_{i}_fig_6_hd_cathode_{i}' for i in range(0, 4)] + \
+    #               [f'ideal_class_200_hd_ideal_class_200_hd_{i}' for i in range(0, 4)]
+    # names = ['Curtains'] * 8 + ['Cathode'] * 8 + ['Supervised'] * 8 + ['Idealised'] * 8 + \
+    #         ['Curtains'] * 4 + ['Cathode'] * 4 + ['Idealised'] * 4
     # filename = 'fig_6_7'
+    # fig_6_doping = '4000'
+    # # TODO: the above but on the full sidebands for CATHODE
 
     # This is full sidebands, TODO 1 here will give you the same features as CATHODE used
-    directories = ['curtains_match_200_CURTAINS_match_200_0'] + \
-                  ['cathode_match_200_CATHODE_match_200_0'] + \
-                  [f'super_class_200_super_class_200_{i}' for i in range(0, 8)] + \
-                  [f'ideal_class_200_ideal_class_200_{i}' for i in range(0, 8)]
-    names = ['Curtains'] + ['Cathode'] + ['Supervised'] * 8 + ['Idealised'] * 8
-    filename = 'fig_6_7_unrestricted'
+    # directories = ['curtains_match_200_CURTAINS_match_200_0'] + \
+    #               ['cathode_match_200_CATHODE_match_200_0'] + \
+    #               [f'super_class_200_super_class_200_{i}' for i in range(0, 8)] + \
+    #               [f'ideal_class_200_ideal_class_200_{i}' for i in range(0, 8)]
+    # names = ['Curtains'] * 4 + ['Cathode'] + ['Supervised'] * 8 + ['Idealised'] * 8
+    # filename = 'fig_6_7_unrestricted'
 
     # # This is Curtains and cathode trained on the full sidebands
     # directories = ['curtains_match_CURTAINS_match_0'] + \
     #               [f'cathode_match_CATHODE_match_0'] + \
     #               ['idealised_class_cath_idealised_class_cath_0'] + \
     #               ['super_class_cath_super_class_cath_0']
-    # names = ['Curtains'] + ['Cathode'] + ['Idealised'] + ['Supervised']
+    # names = ['Curtains'] + ['Cathode'] + ['Ideal ised'] + ['Supervised']
     # filename = 'fig_6_7_alt'
 
-    # directories = ['classifier_local_local']
-    # names = ['Cathode']
+    # This is full sidebands,
+    directories = [f'ot_fig7_200_OT_fig7_200_{i}_C_F7_{i}' for i in range(0, 8)] + \
+                  ['classifier_local_local', 'classifier_local_two_local_t']
+    names = ['Curtains'] * 8 + ['Supervised', 'Idealised']
+    filename = 'local'
+
     reload = 1
     plot_individual_lines = False
     quart = 0
@@ -693,8 +733,6 @@ def figs_six_and_seven():
                 for f, t in the_dict.values():
                     fpr_l += [f]
                     tpr_l += [t]
-                if i == 15:
-                    pdb.set_trace()
                 passed = 1
             except Exception as e:
                 print(e)
@@ -716,7 +754,7 @@ def figs_six_and_seven():
     # Plot fig 6
     fig_six, ax_six = plt.subplots(1, 2, figsize=(14, 5))
     # We make this figure for this doping level
-    data = deepcopy(vals['1000'])
+    data = deepcopy(vals[fig_6_doping])
     data += [['random', [np.linspace(0, 1, 50)], [np.linspace(0, 1, 50)]]]
     max_sic = 20
     clrs = {'Curtains': 'r', 'Cathode': 'b', 'Idealised': 'g', 'Supervised': 'k', 'CATHODE_full': 'y'}
@@ -740,12 +778,13 @@ def figs_six_and_seven():
             sic = tpr_nz / fpr_nz ** 0.5
             data['sic'] += [tpr_nz / fpr_nz ** 0.5]
             data['tpr'] += [tpr_nz]
-            data['rejection'] += [1 / fpr_nz]
+            rejection = 1 / fpr_nz
+            data['rejection'] += [rejection]
             data['interp_sic'] += [interp1d(tpr_nz, sic, fill_value="extrapolate")]
+            data['interp_rejection'] += [interp1d(tpr_nz, rejection, fill_value="extrapolate")]
             if plot_individual_lines:
                 ax_six[1].plot(tpr_nz, sic, linewidth=2, linestyle=line, color=color, alpha=alpha)
-                ax_six[0].plot(tpr_nz, data['rejection'][-1], linewidth=2, linestyle=line, color=color,
-                               alpha=alpha)
+                ax_six[0].plot(tpr_nz, rejection, linewidth=2, linestyle=line, color=color, alpha=alpha)
             # ax_six[1].plot(fpr_nz, sic, linewidth=2, label=label, linestyle=line, color=color, alpha=alpha)
             # ax_six[1].set_xscale('log')
             # ax_six[0].plot(tpr_nz, data['rejection'][-1], linewidth=2, label=label, linestyle=line, color=color,
@@ -755,24 +794,33 @@ def figs_six_and_seven():
             min_tpr, max_tpr = mtp.min(), mtp.max()
             tprs = np.linspace(min_tpr, max_tpr, 1000)
             host = []
-            for func in data['interp_sic']:
-                host += [func(tprs)]
+            reggie = []
+            for sic_func, rej_func in zip(data['interp_sic'], data['interp_rejection']):
+                host += [sic_func(tprs)]
+                reggie += [rej_func(tprs)]
             host = np.vstack(host)
+            reggie = np.vstack(reggie)
             if quart:
                 mean_sic = np.median(host, 0)
+                mean_rej = np.median(reggie, 0)
             else:
                 mean_sic = host.mean(0)
+                mean_rej = reggie.mean(0)
             ax_six[1].plot(tprs, mean_sic, linewidth=2, label=label, linestyle=line, color=color)
+            ax_six[0].plot(tprs, mean_rej, linewidth=2, label=label, linestyle=line, color=color)
             if not plot_individual_lines:
-                if quart:
-                    lb = np.quantile(host, 0.16, axis=0)
-                    ub = np.quantile(host, 0.84, axis=0)
-                else:
-                    error = host.std(0)
-                    lb = mean_sic - error
-                    ub = mean_sic + error
-                ax_six[1].fill_between(tprs, lb, ub, alpha=alpha, linewidth=2,
-                                       linestyle=line, color=color)
+                def add_band(data, mean, ax):
+                    if quart:
+                        lb = np.quantile(data, 0.16, axis=0)
+                        ub = np.quantile(data, 0.84, axis=0)
+                    else:
+                        error = data.std(0)
+                        lb = mean - error
+                        ub = mean + error
+                    ax.fill_between(tprs, lb, ub, alpha=alpha, linewidth=2, linestyle=line, color=color)
+
+                add_band(host, mean_sic, ax_six[1])
+                add_band(reggie, mean_rej, ax_six[0])
 
         ax_six[1].set_ylim(0, max_sic)
 
@@ -801,7 +849,8 @@ def figs_six_and_seven():
              u'#bcbd22', u'#17becf']
     clrs = {unique_names[i]: clist[i] for i in range(n_versions)}
 
-    doping_dict = {'1000': 0.60, '667': 0.40, '500': 0.30, '333': 0.20, '250': 0.15, '100': 0.10, '50': 0.05, '0': 0}
+    doping_dict = {'8000': 4.80, '6000': 3.60, '4000': 2.40, '3000': 1.80, '1000': 0.60, '667': 0.40, '500': 0.30,
+                   '333': 0.20, '250': 0.15, '100': 0.10, '50': 0.05, '0': 0}
 
     for j in range(n_runs):
         label = runs[j]
@@ -842,7 +891,7 @@ def figs_six_and_seven():
 
 
 if __name__ == '__main__':
-    get_counts()
-    # figs_six_and_seven()
+    # get_counts()
+    figs_six_and_seven()
     # get_sics()
     # get_max_sic()
