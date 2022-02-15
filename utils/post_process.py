@@ -478,8 +478,8 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
         auc_dict['SB12/SR'] = auc_anomalies
         rates_sr_vs_transformed[f'0.0'] = auc_info[3]
         rates_sr_qcd_vs_anomalies[f'0.0'] = auc_info[2]
-        with open(f'{sv_dir}/counts_no_eps.pkl', 'wb') as f:
-            pickle.dump(auc_info[-1], f)
+        with open(f'{sv_dir}/counts.pkl', 'wb') as f:
+            pickle.dump(auc_info[4], f)
 
         plot_rates_dict(sv_dir, rates_sr_qcd_vs_anomalies, 'SR QCD vs SR Anomalies')
         plot_rates_dict(sv_dir, rates_sr_vs_transformed, 'T(SB12) vs SR')

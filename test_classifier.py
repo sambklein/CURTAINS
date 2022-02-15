@@ -28,7 +28,7 @@ def parse_args():
                         help='Choose the base output directory')
     parser.add_argument('-n', '--outputname', type=str, default='local_t',
                         help='Set the output name directory')
-    parser.add_argument('--load', type=int, default=1, help='Load a model?')
+    parser.add_argument('--load', type=int, default=0, help='Load a model?')
 
     # Multiple runs
     parser.add_argument('--shift_seed', type=int, default=0,
@@ -44,7 +44,7 @@ def parse_args():
                         help='Raw number of signal events to be added into the entire bg spectra.')
     # parser.add_argument("--doping", type=int, default=1800,
     #                     help='Raw number of signal events to be added into the entire bg spectra.')
-    parser.add_argument("--split_data", type=int, default=3,
+    parser.add_argument("--split_data", type=int, default=2,
                         help='2 for idealised classifier, 3 for supervised.')
     parser.add_argument("--match_idealised", type=int, default=1,
                         help='If set to 1 only provide as many signal samples as there are in the idealised training'
@@ -62,7 +62,7 @@ def parse_args():
     parser.add_argument('--batch_size', type=int, default=128, help='Size of batch for training.')
     parser.add_argument('--nepochs', type=int, default=20, help='Number of epochs.')
     parser.add_argument('--lr', type=float, default=0.001, help='Classifier learning rate.')
-    parser.add_argument('--wd', type=float, default=0.0, help='Weight Decay, set to None for ADAM.')
+    parser.add_argument('--wd', type=float, default=0.1, help='Weight Decay, set to None for ADAM.')
     parser.add_argument('--drp', type=float, default=0.0, help='Dropout to apply.')
     parser.add_argument('--width', type=int, default=32, help='Width to use for the classifier.')
     parser.add_argument('--depth', type=int, default=3, help='Depth of classifier to use.')
@@ -70,12 +70,12 @@ def parse_args():
     parser.add_argument('--layer_norm', type=int, default=0, help='Apply layer norm?')
     parser.add_argument('--use_scheduler', type=int, default=1, help='Use cosine annealing of the learning rate?')
     parser.add_argument('--run_cathode_classifier', type=int, default=0, help='Use cathode classifier?')
-    parser.add_argument('--n_run', type=int, default=2, help='Number of classifiers to train.')
+    parser.add_argument('--n_run', type=int, default=5, help='Number of classifiers to train.')
 
     # Classifier settings
     parser.add_argument('--false_signal', type=int, default=0, help='Add random noise samples to the signal set?')
     parser.add_argument('--use_weight', type=int, default=1, help='Apply weights to the data?')
-    parser.add_argument('--beta_add_noise', type=float, default=0.01,
+    parser.add_argument('--beta_add_noise', type=float, default=0.3,
                         help='The value of epsilon to use in the 1-e training.')
     parser.add_argument('--cf_activ', type=str, default='relu',
                         help='The value of epsilon to use in the 1-e training.')
@@ -83,6 +83,7 @@ def parse_args():
                         help='2 for normalization and 1 for standardization.')
 
     return parser.parse_args()
+
 
 def reset_seed(seed):
     torch.manual_seed(seed)
@@ -138,6 +139,8 @@ def test_classifier():
         return data.loc[mx], data.loc[~mx]
 
     if args.split_data == 1:
+        if args.match_idealised:
+            args.doping = int(args.doping / 2)
         # Select the data
         ad_extra = ad.iloc[args.doping:].to_numpy()
         ad = ad.iloc[:args.doping]
@@ -159,30 +162,20 @@ def test_classifier():
         ))
 
     elif args.split_data == 2:
+        bg_frac = 0.5
         # Idealised anomaly detection
-        # Split the anomalies into two so that the doping fraction is the same (SR will be split into two)
-        ad_extra = ad.iloc[int(args.doping / 2):]
-        ad = ad.iloc[:int(args.doping / 2)]
+        # Split the anomalies into the same fraction as the signal region QCD will be split
+        ad_extra = ad.iloc[int(args.doping * bg_frac):]
+        ad = ad.iloc[:int(args.doping * bg_frac)]
         ad = ad.sample(frac=1, random_state=seed)
 
         sr_bin = [curtains_bins[2], curtains_bins[3]]
         sm, sm_out = mx_data(sm, sr_bin)
         ad, ad_out = mx_data(ad, sr_bin)
         ad_extra, ad_extra_out = mx_data(ad_extra, sr_bin)
-        # Need to figure out how much data there is in the SBs to figure out how much signal to add to the signal
-        # template
-        sbs = [[curtains_bins[1], curtains_bins[2]], [curtains_bins[3], curtains_bins[4]]]
-        fracs = []
-        for bns in sbs:
-            sm_d, _ = mx_data(sm_out, bns)
-            ad_d, _ = mx_data(ad_out, bns)
-            fracs += [len(ad_d) / len(sm_d)]
-        frac = np.mean(fracs)
-        n_to_bg = int(frac * len(sm) / 2)
-        ad_bg = ad_extra.iloc[:n_to_bg]
-        ad_extra = ad_extra.iloc[n_to_bg:].to_numpy()
+        ad_extra = ad_extra.to_numpy()
 
-        ndata = int(len(sm) / 2)
+        ndata = int(len(sm) * bg_frac)
         print(len(ad) / ndata * 100)
         print(len(ad))
         print(ndata)

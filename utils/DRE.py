@@ -82,6 +82,7 @@ class SupervisedDataClass(Dataset):
             else:
                 self.weights = torch.ones_like(self.targets)
 
+
     def _normalize(self, data_in):
         if self.standardise == 1:
             return (data_in - self.min_vals) / (self.max_vals + 1e-8)
@@ -280,7 +281,7 @@ def get_datasets(train_index, valid_index, eval_index, false_signal, X, y, beta_
         bg_truth_val = None
         bg_truth_eval = None
 
-    if false_signal > 0:
+    if false_signal in [1, 2]:
         # Append a dummy noise sample to the
         n_features = X_train.shape[1]
 
@@ -295,6 +296,14 @@ def get_datasets(train_index, valid_index, eval_index, false_signal, X, y, beta_
                 data = np.concatenate(
                     (data, ((l1 - l2) * np.random.rand(*data.shape) + l2)[:n_sample]))
             labels = np.concatenate((labels, np.ones((n_sample, 1))))
+            return data, labels
+    elif false_signal == 3:
+        def add_noise(data, labels):
+            n_sample = int(data.shape[0] * beta_add_noise)
+            eps = 1e-2
+            scale_factor = eps * np.std(data, axis=0)
+            new_data = data[-n_sample:] + scale_factor * np.random.rand(n_sample, data.shape[1])
+            data = np.concatenate((data[:-n_sample], new_data))
             return data, labels
     else:
         add_noise = None

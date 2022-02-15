@@ -217,13 +217,13 @@ def get_counts():
     # no_eps = False
     # add_dict = [f'{dd}_{i}_{name}_{i}' for i in range(0, n_runs)]
 
-    # Alt classifier, alt bump hunt
+    # 400 GeV
     # curtains_bump_cfinal_OT_bump_centered_0_bump_200_0
-    name = 'bump_200_alt_final'
-    dd = 'curtains_bump_two_OT_bump_two'
-    filename = '200_alt_alt_from_testc_final'
-    bin_width = 200
-    n_runs = 48
+    name = 'four_bumps'
+    dd = 'OT_bump_four_OT_bump_four'
+    filename = '400_gev'
+    bin_width = 400
+    n_runs = 24
     y_max = 500000
     no_eps = False
     add_dict = [f'{dd}_{i}_{name}_{i}' for i in range(0, n_runs)]
@@ -261,7 +261,7 @@ def get_counts():
     # n_runs = 64
     # y_max = 100000
 
-    reload = 1
+    reload = 0
     cathode_classifier = 0
     new_width = 100
     # new_width = None
@@ -435,7 +435,8 @@ def get_counts():
                     this_layer = []
                     for bin in lst_masses:
                         for sub_bin in bin:
-                            this_layer += [np.concatenate([m[i].numpy() for m in sub_bin])]
+                            # this_layer += [np.concatenate([m[i].numpy() for m in sub_bin])]
+                            this_layer += [np.concatenate([m[i] for m in sub_bin])]
                     mass_y = np.concatenate(this_layer)
                     # Define new bin centers
                     min_mass = min(x_all) - half_width
@@ -471,17 +472,17 @@ def get_counts():
                 add_errors(ax, x_e, expected, bin_width, error_in_expected, color='b')
                 axes1.plot(x, y, 'o', label=f'Cut = {thresholds[i]}', markersize=3)
 
-                # rt = np.array(rt)
-                # bins, bg_counts, ad_counts = get_mass_spectrum(int(label))
-                # clr = clist[i]
-                # fact = int(label) / ad_counts.sum()
-                # ad_counts = fact * ad_counts
-                # mx = np.digitize(xy[:, 0], bins=bins) - 1
-                # total_signal = (rt[:, 0, i] * ad_counts[mx])
-                # # total_bg = (rt[:, 1, i] * bg_counts[mx]).sum()
-                # total_bg = (bg_counts[mx] * (1 - thresholds[i]))
-                # significance[i] = np.sqrt(
-                #     2 * ((total_signal + total_bg) * np.log(1 + total_signal / total_bg) - total_signal).sum())
+                rt = np.array(rt)
+                bins, bg_counts, ad_counts = get_mass_spectrum(int(label))
+                clr = clist[i]
+                fact = int(label) / ad_counts.sum()
+                ad_counts = fact * ad_counts
+                mx = np.digitize(xy[:, 0], bins=bins) - 1
+                total_signal = (rt[:, 0, i] * ad_counts[mx])
+                # total_bg = (rt[:, 1, i] * bg_counts[mx]).sum()
+                total_bg = (bg_counts[mx] * (1 - thresholds[i]))
+                significance[i] = np.sqrt(
+                    2 * ((total_signal + total_bg) * np.log(1 + total_signal / total_bg) - total_signal).sum())
 
                 # axes2[j, 0].bar(bins[mx], rt[:, 0, i] * ad_counts[mx], width=bin_width, color='None', edgecolor='r')
                 # axes2[j, 1].bar(bins[mx], rt[:, 1, i] * bg_counts[mx], width=bin_width, color='None', edgecolor='b')
@@ -676,19 +677,18 @@ def figs_six_and_seven():
     # names = ['Cathode'] * 8 + ['Curtains'] * 8
     # filename = 'fig_6_7_joint'
 
-    # # This is restricted sidebands
-    # directories = [f'ot_fig7_200_OT_fig7_200_{i}_C_F7_{i}' for i in range(0, 8)] + \
-    #               [f'cathode_fig7_200_CATHODE_fig7_200_{i}_Cathode_F7_{i}' for i in range(0, 8)] + \
-    #               [f'super_class_200_super_class_200_{i}' for i in range(0, 8)] + \
-    #               [f'ideal_class_200_ideal_class_200_{i}' for i in range(0, 8)] + \
-    #               [f'ot_fig7_200_hd_OT_fig7_200_hd_{i}_fig_6_hd_{i}' for i in range(0, 4)] + \
-    #               [f'cathode_fig7_200_hd_CATHODE_fig7_200_hd_{i}_fig_6_hd_cathode_{i}' for i in range(0, 4)] + \
-    #               [f'ideal_class_200_hd_ideal_class_200_hd_{i}' for i in range(0, 4)]
-    # names = ['Curtains'] * 8 + ['Cathode'] * 8 + ['Supervised'] * 8 + ['Idealised'] * 8 + \
-    #         ['Curtains'] * 4 + ['Cathode'] * 4 + ['Idealised'] * 4
-    # filename = 'fig_6_7'
-    # fig_6_doping = '4000'
-    # # TODO: the above but on the full sidebands for CATHODE
+    # This is restricted sidebands, with all of the data
+    directories = [f'ot_fig7_200_OT_fig7_200_{i}_C_F7_{i}' for i in range(0, 8)] + \
+                  [f'super_class_200_super_class_200_{i}' for i in range(0, 12)] + \
+                  [f'ideal_class_200_ideal_class_200_{i}' for i in range(0, 12)] + \
+                  [f'ot_fig7_200_hd_OT_fig7_200_hd_{i}_fig_6_hd_{i}' for i in range(0, 4)] + \
+                  [f'CATHODE_match_200_hd_full_bins_CATHODE_match_200_hd_full_bins_{i}_bump_search_cathode_{i}' for i in
+                   range(72)]
+    names = ['Curtains'] * 8 + ['Supervised'] * 12 + ['Idealised'] * 12 + \
+            ['Curtains'] * 4 + ['Cathode'] * 72
+    filename = 'fig_6_7'
+    fig_6_doping = '3000'
+    # # TODO: split the last set of jobs in the above into the finer subbands
 
     # This is full sidebands, TODO 1 here will give you the same features as CATHODE used
     # directories = ['curtains_match_200_CURTAINS_match_200_0'] + \
@@ -706,15 +706,16 @@ def figs_six_and_seven():
     # names = ['Curtains'] + ['Cathode'] + ['Ideal ised'] + ['Supervised']
     # filename = 'fig_6_7_alt'
 
-    # This is full sidebands,
-    directories = [f'ot_fig7_200_OT_fig7_200_{i}_C_F7_{i}' for i in range(0, 8)] + \
-                  ['classifier_local_local', 'classifier_local_two_local_t']
-    names = ['Curtains'] * 8 + ['Supervised', 'Idealised']
-    filename = 'local'
+    # # This is full sidebands,
+    # directories = [f'ot_fig7_200_OT_fig7_200_{i}_C_F7_{i}' for i in range(0, 8)] + \
+    #               ['classifier_local_local', 'classifier_local_two_local_t']
+    # names = ['Curtains'] * 8 + ['Supervised', 'Idealised']
+    # filename = 'local'
 
-    reload = 1
+    reload = 0
     plot_individual_lines = False
     quart = 0
+    x_axis_rejection = 1
 
     if reload:
         # Gather saved quantities
@@ -740,10 +741,13 @@ def figs_six_and_seven():
 
             if passed:
                 args = get_args(f'{sv_dir}/images/{directory}')
-                label = f'{args["doping"]}'
-                if label == '1000':
-                    print(directory)
-                vals[label] += [[names[i], tpr_l, fpr_l]]
+                # TODO: a better way of handling this, this is here just to catch CATHODE jobs on the full widths
+                if (args['bins'] in ['2300,3200,3400,3600,3800,4000', '3000,3200,3400,3600,3800,4000']) and \
+                        (args['feature_type'] == 3):
+                    label = f'{args["doping"]}'
+                    if label == '1000':
+                        print(directory)
+                    vals[label] += [[names[i], tpr_l, fpr_l]]
 
             with open(f'{sv_dir}/images/{filename}.pkl', 'wb') as f:
                 pickle.dump(vals, f)
@@ -755,7 +759,7 @@ def figs_six_and_seven():
     fig_six, ax_six = plt.subplots(1, 2, figsize=(14, 5))
     # We make this figure for this doping level
     data = deepcopy(vals[fig_6_doping])
-    data += [['random', [np.linspace(0, 1, 50)], [np.linspace(0, 1, 50)]]]
+    data += [['random', [np.linspace(0, 1, 10000)], [np.linspace(0, 1, 10000)]]]
     max_sic = 20
     clrs = {'Curtains': 'r', 'Cathode': 'b', 'Idealised': 'g', 'Supervised': 'k', 'CATHODE_full': 'y'}
     for lst in data:
@@ -780,51 +784,80 @@ def figs_six_and_seven():
             data['tpr'] += [tpr_nz]
             rejection = 1 / fpr_nz
             data['rejection'] += [rejection]
-            data['interp_sic'] += [interp1d(tpr_nz, sic, fill_value="extrapolate")]
+            if x_axis_rejection:
+                x_axis = rejection
+            else:
+                x_axis = tpr_nz
+            # Non-unique x-axis values must be masked out to avoid issues with the interpolation
+            _, indx = np.unique(x_axis, return_index=True)
+            data['interp_sic'] += [interp1d(x_axis[indx], sic[indx], fill_value="extrapolate")]
             data['interp_rejection'] += [interp1d(tpr_nz, rejection, fill_value="extrapolate")]
             if plot_individual_lines:
-                ax_six[1].plot(tpr_nz, sic, linewidth=2, linestyle=line, color=color, alpha=alpha)
+                ax_six[1].plot(x_axis, sic, linewidth=2, linestyle=line, color=color, alpha=alpha)
                 ax_six[0].plot(tpr_nz, rejection, linewidth=2, linestyle=line, color=color, alpha=alpha)
             # ax_six[1].plot(fpr_nz, sic, linewidth=2, label=label, linestyle=line, color=color, alpha=alpha)
             # ax_six[1].set_xscale('log')
             # ax_six[0].plot(tpr_nz, data['rejection'][-1], linewidth=2, label=label, linestyle=line, color=color,
             #                alpha=alpha)
         if label != 'random':
-            mtp = np.concatenate(data['tpr'])
-            min_tpr, max_tpr = mtp.min(), mtp.max()
-            tprs = np.linspace(min_tpr, max_tpr, 1000)
+
+            def make_axis(name):
+                mtp = np.concatenate(data[name])
+                min_tpr, max_tpr = mtp.min(), mtp.max()
+                return np.linspace(min_tpr, max_tpr, 1000)
+
+            ax_six_0 = make_axis('tpr')
+
+            if x_axis_rejection:
+                # ax_six_1 = make_axis('rejection')
+                ax_six_1 = np.linspace(1, 12007, 1000)
+                ax_six[1].set_xscale('log')
+            else:
+                ax_six_1 = ax_six_0
+
             host = []
             reggie = []
             for sic_func, rej_func in zip(data['interp_sic'], data['interp_rejection']):
-                host += [sic_func(tprs)]
-                reggie += [rej_func(tprs)]
+                host += [sic_func(ax_six_1)]
+                reggie += [rej_func(ax_six_0)]
             host = np.vstack(host)
             reggie = np.vstack(reggie)
+
             if quart:
                 mean_sic = np.median(host, 0)
                 mean_rej = np.median(reggie, 0)
             else:
                 mean_sic = host.mean(0)
                 mean_rej = reggie.mean(0)
-            ax_six[1].plot(tprs, mean_sic, linewidth=2, label=label, linestyle=line, color=color)
-            ax_six[0].plot(tprs, mean_rej, linewidth=2, label=label, linestyle=line, color=color)
+
+            print(max(mean_rej))
+            ax_six[1].plot(ax_six_1, mean_sic, linewidth=2, label=label, linestyle=line, color=color)
+            ax_six[0].plot(ax_six_0, mean_rej, linewidth=2, label=label, linestyle=line, color=color)
             if not plot_individual_lines:
-                def add_band(data, mean, ax):
+                def add_band(data, x_axis, mean, ax):
                     if quart:
                         lb = np.quantile(data, 0.16, axis=0)
                         ub = np.quantile(data, 0.84, axis=0)
                     else:
-                        error = data.std(0)
-                        lb = mean - error
-                        ub = mean + error
-                    ax.fill_between(tprs, lb, ub, alpha=alpha, linewidth=2, linestyle=line, color=color)
+                        # error = data.std(0)
+                        # lb = mean - error
+                        # ub = mean + error
+                        lb = np.quantile(data, 0.16, axis=0)
+                        ub = np.quantile(data, 0.84, axis=0)
+                    ax.fill_between(x_axis, lb, ub, alpha=alpha, linewidth=2, linestyle=line, color=color)
 
-                add_band(host, mean_sic, ax_six[1])
-                add_band(reggie, mean_rej, ax_six[0])
+                add_band(host, ax_six_1, mean_sic, ax_six[1])
+                add_band(reggie, ax_six_0, mean_rej, ax_six[0])
+        else:
+            ax_six[1].plot(x_axis, sic, linewidth=2, linestyle=line, color=color, alpha=alpha)
+            ax_six[0].plot(tpr_nz, rejection, linewidth=2, linestyle=line, color=color, alpha=alpha)
 
         ax_six[1].set_ylim(0, max_sic)
 
-    ax_six[1].set_xlabel('Signal efficiency')
+    if x_axis_rejection:
+        ax_six[1].set_xlabel('Rejection')
+    else:
+        ax_six[1].set_xlabel('Signal efficiency')
     ax_six[1].set_ylabel('Significance improvement')
     ax_six[0].set_xlabel('Signal efficiency')
     ax_six[0].set_ylabel('Rejection (1 / false positive rate)')
@@ -833,7 +866,9 @@ def figs_six_and_seven():
 
     handles, labels = ax_six[0].get_legend_handles_labels()
     unique = [(h, l) for i, (h, l) in enumerate(zip(handles, labels)) if l not in labels[:i]]
-    fig_six.legend(*zip(*unique), loc='upper left', bbox_to_anchor=(0.9, 0.89), frameon=False)
+    # fig_six.legend(*zip(*unique), loc='upper left', bbox_to_anchor=(0.9, 0.89), frameon=False)
+    ax_six[0].legend(*zip(*unique), loc='upper right', frameon=False)
+    ax_six[1].legend(*zip(*unique), loc='upper right', frameon=False)
     fig_six.savefig(f'{sv_dir}/images/figure_six.png', bbox_inches='tight')
     fig_six.clf()
     print('Fig 6 done.')
@@ -844,54 +879,87 @@ def figs_six_and_seven():
     unique_names = list(set(names))
     n_versions = len(unique_names)
 
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-    clist = [u'#1f77b4', u'#ff7f0e', u'#2ca02c', u'#d62728', u'#9467bd', u'#8c564b', u'#e377c2', u'#7f7f7f',
-             u'#bcbd22', u'#17becf']
-    clrs = {unique_names[i]: clist[i] for i in range(n_versions)}
+    # clist = [u'#1f77b4', u'#ff7f0e', u'#2ca02c', u'#d62728', u'#9467bd', u'#8c564b', u'#e377c2', u'#7f7f7f',
+    #          u'#bcbd22', u'#17becf']
+    # clrs = {unique_names[i]: clist[i] for i in range(n_versions)}
 
-    doping_dict = {'8000': 4.80, '6000': 3.60, '4000': 2.40, '3000': 1.80, '1000': 0.60, '667': 0.40, '500': 0.30,
-                   '333': 0.20, '250': 0.15, '100': 0.10, '50': 0.05, '0': 0}
+    # # TODO: these numbers are wrong, and ostensibly for the s/b fraction
+    # doping_dict = {'8000': 4.80, '6000': 3.60, '4000': 2.40, '3000': 1.80, '1000': 0.60, '667': 0.40, '500': 0.30,
+    #                '333': 0.20, '250': 0.15, '100': 0.10, '50': 0.05, '0': 0}
+    # These counts are for the raw counts
+    doping_dict = {'8000': 1784, '6000': 1338, '4000': 892, '3000': 669, '1000': 223, '667': 149, '500': 112,
+                   '333': 75, '250': 56, '100': 23, '50': 12, '0': 0}
 
+    central_line = defaultdict(lambda: defaultdict(list))
     for j in range(n_runs):
         label = runs[j]
         lst = vals[label]
         for values in lst:
             nm = values[0]
-            # TODO: when there are multiple runs with different seeds averages etc will need to be taken.
             tpr_list = values[1]
             fpr_list = values[2]
+            sics_store = defaultdict(list)
             for tpr, fpr in zip(tpr_list, fpr_list):
-                ax = axes[0]
-                ax1 = axes[1]
+                # Need to fit each of these, find the mean, then take the max, that gives the max sic at a fixed value.
                 fpr_mx = fpr != 0.
                 fpr_nz = fpr[fpr_mx]
                 tpr_nz = tpr[fpr_mx]
-                ax.plot(doping_dict[label], max(tpr_nz / fpr_nz ** 0.5), 'x', linewidth=2, label=nm, color=clrs[nm])
+                sic = tpr_nz / fpr_nz ** 0.5
+                _, indx = np.unique(tpr_nz, return_index=True)
+                sics_store['interp'] += [interp1d(tpr_nz[indx], sic[indx], fill_value="extrapolate")]
+                sics_store['tpr'] += [tpr_nz[indx]]
 
-    ax.set_xlabel('Signal efficiency')
-    ax.set_ylabel('Significance improvement')
-    dvs = sorted(list(doping_dict.values()))
-    ax.set_xticks(dvs)
-    pad = 0.05
-    ax.set_xlim(dvs[-1] + pad, dvs[0] - pad)
-    ax.set_ylim(0.95, 8)
-    # ax1.set_xlabel('Signal efficiency')
-    # ax1.set_ylabel('Rejection (1 / false positive rate)')
-    ax.set_yscale('log')
-    # feature_type, bins = label.split('__')
-    # ax.set_title(f'Feature type{feature_type}, Bins {bins}')
+            tpr_fit = np.linspace(0.0, 1.0, 1000)
+            s = []
+            for func in sics_store['interp']:
+                s += [func(tpr_fit).reshape(1, -1)]
+            sics = np.concatenate(s, 0)
+            mean_sic = np.mean(sics, 0)
+            max_ind = np.argmax(mean_sic)
+            ub = np.quantile(sics, 0.84, 0)
+            lb = np.quantile(sics, 0.16, 0)
 
-    # handles, labels = ax.get_legend_handles_labels()
-    # fig.legend(handles, labels, loc='upper left', bbox_to_anchor=(0.9, 0.89), frameon=False)
-    handles, labels = ax.get_legend_handles_labels()
-    unique = [(h, l) for i, (h, l) in enumerate(zip(handles, labels)) if l not in labels[:i]]
-    fig.legend(*zip(*unique), loc='upper left', bbox_to_anchor=(0.9, 0.89), frameon=False)
+            central_line[f'{nm}']['mean'] += [mean_sic[max_ind]]
+            central_line[f'{nm}']['ub'] += [ub[max_ind]]
+            central_line[f'{nm}']['lb'] += [lb[max_ind]]
+            central_line[f'{nm}']['x'] += [doping_dict[label]]
+            # if (label == '3000') and (nm == 'Curtains'):
+            #     ff, aa = plt.subplots()
+            #     aa.plot(tpr_fit, mean_sic)
+            #     ff.savefig('test.png')
+
+    alpha = 0.1
+
+    fig, ax = plt.subplots(1, 1, figsize=(7, 5))
+    for model_nm, model in central_line.items():
+        sorted_inds = np.argsort(model['x'])
+        for key in model.keys():
+            model[key] = np.array(model[key])[sorted_inds]
+        ax.plot(model['x'], model['mean'], linewidth=2, label=model_nm, color=clrs[model_nm])
+        ax.fill_between(model['x'], model['lb'], model['ub'], alpha=alpha, linewidth=2,
+                        color=clrs[model_nm])
+
+    # ax.set_xlabel('S / B')
+    ax.set_xlabel('Number signal events')
+    ax.set_ylabel('Maximum significance improvement')
+    # dvs = sorted(list(doping_dict.values()))
+    # ax.set_xticks(dvs)
+    # pad = 0.05
+    # ax.set_xlim(dvs[-1] + pad, dvs[0] - pad)
+    ax.set_xticks(list(doping_dict.values()))
+    ax.set_xlim(1800, 90)
+    ax.set_yticks([1, 5, 10, 15, 20])
+    ax.set_ylim(0.95, 25)
+    ax.set_xscale('log')
+    # ax.set_yscale('log')
+
+    fig.legend(loc='upper left', bbox_to_anchor=(0.9, 0.89), frameon=False)
     fig.savefig(f'{sv_dir}/images/fig_7.png', bbox_inches='tight')
     fig.clf()
 
 
 if __name__ == '__main__':
-    # get_counts()
-    figs_six_and_seven()
+    get_counts()
+    # figs_six_and_seven()
     # get_sics()
     # get_max_sic()
