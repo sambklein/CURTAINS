@@ -14,7 +14,7 @@ from utils.sampling_utils import signalMassSampler
 
 from utils.training import fit
 
-from models.OT_models import curtains_transformer, tucan, delta_mass_tucan, delta_tucan, \
+from models.OT_models import delta_mass_tucan, delta_tucan, \
     delta_mass_curtains_transformer, delta_curtains_transformer
 from models.nn.flows import spline_flow, coupling_inn
 
@@ -22,7 +22,7 @@ from utils import hyperparams
 from utils.post_process import post_process_curtains
 from utils.io import get_top_dir, register_experiment, get_timestamp
 
-from data.data_loaders import get_data, get_bin
+from data.data_loaders import get_data
 
 import argparse
 
@@ -223,6 +223,7 @@ else:
 # Switch back to the default tensor being on cpu, otherwise there are memory issues while training with the DataLoader
 torch.set_default_tensor_type('torch.FloatTensor')
 
+
 # Fit the model
 def load_curtains():
     if args.model_name is not None:
@@ -231,6 +232,8 @@ def load_curtains():
         nm = exp_name
     path = get_top_dir() + f'/data/saved_models/model_{nm}'
     curtain_runner.load(path)
+
+
 if args.load == 1:
     load_curtains()
 else:

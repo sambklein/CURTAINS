@@ -1,31 +1,20 @@
-# TODO: all that changes between this and ANODE is the data loader and the model that you load, should be called with one script
-# A standard inn model
 import os
 
 import numpy as np
 
 import torch
 import torch.optim as optim
-from nflows import flows
 
 from tensorboardX import SummaryWriter
 
 from models.cathode import Cathode
-from models.flow_models import contextual_flow
-from models.nn.networks import dense_net
-from utils.hyperparams import get_measure
 
 from utils.training import fit
 
-from models.OT_models import curtains_transformer, tucan, delta_mass_tucan, delta_tucan, \
-    delta_mass_curtains_transformer, delta_curtains_transformer
-from models.nn.flows import spline_flow, coupling_inn
-
-from utils import hyperparams
 from utils.post_process import post_process_curtains
 from utils.io import get_top_dir, register_experiment
 
-from data.data_loaders import get_data, get_bin
+from data.data_loaders import get_data
 
 import argparse
 
