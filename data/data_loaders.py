@@ -19,7 +19,6 @@ def load_curtains_pd(sm='QCDjj_pT', dtype='float32', extraStats=False, feature_t
         directory = 'data/downloads'
     lhco_filename = 'events_anomalydetection_v2.features.h5'
     df = pd.read_hdf(f'{directory}/{lhco_filename}')
-    make_slim(df, directory, lhco_filename)
 
     # Reorder the features such that the jets are ordered according to their invariant masses
     jet_order_mask = df['mj1'] < df['mj2']
@@ -81,7 +80,7 @@ def filter_mix_data(df_bg, df_anomaly, edges, context):
     return mix, len(df_anomaly.loc[a_mx]) / len(df_bg.loc[u_mx])
 
 
-def binwise_mixing(df, anomaly, context, bins): 
+def binwise_mixing(df, anomaly, context, bins):
     reg = ["OB1", "SB1", "SR", "SB2", "OB2"]
     data = {}
     for edge1, edge2, window in zip(bins, bins[1:], reg):

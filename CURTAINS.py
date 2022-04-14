@@ -35,9 +35,6 @@ parser.add_argument('--mix_sb', type=int, default=2, help='Mix sidebands while t
 ## Binning parameters
 parser.add_argument("--quantiles", nargs="*", type=float, default=[1, 2, 3, 4])
 parser.add_argument("--bins", type=str, default='3000,3200,3400,3600,3800,4000')
-# parser.add_argument("--bins", type=str, default='2700,2710,3300,3700,4990,5000')
-# parser.add_argument("--bins", type=str, default='3900,4100,4300,4500,4700,4900')
-# parser.add_argument("--bins", nargs="*", type=float, default=[2900, 3100, 3300, 3500, 3800, 4000])
 parser.add_argument("--doping", type=int, default=500,
                     help='Raw number of signal events to be added into the entire bg spectra.')
 parser.add_argument("--feature_type", type=int, default=13)

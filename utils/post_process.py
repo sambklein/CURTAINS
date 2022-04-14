@@ -9,7 +9,7 @@ import numpy as np
 import torch
 
 from data.physics_datasets import preprocess_method
-from utils.DRE import get_auc
+from utils.DRE import run_classifiers
 
 from .io import get_top_dir
 from .plotting import (get_bins, getFeaturePlot, getInputTransformedHist,
@@ -413,8 +413,8 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
         ob2_samples = get_transformed(high_mass_training, target_dist=datasets.validationset, oversample=1,
                                       use_mass_sampler=False)
         save_samples(ob2_samples, 'SB2_to_OB2_samples')
-        auc_ob2 = get_auc(ob2_samples, datasets.validationset.data, sv_dir, nm + 'OB2_vs_TSB2',
-                          sup_title=f'T(SB2) vs OB2', load=0, **classifier_args)
+        auc_ob2 = run_classifiers(ob2_samples, datasets.validationset.data, sv_dir, nm + 'OB2_vs_TSB2',
+                                  sup_title=f'T(SB2) vs OB2', load=0, **classifier_args)
         auc_dict['SB2/OB2'] = auc_ob2
 
         # Validation set two, SB1 to one mass bin lower
@@ -428,8 +428,8 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
         #     getFeaturePlot(datasets.validationset_lm, ob1_samples, nm, sv_dir, title, datasets.signalset.feature_nms,
         #                    low_mass_training, n_sample_for_plot=n_sample_for_plot, summary_writer=summary_writer)
         save_samples(ob1_samples, 'SB1_to_OB1_samples')
-        auc_ob1 = get_auc(ob1_samples, datasets.validationset_lm.data, sv_dir, nm + 'OB1_vs_TSB1',
-                          sup_title=f'T(SB1) vs OB1', load=0, **classifier_args)
+        auc_ob1 = run_classifiers(ob1_samples, datasets.validationset_lm.data, sv_dir, nm + 'OB1_vs_TSB1',
+                                  sup_title=f'T(SB1) vs OB1', load=0, **classifier_args)
         auc_dict['SB1/OB1'] = auc_ob1
 
     if light_job <= 1 or (light_job == 3):
@@ -459,11 +459,11 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
 
     if light_job <= 1:
         print('SB2 from signal set')
-        auc_sb2 = get_auc(sb2_samples, datasets.signalset.data, sv_dir, nm + 'SB2', sup_title=f'T(SB2) vs SR',
-                          load=load, **classifier_args)
+        auc_sb2 = run_classifiers(sb2_samples, datasets.signalset.data, sv_dir, nm + 'SB2', sup_title=f'T(SB2) vs SR',
+                                  load=load, **classifier_args)
         print('SB1 from signal set')
-        auc_sb1 = get_auc(sb1_samples, datasets.signalset.data, sv_dir, nm + 'SB1', sup_title=f'T(SB1) vs SR',
-                          load=load, **classifier_args)
+        auc_sb1 = run_classifiers(sb1_samples, datasets.signalset.data, sv_dir, nm + 'SB1', sup_title=f'T(SB1) vs SR',
+                                  load=load, **classifier_args)
 
         auc_dict['SB1/SR'] = auc_sb1
         auc_dict['SB2/SR'] = auc_sb2
@@ -475,10 +475,10 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
         # rates_sr_qcd_vs_anomalies = {'Supervised': auc_super_info[1]}
         rates_sr_qcd_vs_anomalies = {}
 
-        auc_info = get_auc(samples, datasets.signalset.data, sv_dir, nm + f'Anomalies_no_eps',
-                           anomaly_data=signal_anomalies.data.to(device),
-                           sup_title=f'QCD in SR', load=load, return_rates=True,
-                           **classifier_args)
+        auc_info = run_classifiers(samples, datasets.signalset.data, sv_dir, nm + f'Anomalies_no_eps',
+                                   anomaly_data=signal_anomalies.data.to(device),
+                                   sup_title=f'QCD in SR', load=load, return_rates=True,
+                                   **classifier_args)
         auc_anomalies = auc_info[0]
         print(f'AUC separation {auc_anomalies}')
         auc_dict['SB12/SR'] = auc_anomalies

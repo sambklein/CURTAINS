@@ -1,12 +1,8 @@
-import os
-import pdb
 import warnings
 
 from torch.utils.data import Dataset
 import torch
 import numpy as np
-
-from utils.io import on_cluster
 
 
 def preprocess_method(data, info=None):
@@ -160,29 +156,9 @@ class BasePhysics(BaseData):
 
     def set_scale(self, scale):
         if scale is None:
-            # If no scaling variable is passed then this is the train set, so find the scaling vars
-            # self.max_vals = self.data.quantile(0.99, 0)
-            # self.min_vals = self.data.quantile(0.01, 0)
             self.scale = list(torch.std_mean(self.data, dim=0))
         else:
             self.scale = scale
-
-    # TODO: these are poorly named and unused in any of our scripts at the moment, rewrite/name if needed
-    # def scale(self, scale_fact):
-    #     # This will keep track of multiple scalings
-    #     self.scale_norm *= scale_fact
-    #     self.data *= scale_fact
-    #     self.scaled = True
-    #
-    # def unscale(self, data_in=None):
-    #     if data_in is None:
-    #         data = self.data
-    #     else:
-    #         data = data_in
-    #     data /= self.scale_norm
-    #     if data_in is None:
-    #         self.scale_norm = 1
-    #     return data
 
     def __len__(self):
         return self.data.shape[0]
@@ -400,51 +376,3 @@ class WrappingCurtains():
         self.validationset.unnormalize()
         self.validationset_lm.unnormalize()
         self.mass_bins = torch.tensor(self.bins)
-
-
-# TODO use the base class definition here as well
-class JetsDataset(Dataset):
-    # TODO: for the time being this is just the leading and subleading jet four momenta
-
-    def __init__(self, lo_obs, nlo_obs, lo_const, nlo_const, scale=None):
-        self.data = torch.cat((torch.tensor(lo_obs), torch.tensor(nlo_obs)), 1)
-        self.lo_obs = torch.tensor(lo_obs)
-        self.nlo_obs = torch.tensor(nlo_obs)
-        self.lo_const = torch.tensor(lo_const)
-        self.nlo_const = torch.tensor(nlo_const)
-        self.num_points = lo_obs.shape[0]
-        if scale == None:
-            # If no scaling variable is passed then this is the train set, so find the scaling vars
-            self.max_vals = []
-            self.min_vals = []
-            for train_feature in self.data.t():
-                self.max_vals += [train_feature.max()]
-                self.min_vals += [train_feature.min()]
-        else:
-            self.max_vals = scale[0]
-            self.min_vals = scale[1]
-
-    def normalize(self):
-        for i, train_feature in enumerate(self.data.t()):
-            min_val = self.min_vals[i]
-            max_val = self.max_vals[i]
-            zo = (train_feature - min_val) / (max_val - min_val)
-            self.data.t()[i] = (zo - 0.5) * 2
-
-    def unnormalize(self, data=None):
-
-        if data == None:
-            data = self.data
-
-        for i, train_feature in enumerate(data.t()):
-            min_val = self.min_vals[i]
-            max_val = self.max_vals[i]
-            zo = train_feature * 2 + 0.5
-            data.t()[i] = zo * (max_val - min_val) + min_val
-        return data
-
-    def __len__(self):
-        return self.num_points
-
-    def __getitem__(self, item):
-        return self.data[item]

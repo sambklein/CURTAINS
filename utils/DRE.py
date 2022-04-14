@@ -1,13 +1,11 @@
+# Density ratio estimation
 import os
-import pdb
 from collections import defaultdict
-from copy import deepcopy
 
-import torch
 import numpy as np
-from sklearn.metrics import roc_curve, auc, roc_auc_score
+from sklearn.metrics import roc_curve, auc
 import matplotlib.pyplot as plt
-from sklearn.model_selection import train_test_split, StratifiedKFold
+from sklearn.model_selection import StratifiedKFold
 from sklearn.utils import class_weight
 
 from models.classifier import Classifier
@@ -17,8 +15,8 @@ from models.nn.networks import dense_net
 from torch.utils.data import Dataset
 import torch
 
-from utils import CATHODE_classifier, hyperparams
-from utils.plotting import add_error_hist, get_bins, hist_features, plot_rates_dict, plot_losses, add_classifier_outputs
+from utils import hyperparams
+from utils.plotting import plot_rates_dict, plot_losses, add_classifier_outputs
 from utils.torch_utils import sample_data
 from utils.training import Timer
 
@@ -81,7 +79,6 @@ class SupervisedDataClass(Dataset):
                 self.weights = class_weight.compute_sample_weight('balanced', y=self.targets.reshape(-1)).reshape(-1, 1)
             else:
                 self.weights = torch.ones_like(self.targets)
-
 
     def _normalize(self, data_in):
         if self.standardise == 1:
@@ -319,11 +316,13 @@ def get_datasets(train_index, valid_index, eval_index, false_signal, X, y, beta_
     return train_data, valid_data, eval_data
 
 
-def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_truth_labels=None, mass_incl=True,
-            sup_title='', load=False, return_rates=False, false_signal=1, normalize=True, batch_size=1000, nepochs=100,
-            lr=0.0001, wd=0.001, drp=0.0, width=32, depth=3, batch_norm=False, layer_norm=False, use_scheduler=True,
-            use_weights=True, thresholds=None, beta_add_noise=0.1, pure_noise=False, nfolds=5, data_unscaler=None,
-            run_cathode_classifier=True, n_run=1, cf_activ='relu'):
+def run_classifiers(bg_template, sr_samples, directory, name, anomaly_data=None, bg_truth_labels=None, mass_incl=True,
+                    sup_title='', load=False, return_rates=False, false_signal=1, normalize=True, batch_size=1000,
+                    nepochs=100,
+                    lr=0.0001, wd=0.001, drp=0.0, width=32, depth=3, batch_norm=False, layer_norm=False,
+                    use_scheduler=True,
+                    use_weights=True, thresholds=None, beta_add_noise=0.1, pure_noise=False, nfolds=5,
+                    data_unscaler=None, cf_activ='relu'):
     """
     bg_truth_labels 0 = known anomaly, 1 = known background, -1 = unknown/sampled/transformed sample
     """
@@ -334,12 +333,6 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
                                      torch.ones(len(sr_samples))))
 
     tpr_c, fpr_c = None, None
-
-    # if (anomaly_data is not None) and run_cathode_classifier:
-    #     tpr_c, fpr_c = CATHODE_classifier.get_auc(bg_template, sr_samples, directory, name, anomaly_data=anomaly_data,
-    #                                               bg_truth_labels=bg_truth_labels, mass_incl=mass_incl, load=load,
-    #                                               normalize=normalize, batch_size=batch_size, nepochs=nepochs,
-    #                                               thresholds=thresholds, data_unscaler=data_unscaler, n_run=n_run)
 
     def prepare_data(data):
         data = data.detach().cpu()

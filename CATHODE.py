@@ -27,13 +27,7 @@ parser.add_argument('--resonant_feature', type=str, default='mass', help='The re
 
 ## Binning parameters
 parser.add_argument("--quantiles", nargs="*", type=float, default=[1, 2, 3, 4])
-# parser.add_argument("--bins", nargs="*", type=float, default=[55, 65, 75, 85, 95, 105])
-# parser.add_argument("--bins", nargs="*", type=float, default=[2000, 2500, 3000, 3500, 4000, 4500])
-# parser.add_argument("--bins", nargs="*", type=float, default=[3000, 3200, 3400, 3600, 3800, 4000])
-# parser.add_argument("--bins", nargs="*", type=float, default=[2300, 2700, 3300, 3700, 4900, 5000])
-# parser.add_argument("--bins", type=str, default='3000,3200,3400,3600,3800,4000')
 parser.add_argument("--bins", type=str, default='2700,2710,3300,3700,4990,5000')
-# parser.add_argument("--bins", nargs="*", type=float, default=[2900, 3100, 3300, 3500, 3800, 4000])
 parser.add_argument("--doping", type=int, default=0,
                     help='Raw number of signal events to be added into the entire bg spectra.')
 parser.add_argument("--feature_type", type=int, default=13)

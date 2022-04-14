@@ -14,7 +14,7 @@ import torch
 import matplotlib.pyplot as plt
 
 from data.data_loaders import get_data, load_curtains_pd
-from utils.DRE import get_auc
+from utils.DRE import run_classifiers
 from utils.io import get_top_dir, register_experiment
 from utils.plotting import plot_rates_dict, hist_features
 from utils.torch_utils import shuffle_tensor
@@ -255,15 +255,15 @@ def test_classifier():
         random.seed(seed + i)
 
         run_dir = f'{sv_dir}run_{i}/'
-        auc_info = get_auc(undoped_data, data_to_dope, run_dir, nm + f'Anomalies_no_eps',
-                           anomaly_data=signal_anomalies.data.to(device),
-                           sup_title=f'Idealised anomaly detector.', load=args.load, return_rates=True,
-                           false_signal=args.false_signal, batch_size=args.batch_size, nepochs=args.nepochs, lr=args.lr,
-                           wd=args.wd, drp=args.drp, width=args.width, depth=args.depth, batch_norm=args.batch_norm,
-                           layer_norm=args.layer_norm, use_scheduler=args.use_scheduler, use_weights=args.use_weight,
-                           beta_add_noise=args.beta_add_noise, pure_noise=pure_noise, bg_truth_labels=bg_truth_labels,
-                           run_cathode_classifier=args.run_cathode_classifier, n_run=args.n_run, cf_activ=args.cf_activ,
-                           normalize=args.cf_norm)
+        auc_info = run_classifiers(undoped_data, data_to_dope, run_dir, nm + f'Anomalies_no_eps',
+                                   anomaly_data=signal_anomalies.data.to(device),
+                                   sup_title=f'Idealised anomaly detector.', load=args.load, return_rates=True,
+                                   false_signal=args.false_signal, batch_size=args.batch_size, nepochs=args.nepochs, lr=args.lr,
+                                   wd=args.wd, drp=args.drp, width=args.width, depth=args.depth, batch_norm=args.batch_norm,
+                                   layer_norm=args.layer_norm, use_scheduler=args.use_scheduler, use_weights=args.use_weight,
+                                   beta_add_noise=args.beta_add_noise, pure_noise=pure_noise, bg_truth_labels=bg_truth_labels,
+                                   run_cathode_classifier=args.run_cathode_classifier, n_run=args.n_run, cf_activ=args.cf_activ,
+                                   normalize=args.cf_norm)
 
         rates_sr_vs_transformed[f'{i}'] = auc_info[3]
         sr_qcd_rates = auc_info[5]
