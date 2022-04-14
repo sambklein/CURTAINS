@@ -1,5 +1,5 @@
 # A standard inn model
-import os 
+import os
 
 import numpy as np
 
@@ -123,6 +123,7 @@ distance = args.distance
 # measure(x, y) returns distance from x to y (N, D) for N samples in D dimensions, or (B, N, D) with a batch index
 measure = get_measure(distance)
 
+# Some savind directories and a summary writer
 sv_dir = get_top_dir()
 image_dir = sv_dir + f'/images/{args.d}/'
 if not os.path.exists(image_dir):
@@ -136,12 +137,11 @@ writer = SummaryWriter(log_dir=f'{log_dir}/{exp_name}_{timestamp}')
 # Save options used for running
 register_experiment(sv_dir, f'{args.d}/{exp_name}', args)
 
+# Split the comma separated string into integers
 curtains_bins = args.bins.split(",")
 curtains_bins = [int(b) for b in curtains_bins]
 args.bins = curtains_bins
 # Make datasets
-# If the distance measure is the sinkhorn distance then don't mix samples between quantiles
-# mix_qs = distance[:8] != 'sinkhorn'
 mix_qs = args.mix_sb
 datasets, signal_anomalies = get_data(args.dataset, image_dir + exp_name, bins=args.bins, mix_qs=mix_qs,
                                       doping=args.doping, feature_type=args.feature_type)

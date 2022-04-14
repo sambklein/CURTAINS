@@ -448,15 +448,7 @@ def get_data(dataset, sv_nm, bins=None, normalize=True, mix_qs=False, flow=False
         signal_data = Curtains(signal, norm=scale)
         signal_anomalies = Curtains(signal_anomalies, norm=scale)
 
-        # Plot some correlations
-        fig, axs = plt.subplots(1, nfeatures, figsize=(5 * nfeatures + 2, 10))
-        n_percent = 0.1
-
-        def sample_tensor(tensor):
-            tensor = shuffle_tensor(tensor)
-            n = int(tensor.shape[0] * n_percent)
-            return tensor[:n]
-
+        # Make a meta object to wrap the data class
         drape = WrappingCurtains(training_data, signal_data, validation_data, validation_data_lm, bins)
 
     else:
@@ -480,52 +472,7 @@ def get_data(dataset, sv_nm, bins=None, normalize=True, mix_qs=False, flow=False
     return drape, signal_anomalies
 
 
-def get_koala_data(bins=None, anomaly_process='WZ_allhad_pT', doping=0., extraStats=True, dtype=torch.float32,
-                   feature_type=0):
-    df = load_curtains_pd(extraStats=extraStats, feature_type=feature_type)
-
-    # Split the data into different datasets based on the binning
-    if feature_type == 0:
-        context_feature = 'mass'
-    else:
-        context_feature = 'mjj'
-
-    anomaly_data = load_curtains_pd(sm=anomaly_process, feature_type=feature_type)
-
-    _, lm_mixed, lm = mask_dataframe(df, context_feature, bins, [1, 2], doping, anomaly_data)
-    _, hm_mixed, hm = mask_dataframe(df, context_feature, bins, [3, 4], doping, anomaly_data)
-    _, ob1_mixed, ob1 = mask_dataframe(df, context_feature, bins, [0, 1], doping, anomaly_data)
-    _, ob2_mixed, ob2 = mask_dataframe(df, context_feature, bins, [4, 5], doping, anomaly_data)
-    signal_anomalies, signal_mixed, signal = mask_dataframe(df, context_feature, bins, [2, 3], doping, anomaly_data)
-
-    background = pd.concat((lm, hm), 0)
-
-    return torch.tensor(background.values, dtype=dtype), torch.tensor(signal.values, dtype=dtype), torch.tensor(
-        signal_anomalies.values, dtype=dtype)
-
-
 def main():
-    # import argparse
-    # import matplotlib.pyplot as plt
-    #
-    # parser = argparse.ArgumentParser()
-    # parser.add_argument('--download', type=int, default=0,
-    #                     help='Choose the base output directory')
-    #
-    # args = parser.parse_args()
-    #
-    # if args.download:
-    #     load_hepmass(mass='1000')
-    #     load_hepmass(mass='all')
-    #     load_hepmass(mass='not1000')
-    #
-    # data_train, data_test = load_hepmass(mass='1000', slim=True)
-    #
-    # fig, axs_ = plt.subplots(9, 3, figsize=(5 * 3 + 2, 5 * 9 + 2))
-    # axs = fig.axes
-    # for i, data in enumerate(data_train.data.t()):
-    #     axs[i].hist(data.numpy())
-    # fig.savefig(get_top_dir() + '/images/hepmass_features.png')
 
     return 0
 
