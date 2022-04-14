@@ -16,6 +16,7 @@ pplot/
 submit.txt
 settings.txt
 cpu_grid.py
+grid.py
   
 # Byte-compiled / optimized / DLL files
 __pycache__/
