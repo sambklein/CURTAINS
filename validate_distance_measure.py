@@ -11,7 +11,6 @@ from data.physics_datasets import Curtains
 from data.data_loaders import load_curtains_pd
 
 
-# TODO: all of the methods here should be a part of the data class
 def get_quantile(df, quantile):
     # Returns a numpy array of the training features, plus the context feature on the end
     features = Curtains.get_features(df)[:, :-1]

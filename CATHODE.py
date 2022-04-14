@@ -22,8 +22,6 @@ parser = argparse.ArgumentParser()
 
 ## Dataset parameters
 parser.add_argument('--dataset', type=str, default='curtains', help='The dataset to train on.')
-# TODO: not currently implemented, NOT a priority
-parser.add_argument('--resonant_feature', type=str, default='mass', help='The resonant feature to use for binning.')
 
 ## Binning parameters
 parser.add_argument("--quantiles", nargs="*", type=float, default=[1, 2, 3, 4])
@@ -146,29 +144,6 @@ else:
     device = torch.device('cpu')
 print(device)
 
-# Spline transformations require us to
-tail_bound = 1.2  # This sets the bounds of the acceptable data for the spline transformation
-tails = 'linear'  # This will ensure that any samples from outside of [-tail_bound, tail_bound] do not throw an error
-
-# Set up base transformation
-bdist_shift = None
-if args.base_dist == 'uniform':
-    tail_bound = 1.
-    tails = None
-if args.base_dist == 'normal':
-    tail_bound = 5.
-    tails = 'linear'
-    # # Scale the data to be at the tail bounds
-    # datasets.scale = tail_bound
-    # datasets.scale_data()
-
-# # TODO: allow this to be a coupling flow
-# transformation = spline_flow(inp_dim, args.nodes, num_blocks=args.nblocks, nstack=args.nstack, tail_bound=tail_bound,
-#                              tails=tails, activation=hyperparams.activations[args.activ], num_bins=args.nbins,
-#                              context_features=1)
-# base_dist = hyperparams.nflows_dists(args.base_dist, inp_dim, shift=bdist_shift, bound=tail_bound)
-# flow = flows.Flow(transformation, base_dist)
-
 # Build model
 # cathode = contextual_flow(flow, base_dist, device, exp_name, dir=args.d)
 cathode = Cathode(inp_dim, exp_name, device, dir=args.d)
@@ -201,7 +176,6 @@ else:
     fit(cathode, optimizer, datasets.trainset, n_epochs, bsize, writer, schedulers=scheduler,
         schedulers_epoch_end=reduce_lr_inn, gclip=args.gclip, shuffle_epoch_end=args.shuffle, load_best=args.load_best)
 
-# TODO: pass inputs to this dictionary as args.
 classifier_args = {'false_signal': 0, 'batch_size': 128, 'nepochs': args.classifier_epochs,
                    'lr': 0.001, 'pure_noise': 0, 'beta_add_noise': args.beta_add_noise, 'drp': 0.0,
                    'normalize': True, 'data_unscaler': datasets.signalset.unnormalize, 'width': 32,

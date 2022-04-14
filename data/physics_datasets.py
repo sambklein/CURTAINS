@@ -76,44 +76,6 @@ def unpreprocess_method(data, info):
     return data
 
 
-# TODO: should use this for the supervised dataset
-class ClassifierData(Dataset):
-
-    def __init__(self, data, labels, dtype=torch.float32):
-        if not isinstance(data, torch.Tensor):
-            self.data = torch.tensor(data.to_numpy()).type(dtype)
-        else:
-            self.data = data
-        self.labels = labels
-        self.preprocessed = False
-
-    def get_preprocess_info(self):
-        if not self.preprocessed:
-            self.max_vals, self.min_vals = list(torch.std_mean(self.data, dim=0))
-        return self.max_vals, self.min_vals
-
-    def preprocess(self, info=None):
-        if info is not None:
-            self.max_vals, self.min_vals = info
-        else:
-            self.get_preprocess_info()
-        if not self.preprocessed:
-            self.data = (self.data - self.min_vals) / (self.max_vals + 1e-8)
-            self.preprocessed = True
-
-    def unpreprocess(self, data=None):
-        dat_is_not_passed = data is None
-        if dat_is_not_passed:
-            data = self.data
-        if self.preprocessed:
-            data = data * (self.max_vals + 1e-8) + self.min_vals
-        if dat_is_not_passed:
-            self.data = data
-            self.preprocessed = False
-        else:
-            return data
-
-
 class BaseData(Dataset):
     def deal_with_nans(self):
         nan_mask = self.data.isnan().any(1)
@@ -316,7 +278,6 @@ class CurtainsTrainSet(Dataset):
 
     def copy_construct(self, inds):
         # At present this does not need to be more detailed, we don't care about the scaling properties while training
-        # TODO should add a copyconstruct to the base model and the Curtains method to make this easier
         dataset = CurtainsTrainSet(Curtains(self.data1.df.iloc[inds]),
                                    Curtains(self.data2.df.iloc[inds]),
                                    mix_qs=self.mix_qs, stack=self.stack)

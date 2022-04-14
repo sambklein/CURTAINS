@@ -82,20 +82,12 @@ class base_model(ABC, nn.Module):
     # Transform to ... given data
     def inverse_transform_to_data(self, dl, dh, batch_size=None):
         """Transform features in dh to the masses given in dl"""
-        # TODO: Need to implement the batch size, should take previous implementation and make it generic
         batch_size = None
         # The last feature is the mass or resonant feature (lm = low mass, hm = high mass)
         lm = dl[:, -1].view(-1, 1)
         hm = dh[:, -1].view(-1, 1)
         if self.mass_sampler is not None:
             lm_test = self.sample_mass(lm, n_sample=hm.shape[0])
-            # if hm.shape[0] != lm.shape[0]:
-            #     print(lm.shape)
-            #     print(hm.shape)
-            #     mass = lm
-            #     print(mass.min().item(), mass.max().item())
-            # TODO: why is this necessary? Sometimes the sampler returns one less value than it should?
-            # lm[:len(lm_test)] = lm_test
             lm = lm_test
         high_mass_features = dh[:, :-1]
         return self.inverse_transform_to_mass(high_mass_features, lm, hm)
@@ -125,9 +117,3 @@ class base_model(ABC, nn.Module):
     def set_loss_dict(self, loss):
         # Given a list of losses, ordered in the same way as the models
         self.loss_dict = {self.loss_names[i]: loss for i, loss in enumerate(loss)}
-
-    # TODO: should this be a method of the base model? Could be nice
-    # def fit(self, curtain_runner, optimizer, training_data, n_epochs, bsize, writer, schedulers=None,
-    #         schedulers_epoch_end=None, gclip=5, shuffle_epoch_end=True):
-    #     fit(curtain_runner, optimizer, training_data, n_epochs, bsize, writer, schedulers=schedulers,
-    #         schedulers_epoch_end=schedulers_epoch_end, gclip=gclip, shuffle_epoch_end=shuffle_epoch_end)

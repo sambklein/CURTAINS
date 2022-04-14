@@ -410,7 +410,6 @@ def run_classifiers(bg_template, sr_samples, directory, name, anomaly_data=None,
             optimizer = torch.optim.AdamW(classifier.parameters(), lr=lr, weight_decay=wd)
         if use_scheduler:
             max_step = int(nepochs * np.ceil(len(train_data.data) / batch_size))
-            # TODO: pass this, set to one by default
             periods = 1
             scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, max_step / periods, 0)
         else:
@@ -452,10 +451,8 @@ def run_classifiers(bg_template, sr_samples, directory, name, anomaly_data=None,
     train_loss = losses[0::2]
     val_loss = losses[1::2]
     plot_losses(train_loss, val_loss, sv_dir)
-    # eval_epoch = np.argsort(val_loss.mean(0))[:n_av]
-    # eval_epoch = [nepochs - 1, nepochs - 2]
     eval_epoch = [nepochs - 1]
-    # print(f'Best epoch: {eval_epoch}. \nLoading and evaluating now.')
+    print(f'Best epoch: {eval_epoch}. \nLoading and evaluating now.')
     split_inds = kfold_gen(kfold)
 
     info_dict = defaultdict(list)
@@ -465,9 +462,6 @@ def run_classifiers(bg_template, sr_samples, directory, name, anomaly_data=None,
     fig, ax = plt.subplots(1, nfolds, figsize=(5 * nfolds + 2, 7))
     for fold, (train_index, valid_index, eval_index) in enumerate(split_inds):
 
-        # # TODO: this was set to the last epoch for 'paper' trainings
-        # eval_epoch = np.argsort(val_loss[fold])[:n_av]
-        print(f'Best epoch: {eval_epoch}. \nLoading and evaluating now.')
 
         # The classifier object does not need to be reinitialised here, only loaded
         models_to_load = [os.path.join(sv_dir, f'classifier_{fold}', f'{e}') for e in eval_epoch]

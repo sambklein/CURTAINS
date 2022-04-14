@@ -100,7 +100,6 @@ def fit(model, optimizers, dataset, n_epochs, batch_size, writer, schedulers=Non
     # ndata = dataset.data.shape[0]
     kfold = KFold(n_splits=nsplit, shuffle=True)
     inds = kfold.split(dataset)
-    # TODO: implement the full cross validation process if doing hyper parameter scans, will need to handle val_loss saving
     train_inds, val_inds = list(inds)[0]
     # If shuffling on epoch end the data must have this method
     if shuffle_epoch_end:
@@ -217,7 +216,6 @@ def fit(model, optimizers, dataset, n_epochs, batch_size, writer, schedulers=Non
                 val_loss += [list(model.get_loss_state(4).values())]
         model.train()
         # Calculate the averages and make a dictionary of the losses.
-        # TODO in cross-val we are interested in the full list - pandas dataframe
         val_loss = np.mean(np.array(val_loss), axis=0)
         val_info = dict(zip(loss_nms, val_loss))
         s = 'Validation Losses: ' + str(val_info)

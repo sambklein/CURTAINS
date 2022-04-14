@@ -30,60 +30,7 @@ recon_losses = {
     'sinkhorn': SamplesLoss('sinkhorn', scaling=0.5, blur=0.01, p=1)
 }
 
-# A wrapper for nflows distributions that will discard values outside of bound, assumes out of bounds values are unlikely
-# Bound is a single value outside of which no samples are drawn
-# TODO: this should be made a proper class in the nflows package.
 from nflows.distributions.base import Distribution
-
-
-class rejection_sampler(Distribution):
-    def __init__(self, dist, bound=None):
-        super().__init__()
-        self.sampler = dist
-        self.bound = bound
-
-    def sample_with_rejection(self, num, context=None):
-        # TODO: need to fix this with context
-        # sample = self.sampler.sample(num + 1000, context=context)
-        # if context:
-        #     sample = sample[torch.all((-self.bound < sample) & (sample < self.bound), -1)]
-        # else:
-        #     sample = sample[torch.all((-self.bound < sample) & (sample < self.bound), -1)]
-        #     sample = sample[:num]
-        sample = self.sampler.sample(num, context=context)
-        return sample
-
-    def _sample(self, num, context):
-        if self.bound:
-            # TODO: this should be a while loop or something, for now it isn't important
-            sample = self.sample_with_rejection(num, context)
-        else:
-            sample = self.sampler.sample(num, context)
-        return sample
-
-    def _log_prob(self, inputs, context):
-        return self.sampler._log_prob(inputs, context)
-
-    def _mean(self, context):
-        return self.sampler._mean(context)
-
-
-def nflows_dists(nm, inp_dim, shift=False, bound=None):
-    try:
-        tshift = 0
-        bshift = 0
-        if shift:
-            tshift = shift
-            bshift = shift - 1
-        return {
-            'uniform': nflows.distributions.uniform.BoxUniform(torch.zeros(inp_dim) - tshift,
-                                                               torch.ones(inp_dim) + bshift),
-            'normal': rejection_sampler(nflows.distributions.StandardNormal([inp_dim]), bound)
-            # 'normal': nflows.distributions.StandardNormal([inp_dim])
-        }[nm]
-
-    except KeyError:
-        raise ValueError('Unknown nflows base distribution: {}'.format(nm))
 
 
 class indp_gaussians():

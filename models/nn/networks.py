@@ -12,7 +12,6 @@ class base_network(nn.Module):
     def forward(self, data, context=None):
         NotImplementedError('Must implement a forward method')
 
-    # TODO: make this take data and a batch_size arg so that you can automatically batch the data
     def batch_predict(self, data, context=None):
         store = []
         for data in data:

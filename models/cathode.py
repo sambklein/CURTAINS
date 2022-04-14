@@ -181,7 +181,6 @@ class Cathode(DensityEstimator):
     # Transform to ... given data
     def inverse_transform_to_data(self, dl, dh, batch_size=None):
         """Transform features in dh to the masses given in dl"""
-        # TODO: Need to implement the batch size, should take previous implementation and make it generic
         batch_size = None
         # The last feature is the mass or resonant feature (lm = low mass, hm = high mass)
         lm = dl[:, -1].view(-1, 1)

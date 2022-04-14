@@ -8,11 +8,6 @@ import zfit
 
 from .fitter_utils import linearPDF, dijet_ATLAS_fit
 
-
-# TODO: This is only for the linear PDF. Need to handle this arbitrarily.
-# TODO: This is only for the first band. No way of knowing the best initial parameters OTF.
-# TODO: Add GP mechanism here. But need to get this out, or we would never get on with it.
-
 # Functions that do the actual thing.
 def zfitDataHandler(mass):
     '''
