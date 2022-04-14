@@ -1,6 +1,5 @@
-# TODO: all that changes between this and ANODE is the data loader and the model that you load, should be called with one script
 # A standard inn model
-import os
+import os 
 
 import numpy as np
 
@@ -31,14 +30,13 @@ parser = argparse.ArgumentParser()
 
 ## Dataset parameters
 parser.add_argument('--dataset', type=str, default='curtains', help='The dataset to train on.')
-# TODO: not currently implemented, NOT a priority
-parser.add_argument('--resonant_feature', type=str, default='mass', help='The resonant feature to use for binning.')
 parser.add_argument('--mix_sb', type=int, default=2, help='Mix sidebands while training?')
 
 ## Binning parameters
 parser.add_argument("--quantiles", nargs="*", type=float, default=[1, 2, 3, 4])
-# parser.add_argument("--bins", type=str, default='3000,3200,3400,3600,3800,4000')
-parser.add_argument("--bins", type=str, default='3900,4100,4300,4500,4700,4900')
+parser.add_argument("--bins", type=str, default='3000,3200,3400,3600,3800,4000')
+# parser.add_argument("--bins", type=str, default='2700,2710,3300,3700,4990,5000')
+# parser.add_argument("--bins", type=str, default='3900,4100,4300,4500,4700,4900')
 # parser.add_argument("--bins", nargs="*", type=float, default=[2900, 3100, 3300, 3500, 3800, 4000])
 parser.add_argument("--doping", type=int, default=500,
                     help='Raw number of signal events to be added into the entire bg spectra.')
@@ -102,7 +100,7 @@ parser.add_argument('--c_nruns', type=int, default=1, help='Number of classifier
 ## Plotting
 parser.add_argument('--n_sample', type=int, default=1000,
                     help='The number of features to use when calculating contours in the feature plots.')
-parser.add_argument('--light', type=int, default=3,
+parser.add_argument('--light', type=int, default=0,
                     help='We do not always want to plot everything and calculate all of the ROC plots.')
 parser.add_argument('--plot', type=int, default=0, help='Plot all feature dists?')
 
@@ -168,7 +166,6 @@ tails = 'linear'  # This will ensure that any samples from outside of [-tail_bou
 # fixed
 
 if args.coupling:
-    # TODO clean this up
     n_mask = int(np.ceil(datasets.nfeatures / 2))
     mx = [1] * n_mask + [0] * int(datasets.nfeatures - n_mask)
 
@@ -242,8 +239,6 @@ else:
     fit(curtain_runner, optimizer, datasets.trainset, n_epochs, bsize, writer, schedulers=scheduler,
         schedulers_epoch_end=reduce_lr_inn, gclip=args.gclip, shuffle_epoch_end=args.shuffle, load_best=args.load_best)
 
-# TODO: check the LR in particular!!
-# TODO: pass this as a .yml file
 classifier_args = {'false_signal': 0, 'batch_size': 128, 'nepochs': args.classifier_epochs,
                    'lr': 0.001, 'pure_noise': 0, 'beta_add_noise': args.beta_add_noise, 'drp': 0.0,
                    'normalize': True, 'data_unscaler': datasets.signalset.unnormalize, 'width': 32,

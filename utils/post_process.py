@@ -352,7 +352,8 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
         mass_sampler = signalMassSampler(masses, edge1, edge2, plt_sv_dir=sv_dir,
                                          scaler=low_mass_training.unnorm_mass, unscaler=low_mass_training.norm_mass)
 
-    def get_transformed(data, lm=None, hm=None, target_dist=None, r_mass=True, oversample=4):
+    def get_transformed(data, lm=None, hm=None, target_dist=None, r_mass=True, oversample=4,
+                        use_mass_sampler=use_mass_sampler):
         if use_mass_sampler:
             # TODO: the bin information should be stored in the class not found from data.
             if hm is None:
@@ -408,22 +409,27 @@ def post_process_curtains(model, datasets, sup_title='NSF', signal_anomalies=Non
     if not light_job:
         # AUC for OB2 vs T(SB2)
         print('SB2 from OB2')
-        ob2_samples = get_transformed(high_mass_training, lm=datasets.mass_bins[4], hm=datasets.mass_bins[5],
-                                      target_dist=datasets.validationset, oversample=oversample)
+        # Here we can look at the masses directly, so we never need the sampler
+        ob2_samples = get_transformed(high_mass_training, target_dist=datasets.validationset, oversample=1,
+                                      use_mass_sampler=False)
         save_samples(ob2_samples, 'SB2_to_OB2_samples')
         auc_ob2 = get_auc(ob2_samples, datasets.validationset.data, sv_dir, nm + 'OB2_vs_TSB2',
-                          sup_title=f'T(SB2) vs OB2', load=load, **classifier_args)
+                          sup_title=f'T(SB2) vs OB2', load=0, **classifier_args)
         auc_dict['SB2/OB2'] = auc_ob2
 
         # Validation set two, SB1 to one mass bin lower
         get_maps('SB1', low_mass_training, {'OB1': datasets.validationset_lm})
         # AUC for OB1 vs T(SB1)
         print('SB1 from OB1')
-        ob1_samples = get_transformed(low_mass_training, lm=datasets.mass_bins[0], hm=datasets.mass_bins[1],
-                                      target_dist=datasets.validationset_lm, oversample=oversample)
-        save_samples(ob2_samples, 'SB1_to_OB1_samples')
+        ob1_samples = get_transformed(low_mass_training, target_dist=datasets.validationset_lm, oversample=1,
+                                      use_mass_sampler=False)
+        # if plot:
+        #     title = f'SB1 to OB1' if not cathode else f'Sampled from OB1'
+        #     getFeaturePlot(datasets.validationset_lm, ob1_samples, nm, sv_dir, title, datasets.signalset.feature_nms,
+        #                    low_mass_training, n_sample_for_plot=n_sample_for_plot, summary_writer=summary_writer)
+        save_samples(ob1_samples, 'SB1_to_OB1_samples')
         auc_ob1 = get_auc(ob1_samples, datasets.validationset_lm.data, sv_dir, nm + 'OB1_vs_TSB1',
-                          sup_title=f'T(SB1) vs OB1', load=load, **classifier_args)
+                          sup_title=f'T(SB1) vs OB1', load=0, **classifier_args)
         auc_dict['SB1/OB1'] = auc_ob1
 
     if light_job <= 1 or (light_job == 3):

@@ -161,7 +161,7 @@ def load_curtains_pd(sm='QCDjj_pT', dtype='float32', extraStats=False, feature_t
             directory = 'data/downloads'
         lhco_filename = 'events_anomalydetection_v2.features.h5'
         df = pd.read_hdf(f'{directory}/{lhco_filename}')
-        # make_slim(df, directory, lhco_filename)
+        make_slim(df, directory, lhco_filename)
 
         # Reorder the features such that the jets are ordered according to their invariant masses
         jet_order_mask = df['mj1'] < df['mj2']

@@ -194,6 +194,7 @@ cathode = Cathode(inp_dim, exp_name, device, dir=args.d)
 optimizer = cathode.optimizer
 # optimizer = optim.Adam(cathode.parameters(), lr=args.lr)
 scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, ndata / bsize * n_epochs, 0)
+# scheduler = None
 
 # Reduce lr on plateau at end of epochs
 if args.reduce_lr_plat:

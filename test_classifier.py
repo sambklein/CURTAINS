@@ -24,11 +24,11 @@ def parse_args():
     parser = argparse.ArgumentParser()
 
     # Saving
-    parser.add_argument('-d', '--outputdir', type=str, default='classifier_local_two',
+    parser.add_argument('-d', '--outputdir', type=str, default='bump_200_alt_final',
                         help='Choose the base output directory')
-    parser.add_argument('-n', '--outputname', type=str, default='local_t',
+    parser.add_argument('-n', '--outputname', type=str, default='bump_200_alt_final',
                         help='Set the output name directory')
-    parser.add_argument('--load', type=int, default=0, help='Load a model?')
+    parser.add_argument('--load', type=int, default=2, help='Load a model?')
 
     # Multiple runs
     parser.add_argument('--shift_seed', type=int, default=0,
@@ -40,7 +40,7 @@ def parse_args():
     # parser.add_argument("--bins", type=str, default='2900,3100,3300,3700,3900,4100')
     parser.add_argument("--bins", type=str, default='3000,3200,3400,3600,3800,4000')
     parser.add_argument("--feature_type", type=int, default=3)
-    parser.add_argument("--doping", type=int, default=1000,
+    parser.add_argument("--doping", type=int, default=667,
                         help='Raw number of signal events to be added into the entire bg spectra.')
     # parser.add_argument("--doping", type=int, default=1800,
     #                     help='Raw number of signal events to be added into the entire bg spectra.')
@@ -50,17 +50,22 @@ def parse_args():
                         help='If set to 1 only provide as many signal samples as there are in the idealised training'
                              'to the supervised training.')
 
+    # parser.add_argument("--data_directory", type=str,
+    #                     default='/home/users/k/kleins/MLproject/CURTAINS/images/ot_fig7_200_OT_fig7_200_7',
+    #                     help='The directory within which to search for data.')
     parser.add_argument("--data_directory", type=str,
-                        default='/home/users/k/kleins/MLproject/CURTAINS/images/ot_fig7_200_OT_fig7_200_7',
+                        default='/home/users/k/kleins/MLproject/CURTAINS/images/cathode_test_cathode_test_f_0',
                         help='The directory within which to search for data.')
     parser.add_argument("--data_file", type=str, default='SB2_to_SR_samples.npy',
                         help='The file to load and train against within data_directory.')
     parser.add_argument("--nx_oversample", type=int, default=-1,
                         help='The number of times to oversample relative to the number of events in the signal region.')
+    parser.add_argument("--nx_bg_template", type=int, default=-1,
+                        help='The number of bg template samples to take.')
 
     # Training parameters
     parser.add_argument('--batch_size', type=int, default=128, help='Size of batch for training.')
-    parser.add_argument('--nepochs', type=int, default=20, help='Number of epochs.')
+    parser.add_argument('--nepochs', type=int, default=2, help='Number of epochs.')
     parser.add_argument('--lr', type=float, default=0.001, help='Classifier learning rate.')
     parser.add_argument('--wd', type=float, default=0.1, help='Weight Decay, set to None for ADAM.')
     parser.add_argument('--drp', type=float, default=0.0, help='Dropout to apply.')
@@ -70,7 +75,7 @@ def parse_args():
     parser.add_argument('--layer_norm', type=int, default=0, help='Apply layer norm?')
     parser.add_argument('--use_scheduler', type=int, default=1, help='Use cosine annealing of the learning rate?')
     parser.add_argument('--run_cathode_classifier', type=int, default=0, help='Use cathode classifier?')
-    parser.add_argument('--n_run', type=int, default=5, help='Number of classifiers to train.')
+    parser.add_argument('--n_run', type=int, default=1, help='Number of classifiers to train.')
 
     # Classifier settings
     parser.add_argument('--false_signal', type=int, default=0, help='Add random noise samples to the signal set?')
@@ -97,6 +102,7 @@ def test_classifier():
     # If a data directory is passed, load the log and set the args appropriately.
     # This allows samples to be loaded and a classifier to be trained against them.
     if (args.data_directory != 'none') and (args.split_data == 1):
+        print(args.data_directory)
         exp_info = glob.glob(os.path.join(args.data_directory, '*.json'))[0]
         with open(exp_info, "r") as file_name:
             json_dict = json.load(file_name)
@@ -107,6 +113,10 @@ def test_classifier():
         sb1_samples = np.load(os.path.join(args.data_directory, 'SB1_to_SR_samples.npy'))
         sb2_samples = np.load(os.path.join(args.data_directory, 'SB2_to_SR_samples.npy'))
         bg_template = np.concatenate((sb1_samples, sb2_samples))
+        if args.nx_bg_template > 0:
+            np.random.shuffle(bg_template)
+            bg_template = bg_template[:args.nx_bg_template]
+        print(len(bg_template))
         args.outputdir = args.data_directory.split("/")[-1]
 
     seed = 1638128 + args.shift_seed
@@ -148,6 +158,8 @@ def test_classifier():
         # Bin the data
         sr_bin = [curtains_bins[2], curtains_bins[3]]
         sm, sm_out = mx_data(sm, sr_bin)
+        if args.match_idealised:
+            sm = sm.iloc[:int(len(sm) / 2)]
         ad, ad_out = mx_data(ad, sr_bin)
         data_to_dope = pd.concat((sm, ad)).to_numpy()
         undoped_data = bg_template[~np.isnan(bg_template).any(axis=1)]

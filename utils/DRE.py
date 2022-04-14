@@ -462,8 +462,8 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
     val_loss = losses[1::2]
     plot_losses(train_loss, val_loss, sv_dir)
     # eval_epoch = np.argsort(val_loss.mean(0))[:n_av]
-    # # eval_epoch = [nepochs - 1, nepochs - 2]
-    # # eval_epoch = [nepochs - 1]
+    # eval_epoch = [nepochs - 1, nepochs - 2]
+    eval_epoch = [nepochs - 1]
     # print(f'Best epoch: {eval_epoch}. \nLoading and evaluating now.')
     split_inds = kfold_gen(kfold)
 
@@ -474,11 +474,8 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
     fig, ax = plt.subplots(1, nfolds, figsize=(5 * nfolds + 2, 7))
     for fold, (train_index, valid_index, eval_index) in enumerate(split_inds):
 
-        # TODO: this was set to the last epoch for 'paper' trainings
-        # n_av = 5
+        # # TODO: this was set to the last epoch for 'paper' trainings
         # eval_epoch = np.argsort(val_loss[fold])[:n_av]
-        eval_epoch = [nepochs - 1]
-        # eval_epoch = [10]
         print(f'Best epoch: {eval_epoch}. \nLoading and evaluating now.')
 
         # The classifier object does not need to be reinitialised here, only loaded
@@ -549,37 +546,38 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
             tpr_nz = tpr[fpr != 0]
             sic = tpr_nz / fpr_nz ** 0.5
             print(f'Max SIC: {np.max(sic)}')
-            if np.max(sic) < 2:
-                a = 0
 
-            # # Calculate the expected and real counts that pass a certain threshold of the classifier
-            # if return_rates:
-            #     # Count the number of events that are left in the signal region after a certain cut on the background
-            #     # template
-            #     count = []
-            #     count_bg = []
-            #     expected_count = []
-            #     store_masses = []
-            #     mx = eval_data.targets == 0
-            #     for i, at in enumerate(thresholds):
-            #         threshold = np.quantile(y_scores[mx], at)
-            #         expected_count += [sum(y_scores[mx] >= threshold)]
-            #         count += [sum(y_scores[eval_data.targets == 1] >= threshold)]
-            #         count_bg += [sum(y_scores[eval_data.bg_labels == 1] >= threshold)]
-            #         ms_mx = eval_data.targets[:, 0] == 1
-            #         store_masses += [eval_masses[ms_mx][y_scores[ms_mx] >= threshold]]
-            #         if anomaly_bool:
-            #             signal_pass_rate = np.sum(
-            #                 info_dict['y_scores_1'][-1][info_dict['y_labels_1'][-1] == 1] >= threshold) / np.sum(
-            #                 info_dict['y_labels_1'][-1] == 1)
-            #             bg_pass_rate = np.sum(
-            #                 info_dict['y_scores_1'][-1][info_dict['y_labels_1'][-1] == 0] >= threshold) / np.sum(
-            #                 info_dict['y_labels_1'][-1] == 0)
-            #             info_dict['pass_rates'] += [np.array((signal_pass_rate, bg_pass_rate))]
-            #     info_dict['counts'] += [np.array(count)]
-            #     info_dict['masses'] += [store_masses]
-            #     info_dict['expected_counts'] += [np.array(expected_count)]
-            #     info_dict['sig_counts'] += [np.array(count_bg)]
+            # Calculate the expected and real counts that pass a certain threshold of the classifier
+            if return_rates:
+                # Count the number of events that are left in the signal region after a certain cut on the background
+                # template
+                count = []
+                count_bg = []
+                expected_count = []
+                store_masses = []
+                store_masses_labels = []
+                mx = eval_data.targets == 0
+                for i, at in enumerate(thresholds):
+                    threshold = np.quantile(y_scores[mx], at)
+                    expected_count += [sum(y_scores[mx] >= threshold)]
+                    count += [sum(y_scores[eval_data.targets == 1] >= threshold)]
+                    count_bg += [np.sum(y_scores[eval_data.bg_labels == 1] >= threshold)]
+                    ms_mx = eval_data.targets[:, 0] == 1
+                    store_masses += [eval_masses[ms_mx][y_scores[ms_mx] >= threshold]]
+                    store_masses_labels += [eval_data.bg_labels.view(-1, 1)[ms_mx][y_scores[ms_mx] >= threshold]]
+                    if anomaly_bool:
+                        signal_pass_rate = np.sum(
+                            info_dict['y_scores_1'][-1][info_dict['y_labels_1'][-1] == 1] >= threshold) / np.sum(
+                            info_dict['y_labels_1'][-1] == 1)
+                        bg_pass_rate = np.sum(
+                            info_dict['y_scores_1'][-1][info_dict['y_labels_1'][-1] == 0] >= threshold) / np.sum(
+                            info_dict['y_labels_1'][-1] == 0)
+                        info_dict['pass_rates'] += [np.array((signal_pass_rate, bg_pass_rate))]
+                info_dict['counts'] += [np.array(count)]
+                info_dict['masses'] += [store_masses]
+                info_dict['masses_labels'] += [store_masses_labels]
+                info_dict['expected_counts'] += [np.array(expected_count)]
+                info_dict['sig_counts'] += [np.array(count_bg).flatten()]
 
     fig.legend()
     fig.savefig(os.path.join(sv_dir, 'folds_classifier_outputs.png'))
@@ -592,33 +590,35 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
         if key in info_dict.keys():
             info_dict[key] = np.concatenate(info_dict[key])
 
-    # Calculate the expected and real counts that pass a certain threshold of the classifier
-    if return_rates:
-        # Count the number of events that are left in the signal region after a certain cut on the background
-        # template
-        count = []
-        count_signal = []
-        expected_count = []
-        store_masses = []
-        mx = info_dict['labels_test'] == 0
-        y_scores = info_dict['y_scores']
-        for i, at in enumerate(thresholds):
-            threshold = np.quantile(y_scores[mx], at)
-            expected_count += [np.sum(y_scores[mx] >= threshold)]
-            count += [np.sum(y_scores[info_dict['labels_test'] == 1] >= threshold)]
-            # count_signal += [np.sum(y_scores[info_dict['bg_labels'] == 1] >= threshold)]
-            ms_mx = info_dict['labels_test'] == 1
-            store_masses += [info_dict['masses_folds'][ms_mx][y_scores[ms_mx] >= threshold]]
-            if anomaly_bool:
-                signal_pass_rate = np.sum(info_dict['y_scores_1'][info_dict['y_labels_1'] == 1] >= threshold) / np.sum(
-                    info_dict['y_labels_1'] == 1)
-                bg_pass_rate = np.sum(info_dict['y_scores_1'][info_dict['y_labels_1'] == 0] >= threshold) / np.sum(
-                    info_dict['y_labels_1'] == 0)
-                info_dict['pass_rates'] += [np.array((signal_pass_rate, bg_pass_rate))]
-        info_dict['counts'] += [np.array(count)]
-        info_dict['masses'] += [store_masses]
-        info_dict['expected_counts'] += [np.array(expected_count)]
-        info_dict['sig_counts'] += [np.array(count_signal)]
+    # # Calculate the expected and real counts that pass a certain threshold of the classifier
+    # if return_rates:
+    #     # Count the number of events that are left in the signal region after a certain cut on the background
+    #     # template
+    #     count = []
+    #     count_signal = []
+    #     expected_count = []
+    #     store_masses = []
+    #     store_masses_labels = []
+    #     mx = info_dict['labels_test'] == 0
+    #     y_scores = info_dict['y_scores']
+    #     for i, at in enumerate(thresholds):
+    #         threshold = np.quantile(y_scores[mx], at)
+    #         expected_count += [np.sum(y_scores[mx] >= threshold)]
+    #         count += [np.sum(y_scores[info_dict['labels_test'] == 1] >= threshold)]
+    #         # count_signal += [np.sum(y_scores[info_dict['bg_labels'] == 1] >= threshold)]
+    #         ms_mx = info_dict['labels_test'] == 1
+    #         store_masses += [info_dict['masses_folds'][ms_mx][y_scores[ms_mx] >= threshold]]
+    #         store_masses_labels += [info_dict['bg_labels'].reshape(-1, 1)[ms_mx][y_scores[ms_mx] >= threshold]]
+    #         if anomaly_bool:
+    #             signal_pass_rate = np.sum(info_dict['y_scores_1'][info_dict['y_labels_1'] == 1] >= threshold) / np.sum(
+    #                 info_dict['y_labels_1'] == 1)
+    #             bg_pass_rate = np.sum(info_dict['y_scores_1'][info_dict['y_labels_1'] == 0] >= threshold) / np.sum(
+    #                 info_dict['y_labels_1'] == 0)
+    #             info_dict['pass_rates'] += [np.array((signal_pass_rate, bg_pass_rate))]
+    #     info_dict['counts'] += [np.array(count)]
+    #     info_dict['masses'] += [store_masses]
+    #     info_dict['expected_counts'] += [np.array(expected_count)]
+    #     info_dict['sig_counts'] += [np.array(count_signal)]
 
     # fpr, tpr, _ = roc_curve(labels_test, y_scores)
     fpr, tpr, _ = roc_curve(info_dict['labels_test'], info_dict['y_scores'])
@@ -672,7 +672,8 @@ def get_auc(bg_template, sr_samples, directory, name, anomaly_data=None, bg_trut
         print(f'Signal counts {np.sum(info_dict["sig_counts"], 0)}.')
         counts = {'counts': measured, 'counts_sep': info_dict['counts'],
                   'expected_counts': info_dict["expected_counts"],
-                  'pass_rates': info_dict['pass_rates'], 'masses': info_dict['masses']}
+                  'pass_rates': info_dict['pass_rates'], 'masses': info_dict['masses'],
+                  'masses_labels': info_dict['masses_labels']}
 
     # Plot a roc curve
     fig, ax = plt.subplots(1, 1, figsize=(5, 5))

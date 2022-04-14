@@ -9,12 +9,31 @@ from copy import deepcopy
 
 import matplotlib.pyplot as plt
 import pandas as pd
+import scipy
 from matplotlib.pyplot import cm
 import numpy as np
 from scipy.interpolate import interp1d
 
 from data.data_loaders import get_data, load_curtains_pd
 from utils.io import get_top_dir, on_cluster
+
+red = '#A92A2A'
+blue = '#2D4BDC'
+
+cathode_color = blue
+
+label_to_color = {'Curtains': red,
+                  'Cathode': cathode_color,
+                  'Idealised': '#309402',
+                  'Supervised': 'k',
+                  'Cathode_full': cathode_color
+                  }
+
+label_to_name = {'Curtains': r'CURTAINs',
+                 'Cathode': r'CATHODE',
+                 'Idealised': 'Idealised',
+                 'Supervised': 'Supervised',
+                 'Cathode_full': 'CATHODE (full)'}
 
 
 def parse_args():
@@ -72,7 +91,7 @@ class PropertiesHandler():
         """Return a tuple of x axis tick and legend."""
         bins = args['bins'].split(',')
         int_bins = [int(b) for b in bins]
-        x = np.mean(int_bins)
+        x = np.mean(int_bins[2:4])
         # Get the expected numbers
         # TODO: sort out this function call, it's crazy expensive and only needs to be made once, also it isn't used...
         # expected_sr_count = self.get_expected_count(args, int_bins)
@@ -124,7 +143,13 @@ def get_max_sic():
     ax.set_ylabel('Max significance improvement')
     ax.set_xlabel('Mean bin width')
     fig.legend()
-    fig.savefig(f'{sv_dir}/images/sic_collated.png', bbox_inches='tight')
+    fig.savefig(f'{sv_dir}/images/sic_collated.pdf', bbox_inches='tight')
+
+
+def legend_without_duplicate_labels(ax):
+    handles, labels = ax.get_legend_handles_labels()
+    unique = [(h, l) for i, (h, l) in enumerate(zip(handles, labels)) if l not in labels[:i]]
+    ax.legend(*zip(*unique), frameon=False, loc='upper right')
 
 
 def make_steps(axis, x, y, width, drop_bars=True, plot=True, **kwargs):
@@ -159,6 +184,8 @@ def get_counts():
     sv_dir = os.path.join(get_top_dir())
     add_dict = None
     no_eps = True
+    rescale = 1
+    add_shading = 0
 
     # The real hunt
     # name = 'OT_bump_two_hundred'
@@ -206,8 +233,7 @@ def get_counts():
     # no_eps = False
     # add_dict = [f'{dd}_{i}_{name}_{i}' for i in range(0, n_runs)]
 
-    # # Alt classifier, alt bump hunt
-    # # curtains_bump_cfinal_OT_bump_centered_0_bump_200_0
+    # # Alt classifier, alt bump hunt, good looker
     # name = 'bump_200_alt_nc'
     # dd = 'curtains_bump_two_OT_bump_two'
     # filename = '200_alt_alt_from_testc'
@@ -217,34 +243,101 @@ def get_counts():
     # no_eps = False
     # add_dict = [f'{dd}_{i}_{name}_{i}' for i in range(0, n_runs)]
 
-    # 400 GeV
-    # curtains_bump_cfinal_OT_bump_centered_0_bump_200_0
-    name = 'four_bumps'
-    dd = 'OT_bump_four_OT_bump_four'
-    filename = '400_gev'
-    bin_width = 400
-    n_runs = 24
+    # # Alt classifier, alt bump hunt, good looker shaded
+    # # name = 'bump_200_alt_reprod'
+    # name = 'bump_200_alt_reprod_bpf'
+    # dd = 'curtains_bump_two_OT_bump_two'
+    # filename = '200_with_shading'
+    # # filename = '200_bpf'
+    # bin_width = 200
+    # n_runs = 48
+    # y_max = 500000
+    # no_eps = False
+    # add_dict = [f'{dd}_{i}_{name}_{i}' for i in range(0, n_runs)]
+    # add_shading = True
+
+    # # Cathode 200 restricted
+    # name = 'bump_cathode_mco'
+    # dd = 'cathode_bump_two_Cathode_bump_two'
+    # # name = 'cathode_bump_no_lrs'
+    # # dd = 'cathode_bump_no_lrs'
+    # # name = 'bump_cathode_part'
+    # # dd = 'cathode_bump_no_lrs_cathode_bump_no_lrs'
+    # filename = '200_cathode'
+    # # filename = '200_bpf'
+    # bin_width = 200
+    # n_runs = 48
+    # y_max = 500000
+    # no_eps = False
+    # add_dict = [f'{dd}_{i}_{name}_{i}' for i in range(0, n_runs)]
+    # add_shading = False
+
+    # Cathode 200 full sidebands
+    # name = 'cathode_bump_full_no_lrs'
+    # dd = 'cathode_bump_full_no_lrs'
+    name = 'bump_cathode_full'
+    dd = 'cathode_bump_full_cathode_bump_full'
+    filename = '200_cathode_full'
+    bin_width = 200
+    n_runs = 48
     y_max = 500000
     no_eps = False
     add_dict = [f'{dd}_{i}_{name}_{i}' for i in range(0, n_runs)]
+    add_shading = True
+
+    # # Cathode on the full bands
+    # name = 'bump_cathode_full'
+    # dd = 'cathode_bump_full_cathode_bump_full'
+    # filename = 'cathode_full_sidebands'
+    # bin_width = 200
+    # n_runs = 48
+    # y_max = 500000
+    # no_eps = False
+    # add_dict = [f'{dd}_{i}_{name}_{i}' for i in range(0, n_runs)]
+    # add_shading = False
+
+    # # Alt classifier, alt bump hunt, good looker
+    # name = 'bthree'
+    # dd = 'OT_bump_three_OT_bump_three'
+    # filename = 'bthree'
+    # bin_width = 300
+    # n_runs = 48
+    # y_max = 500000
+    # no_eps = False
+    # add_dict = [f'{dd}_{i}_{name}_{i}' for i in range(0, n_runs)]
+
+    # # 400 GeV
+    # # curtains_bump_cfinal_OT_bump_centered_0_bump_200_0
+    # name = 'four_bumps'
+    # dd = 'OT_bump_four_OT_bump_four'
+    # filename = '400_gev'
+    # bin_width = 400
+    # n_runs = 24
+    # y_max = 500000
+    # no_eps = False
+    # add_dict = [f'{dd}_{i}_{name}_{i}' for i in range(0, n_runs)]
 
     # # A cathode bump hunt
     # # curtains_bump_cfinal_OT_bump_centered_0_bump_200_0
     # name = 'Cathode_bump_two'
     # dd = 'cathode_bump_two'
-    # filename = '200_alt'
-    # bin_width = 100
+    # filename = '200_cathode_alt'
+    # bin_width = 200
     # n_runs = 48
     # y_max = 500000
     # no_eps = True
     # add_dict = []
 
     # # An idealised hunt
-    # name = 'idealised_hunt_1000'
-    # dd = 'idealised_hunt_1000'
-    # filename = 'idealised_hunt_1000'
+    # name = 'idealised_hunt_cfinal'
+    # dd = 'idealised_hunt_cfinal'
+    # filename = 'idealised_hunt_cfinal'
     # bin_width = 200
-    # n_runs = 8
+    # n_runs = 48
+    # y_max = 500000
+    # no_eps = False
+    # # The idealised classifier has half as many signal region QCD events
+    # rescale = 2
 
     # # An idealised hunt including 1 + eps
     # name = 'idealised_hunt_noise'
@@ -340,13 +433,15 @@ def get_counts():
                 x, expected, label = get_property(args)
                 # if (x == 3500) and (label == '1000') and (name == 'OT_bump_100'):
                 # if (x == 3500) and (label == '1000'):
-                if (x == 3100):
+                if (x == 3500):
+                    print(label)
                     print(directory)
                 rt = np.vstack((signal_pass_rate, bg_pass_rate))
                 vals[label] += [np.hstack((x, *counts, error))]
                 rates[label] += [rt]
-                # TODO: how to handle this when multiple classifiers have run?
                 masses[label] += [[id['masses'] for id in info_dict]]
+                if add_shading:
+                    masses[f'{label}_bgl'] += [[id['masses_labels'] for id in info_dict]]
                 # masses[label] += [0]
 
             with open(f'{sv_dir}/images/rates_info_{filename}.pkl', 'wb') as f:
@@ -390,12 +485,13 @@ def get_counts():
 
         def __call__(self, num):
             """Get the counts of BG events and Anomaly events in each bin."""
-            # TODO: what the fuck
-            if name in ['OT_bump_centered', 'bump_200', 'OT_bump_two',
-                        'bump_200_alt', 'bump_200_alt_nc', 'bump_200_alt_final']:
-                bins = np.unique(np.hstack([[i + 400, i + 600] for i in range(2600, 4200, 200)]))
-            else:
-                bins = np.unique(np.hstack([[i + 400, i + 500] for i in range(2600, 3800, 100)]))
+            # # TODO: what the fuck
+            # if name in ['OT_bump_centered', 'bump_200', 'OT_bump_two',
+            #             'bump_200_alt', 'bump_200_alt_nc', 'bump_200_alt_final']:
+            #     bins = np.unique(np.hstack([[i + 400, i + 600] for i in range(2600, 4200, 200)]))
+            # else:
+            #     bins = np.unique(np.hstack([[i + 400, i + 500] for i in range(2600, 3800, 100)]))
+            bins = np.unique(np.hstack([[i + 400, i + 600] for i in range(2600, 4400, 200)]))
 
             ad = self.ad.sample(frac=1).iloc[:num]
             bg_counts = np.histogram(self.sm['mjj'], bins=bins)[0]
@@ -415,6 +511,7 @@ def get_counts():
         label = dopings[j]
         lst = vals[label]
         lst_masses = masses[label]
+        masses_lbls = masses[f'{label}_bgl']
         rt = rates[label]
         significance = np.zeros(n_thresh_to_take)
         for i in range(n_thresh_to_take):
@@ -437,6 +534,13 @@ def get_counts():
                         for sub_bin in bin:
                             # this_layer += [np.concatenate([m[i].numpy() for m in sub_bin])]
                             this_layer += [np.concatenate([m[i] for m in sub_bin])]
+                    if add_shading:
+                        this_layer_lbls = []
+                        for bin in masses_lbls:
+                            for sub_bin in bin:
+                                # this_layer += [np.concatenate([m[i].numpy() for m in sub_bin])]
+                                this_layer_lbls += [np.concatenate([m[i] for m in sub_bin])]
+                        mass_l = np.concatenate(this_layer_lbls)
                     mass_y = np.concatenate(this_layer)
                     # Define new bin centers
                     min_mass = min(x_all) - half_width
@@ -445,6 +549,12 @@ def get_counts():
                     bin_width = new_width
                     y, _ = np.histogram(mass_y, bins=new_bins)
                     y = y / n_models
+                    y = y * rescale
+                    if add_shading:
+                        ll, _, _ = scipy.stats.binned_statistic(mass_y, mass_l, bins=new_bins, statistic='sum')
+                        ll = ll / n_models
+                        ll = ll * rescale
+
                     x = np.convolve(new_bins, np.ones(2), 'valid') / 2
                     x_e = x
                     if i == 0:
@@ -452,8 +562,14 @@ def get_counts():
                     expected = raw_top * (1 - thresholds[i])
 
                 # make_steps(ax, x, y, bin_width, color='r', label='Measured')
-                ax.plot(x, y, marker='o', color='r', label='Observed', linestyle="None", markersize=3)
-                make_steps(ax, x_e, expected, bin_width, color='b', label='Expected', drop_bars=False)
+                if add_shading:
+                    n_bg = y - ll
+                    ax.plot(x, n_bg, marker='o', color='b', label='Observed BG', linestyle="None", markersize=3)
+                    ax.plot(x, n_bg + ll, marker='o', color='r', label='Observed Signal', linestyle="None",
+                            markersize=3)
+                else:
+                    ax.plot(x, y, marker='o', color='r', label='Observed', linestyle="None", markersize=3)
+                make_steps(ax, x_e, expected, bin_width, color='k', label='Expected', drop_bars=False)
                 if i == 0:
                     signal_bins = np.sort(np.unique(np.concatenate((x - bin_width / 2, x + bin_width / 2))))
                     ax.hist(mass.iloc[:int(label)], bins=signal_bins, alpha=0.2, color='y', label=f'{label} signal')
@@ -463,26 +579,27 @@ def get_counts():
                 counts_error = np.sqrt(y)
                 # x_error = bin_width / 2
                 # ax.errorbar(x, y, yerr=counts_error, xerr=x_error, color='r', linestyle="None")
-                ax.errorbar(x, y, yerr=counts_error, color='r', linestyle="None")
+                if not add_shading:
+                    ax.errorbar(x, y, yerr=counts_error, color='r', linestyle="None")
                 # add_errors(ax, x, y, bin_width, counts_error, color='r')
                 # ax.errorbar(x, y, yerr=counts_error, color='r', linestyle="None")
                 if i == 0:
                     top_line = np.sqrt(expected)
                 error_in_expected = top_line * (1 - thresholds[i])
-                add_errors(ax, x_e, expected, bin_width, error_in_expected, color='b')
+                add_errors(ax, x_e, expected, bin_width, error_in_expected, color='k')
                 axes1.plot(x, y, 'o', label=f'Cut = {thresholds[i]}', markersize=3)
 
-                rt = np.array(rt)
-                bins, bg_counts, ad_counts = get_mass_spectrum(int(label))
-                clr = clist[i]
-                fact = int(label) / ad_counts.sum()
-                ad_counts = fact * ad_counts
-                mx = np.digitize(xy[:, 0], bins=bins) - 1
-                total_signal = (rt[:, 0, i] * ad_counts[mx])
-                # total_bg = (rt[:, 1, i] * bg_counts[mx]).sum()
-                total_bg = (bg_counts[mx] * (1 - thresholds[i]))
-                significance[i] = np.sqrt(
-                    2 * ((total_signal + total_bg) * np.log(1 + total_signal / total_bg) - total_signal).sum())
+                # rt = np.array(rt)
+                # bins, bg_counts, ad_counts = get_mass_spectrum(int(label))
+                # clr = clist[i]
+                # fact = int(label) / ad_counts.sum()
+                # ad_counts = fact * ad_counts
+                # mx = np.digitize(xy[:, 0], bins=bins) - 1
+                # total_signal = (rt[:, 0, i] * ad_counts[mx])
+                # # total_bg = (rt[:, 1, i] * bg_counts[mx]).sum()
+                # total_bg = (bg_counts[mx] * (1 - thresholds[i]))
+                # significance[i] = np.sqrt(
+                #     2 * ((total_signal + total_bg) * np.log(1 + total_signal / total_bg) - total_signal).sum())
 
                 # axes2[j, 0].bar(bins[mx], rt[:, 0, i] * ad_counts[mx], width=bin_width, color='None', edgecolor='r')
                 # axes2[j, 1].bar(bins[mx], rt[:, 1, i] * bg_counts[mx], width=bin_width, color='None', edgecolor='b')
@@ -519,18 +636,273 @@ def get_counts():
         # axes2[j, 4].set_yscale('log')
 
     pd.DataFrame.from_dict(signicance_dict).to_csv(f'{sv_dir}/images/rates_dict_{name}.csv')
-    fig.savefig(f'{sv_dir}/images/counts_collated.png', bbox_inches='tight')
+    fig.savefig(f'{sv_dir}/images/counts_collated.pdf', bbox_inches='tight')
     fig.clf()
 
-    # handles, labels = axes1.get_legend_handles_labels()
-    # fig1.legend(handles, labels, loc='upper left', bbox_to_anchor=(0.9, 0.89), frameon=False)
-    fig1.savefig(f'{sv_dir}/images/counts_ensemble.png', bbox_inches='tight')
-    fig1.clf()
+    # # handles, labels = axes1.get_legend_handles_labels()
+    # # fig1.legend(handles, labels, loc='upper left', bbox_to_anchor=(0.9, 0.89), frameon=False)
+    # fig1.savefig(f'{sv_dir}/images/counts_ensemble.pdf', bbox_inches='tight')
+    # fig1.clf()
+    #
+    # handles, labels = axes2[-1, 4].get_legend_handles_labels()
+    # fig2.legend(handles, labels, loc='upper left', bbox_to_anchor=(0.9, 0.89), frameon=False)
+    # fig2.savefig(f'{sv_dir}/images/sb_total.pdf', bbox_inches='tight')
+    # fig2.clf()
 
-    handles, labels = axes2[-1, 4].get_legend_handles_labels()
-    fig2.legend(handles, labels, loc='upper left', bbox_to_anchor=(0.9, 0.89), frameon=False)
-    fig2.savefig(f'{sv_dir}/images/sb_total.png', bbox_inches='tight')
-    fig2.clf()
+
+def plot_counts_():
+    # filenames = ['200_alt_alt_from_testc', '200_cathode_alt', 'idealised_hunt_cfinal']
+    # names = ['bump_200_alt_nc', 'Cathode_bump_two', 'idealised_hunt_cfinal']
+    # bin_widths = [200, 200, 200]
+
+    # filenames = ['200_alt_alt_from_testc', '200_cathode', '200_cathode_full']
+    # figure_name = 'all_models'
+    filenames = ['200_alt_alt_from_testc']
+    figure_name = 'curtains_only'
+
+    names = ['', '', '']
+    bin_widths = [200, 200, 200]
+    model_names = ['Curtains', 'Cathode', 'Cathode_full']
+    measured_colors = [label_to_color[n] for n in model_names]
+    alphas = [1, 1, 1]
+    markers = ['o', 'o', 'x']
+    # dopings = [['0'], ['500', '667', '1000', '8000']]
+    dopings = [['500', '667', '1000', '8000']]
+    # dopings = ['0', '333']
+    n_columns = [1, 2]
+    y_max = 500000 if len(filenames) < 3 else 1200000
+    # y_max = 1200000
+    plot_counts(filenames, names, bin_widths, measured_colors, model_names, alphas, dopings, n_columns, markers,
+                new_width=100, y_max=y_max, add_tags=True, figure_name=figure_name)
+
+    # filenames = ['200_cathode', '200_cathode_full']
+    # figure_name = 'cathode_only'
+    #
+    # names = ['', '', '']
+    # bin_widths = [200, 200, 200]
+    # model_names = ['Cathode', 'Cathode_full']
+    # measured_colors = [label_to_color[n] for n in model_names]
+    # alphas = [1, 1, 1]
+    # markers = ['o', 'x']
+    # dopings = [['0'], ['500', '667', '1000', '8000']]
+    # # dopings = ['0', '333']
+    # n_columns = [1, 2]
+    # y_max = 500000 if len(filenames) < 3 else 1200000
+    # # y_max = 1200000
+    # plot_counts(filenames, names, bin_widths, measured_colors, model_names, alphas, dopings, n_columns, markers,
+    #             new_width=100, y_max=y_max, add_tags=True, figure_name=figure_name)
+
+    # filenames = ['200_alt_alt_from_testc', '200_cathode_full']
+    # figure_name = 'curtains_cathode_full'
+    #
+    # names = ['', '', '']
+    # bin_widths = [200, 200, 200]
+    # model_names = ['Curtains', 'Cathode_full']
+    # measured_colors = [label_to_color[n] for n in model_names]
+    # alphas = [1, 1, 1]
+    # markers = ['o', 'x']
+    # dopings = [['0'], ['500', '667', '1000', '8000']]
+    # # dopings = ['0', '333']
+    # n_columns = [1, 2]
+    # y_max = 500000 if len(filenames) < 3 else 1200000
+    # # y_max = 1200000
+    # plot_counts(filenames, names, bin_widths, measured_colors, model_names, alphas, dopings, n_columns, markers,
+    #             new_width=100, y_max=y_max, add_tags=True, figure_name=figure_name)
+    return 0
+
+
+def plot_counts(filenames, names, bin_widths, measured_colors, model_names, alphas,
+                dopings_list, n_columns, markers,
+                new_width=100, y_max=100000, add_tags=True, figure_name='', plot_singles=True):
+    sv_dir = os.path.join(get_top_dir())
+
+    # thresholds = [0, 0.5, 0.8, 0.9, 0.95, 0.99]
+    thresholds = [0, 0.5, 0.8, 0.9, 0.95, 0.99, 0.999, 0.9999]
+    tags = [100, 50, 20, 10, 5, 1, 0.1, 0.01]
+    ticks_spacing = bin_widths[0]
+    n_thresh_to_take = 7
+    # Start plotting different quantities
+    # dopings = ['0', '333', '500', '667', '1000', '8000']
+    if not isinstance(dopings_list[0], list):
+        dopings_list = [dopings_list]
+
+    class MassSpectrum:
+
+        def __init__(self):
+            self.sm = load_curtains_pd(feature_type=3).dropna()
+            self.ad = load_curtains_pd(sm='WZ_allhad_pT', feature_type=3).dropna()
+
+        def __call__(self, num):
+            """Get the counts of BG events and Anomaly events in each bin."""
+            # # TODO: what the fuck
+            # if name in ['OT_bump_centered', 'bump_200', 'OT_bump_two',
+            #             'bump_200_alt', 'bump_200_alt_nc', 'bump_200_alt_final']:
+            #     bins = np.unique(np.hstack([[i + 400, i + 600] for i in range(2600, 4400, 200)]))
+            # else:
+            #     bins = np.unique(np.hstack([[i + 400, i + 500] for i in range(2600, 3800, 100)]))
+            bins = np.unique(np.hstack([[i + 400, i + 600] for i in range(2600, 4400, 200)]))
+
+            ad = self.ad.sample(frac=1).iloc[:num]
+            bg_counts = np.histogram(self.sm['mjj'], bins=bins)[0]
+            ad_counts = np.histogram(ad['mjj'], bins=bins)[0]
+            return bins, bg_counts, ad_counts
+
+    get_mass_spectrum = MassSpectrum()
+
+    for n_plot, (dopings, n_c) in enumerate(zip(dopings_list, n_columns)):
+        n_dopings = len(dopings)
+        # fig, axes = plt.subplots(n_dopings, 1, figsize=(7, 5 * n_dopings + 2))
+        n_rows = int(np.ceil(n_dopings / n_c))
+        if plot_singles:
+            fig = []
+            axes = []
+            for _ in range(n_rows):
+                f, a = plt.subplots(1, 1, figsize=(7, 5))
+                fig += [f]
+                axes += [a]
+
+        else:
+            fig, ax_ = plt.subplots(n_rows, n_c, figsize=(7 * n_c, 5 * n_rows))
+            axes = fig.axes
+        first = 0
+        fcond = len(filenames) - 1
+
+        drop_indx = [1, 3, 5]
+        # TODO: install tex in the container properly
+        # plt.rcParams['text.usetex'] = True
+
+        for filename, name, bin_width, measured_color, model_name, alph, marker in zip(filenames, names, bin_widths,
+                                                                                       measured_colors,
+                                                                                       model_names, alphas, markers):
+
+            with open(f'{sv_dir}/images/rates_info_{filename}.pkl', 'rb') as f:
+                rates = pickle.load(f)
+            with open(f'{sv_dir}/images/vals_info_{filename}.pkl', 'rb') as f:
+                vals = pickle.load(f)
+            with open(f'{sv_dir}/images/masses_info_{filename}.pkl', 'rb') as f:
+                masses = pickle.load(f)
+
+            def get_mask(mass):
+                """
+                Given the mass values that were scanned, return those values to include in the plot.
+                This is useful if there are overlapping bins in the bump hunt scan.
+                """
+                # return x_all / 100 % 2 == 1
+                return [True] * mass.shape[0]
+
+            mass = get_mass_spectrum.ad['mjj']
+
+            signicance_dict = {}
+            half_width = int(bin_width / 2)
+
+            for j in range(n_dopings):
+                label = dopings[j]
+                lst = vals[label]
+                lst_masses = masses[label]
+                rt = rates[label]
+                significance = np.zeros(n_thresh_to_take)
+                for i in range(n_thresh_to_take):
+                    if i not in drop_indx:
+                        # ax = axes[j, i]
+                        ax = axes[j]
+                        if i > -1:
+                            xy = np.array(lst)
+                            x_all = xy[:, 0]
+                            mx = get_mask(x_all)
+                            x = xy[mx, 0]
+                            y = xy[mx, i + 1]
+                            expected = xy[mx, i + 1 + len(thresholds)]
+                            x_e = xy[mx, 0]
+
+                            if new_width is not None:
+                                # mass_y = np.concatenate([m[j][i].numpy() for m in lst_masses for j in range(5)])
+                                n_models = len(lst_masses[0])
+                                this_layer = []
+                                for bin in lst_masses:
+                                    for sub_bin in bin:
+                                        # this_layer += [np.concatenate([m[i].numpy() for m in sub_bin])]
+                                        this_layer += [np.concatenate([m[i] for m in sub_bin])]
+                                mass_y = np.concatenate(this_layer)
+                                # Define new bin centers
+                                min_mass = min(x_all) - half_width
+                                max_mass = max(x_all) + half_width + 1
+                                new_bins = np.arange(min_mass, max_mass, new_width)
+                                bin_width = new_width
+                                y, _ = np.histogram(mass_y, bins=new_bins)
+                                y = y / n_models
+                                x = np.convolve(new_bins, np.ones(2), 'valid') / 2
+                                x_e = x
+                                if i == 0:
+                                    raw_top = y
+                                expected = raw_top * (1 - thresholds[i])
+
+                            # make_steps(ax, x, y, bin_width, color='r', label='Measured')
+                            ax.plot(x, y, marker=marker, color=measured_color, label=label_to_name[model_name],
+                                    linestyle="None",
+                                    markersize=3, alpha=alph)
+                            if first == fcond:
+                                make_steps(ax, x_e, expected, bin_width, color='k', label='Expected', drop_bars=False)
+                                if add_tags:
+                                    tag = tags[i]
+                                    height = expected[0]
+                                    x_placement = x_e[0] - bin_width + 35
+                                    ax.text(x_placement, height, f'{tag}%', horizontalalignment='right',
+                                            verticalalignment='center')
+                            if (i == 0) and (first == fcond):
+                                signal_bins = np.sort(np.unique(np.concatenate((x - bin_width / 2, x + bin_width / 2))))
+                                ax.hist(mass.iloc[:int(label)], bins=signal_bins, alpha=0.2, color='y',
+                                        label=f'{label} signal')
+                                # handles, labels = ax.get_legend_handles_labels()
+                                # # fig.legend(handles, labels, loc='upper left', bbox_to_anchor=(0.9, 0.89), frameon=False)
+                                # ax.legend(handles, labels, frameon=False, loc='upper right')
+                                legend_without_duplicate_labels(ax)
+                            counts_error = np.sqrt(y)
+                            # x_error = bin_width / 2
+                            # ax.errorbar(x, y, yerr=counts_error, xerr=x_error, color=measured_color, linestyle="None")
+                            ax.errorbar(x, y, yerr=counts_error, color=measured_color, linestyle="None", alpha=alph)
+                            # add_errors(ax, x, y, bin_width, counts_error, color=measured_color)
+                            # ax.errorbar(x, y, yerr=counts_error, color=measured_color, linestyle="None")
+                            if i == 0:
+                                top_line = np.sqrt(expected)
+                            error_in_expected = top_line * (1 - thresholds[i])
+                            # if first == fcond:
+                            #     add_errors(ax, x_e, expected, bin_width, error_in_expected, color='k')
+
+                            # rt = np.array(rt)
+                            bins, bg_counts, ad_counts = get_mass_spectrum(int(label))
+                            fact = int(label) / ad_counts.sum()
+                            ad_counts = fact * ad_counts
+                            mx = np.digitize(xy[:, 0], bins=bins) - 1
+                            ad_rate = np.array([r[0].reshape(-1, 8).mean(0) for r in rt]).mean(0)[i]
+                            total_signal = (ad_rate * ad_counts[mx])
+                            bg_rate = np.array([r[1].reshape(-1, 8).mean(0) for r in rt]).mean(0)[i]
+                            total_bg = (bg_rate * bg_counts[mx]).sum()
+                            # total_bg = (bg_counts[mx] * (1 - thresholds[i]))
+                            significance[i] = np.sqrt(
+                                2 * ((total_signal + total_bg) * np.log(
+                                    1 + total_signal / total_bg) - total_signal).sum())
+
+                        if i == 0:
+                            ax.set_ylabel('Events / bin', loc='top', fontsize=12)
+                        ax.set_xlabel(r'$m_{JJ}$ [GeV]', loc='right', fontsize=12)
+                        # plt.rcParams['axes.titlepad'] = -14
+                        # ax.set_title(f'{label} injected signal', y=1.0, pad=-14)
+                        ax.set_yscale('log')
+                        ax.set_ylim([1, y_max])
+                        ax.set_xticks(np.arange(3000, 4700, 100))
+                        ax.set_xlim([2830, 4600])
+
+                signicance_dict[label] = significance
+            first += 1
+
+        for ax in axes:
+            [l.set_visible(False) for (i, l) in enumerate(ax.xaxis.get_ticklabels()) if i % 2 != 0]
+        pd.DataFrame.from_dict(signicance_dict).to_csv(f'{sv_dir}/images/rates_dict_{name}.csv')
+        if plot_singles:
+            [f.savefig(f'{sv_dir}/images/{figure_name}_{n_plot}_{i}.pdf', bbox_inches='tight') for i,f in enumerate(fig)]
+        else:
+            fig.savefig(f'{sv_dir}/images/counts_superimposed_{figure_name}_{n_plot}.pdf', bbox_inches='tight')
+        # fig.clf()
 
 
 def get_sics():
@@ -616,7 +988,7 @@ def get_sics():
     for j in range(n_runs):
         label = runs[j]
         lst = vals[label]
-        lst += [['random', [np.linspace(0, 1, 50), np.linspace(0, 1, 50)]]]
+        lst += [['Random', [np.linspace(0, 1, 50), np.linspace(0, 1, 50)]]]
         for values in lst:
             nm = values[0]
             fpr = values[1][0]
@@ -626,7 +998,7 @@ def get_sics():
             fpr_mx = fpr != 0.
             fpr_nz = fpr[fpr_mx]
             tpr_nz = tpr[fpr_mx]
-            if nm == 'random':
+            if nm == 'Random':
                 line = '--'
                 color = 'k'
             else:
@@ -646,13 +1018,14 @@ def get_sics():
 
     handles, labels = ax.get_legend_handles_labels()
     fig.legend(handles, labels, loc='upper left', bbox_to_anchor=(0.9, 0.89), frameon=False)
-    fig.savefig(f'{sv_dir}/images/sics.png', bbox_inches='tight')
+    fig.savefig(f'{sv_dir}/images/sics.pdf', bbox_inches='tight')
     fig.clf()
 
 
 def figs_six_and_seven():
     sv_dir = get_top_dir()
     fig_6_doping = '1000'
+    add_dashes = False
 
     # directories = [f'ot_fig7_OT_fig7_{i}' for i in range(0, 8)] + \
     #               [f'cathode_fig7_CATHODE_fig7_{i}' for i in range(0, 8)] + \
@@ -677,18 +1050,75 @@ def figs_six_and_seven():
     # names = ['Cathode'] * 8 + ['Curtains'] * 8
     # filename = 'fig_6_7_joint'
 
-    # This is restricted sidebands, with all of the data
-    directories = [f'ot_fig7_200_OT_fig7_200_{i}_C_F7_{i}' for i in range(0, 8)] + \
-                  [f'super_class_200_super_class_200_{i}' for i in range(0, 12)] + \
-                  [f'ideal_class_200_ideal_class_200_{i}' for i in range(0, 12)] + \
-                  [f'ot_fig7_200_hd_OT_fig7_200_hd_{i}_fig_6_hd_{i}' for i in range(0, 4)] + \
-                  [f'CATHODE_match_200_hd_full_bins_CATHODE_match_200_hd_full_bins_{i}_bump_search_cathode_{i}' for i in
-                   range(72)]
-    names = ['Curtains'] * 8 + ['Supervised'] * 12 + ['Idealised'] * 12 + \
-            ['Curtains'] * 4 + ['Cathode'] * 72
-    filename = 'fig_6_7'
+    # # This is restricted sidebands, with all of the data
+    # directories = [f'ot_fig7_200_OT_fig7_200_{i}_C_F7_{i}' for i in range(0, 8)] + \
+    #               [f'super_class_200_super_class_200_{i}' for i in range(0, 12)] + \
+    #               [f'ideal_class_200_ideal_class_200_{i}' for i in range(0, 12)] + \
+    #               [f'ot_fig7_200_hd_OT_fig7_200_hd_{i}_fig_6_hd_{i}' for i in range(0, 4)] + \
+    #               [f'CATHODE_match_200_hd_full_bins_CATHODE_match_200_hd_full_bins_{i}_bump_search_cathode_{i}' for i in
+    #                range(72)]
+
+    # # This is restricted sidebands, everything trained with same raw counts as idealised
+    # directories = [f'ot_fig7_200_OT_fig7_200_{i}_C_F7_match_idealised_{i}' for i in range(0, 8)] + \
+    #               [f'super_class_200_super_class_200_{i}' for i in range(0, 12)] + \
+    #               [f'ideal_class_200_ideal_class_200_{i}' for i in range(0, 12)] + \
+    #               [f'ot_fig7_200_hd_OT_fig7_200_hd_{i}_fig_6_hd_match_idealised_{i}' for i in range(0, 4)] + \
+    #               [
+    #                   f'CATHODE_match_200_hd_full_bins_CATHODE_match_200_hd_full_bins_{i}_bump_search_cathode_match_idealised_{i}'
+    #                   for i in range(72)]
+
+    # # This is unrestricted sidebands, everything trained with same raw counts as idealised and no oversampling
+    # directories = [f'ot_fig7_200_OT_fig7_200_{i}_C_F7_match_idealised_true_{i}' for i in range(0, 8)] + \
+    #               [f'super_class_200_super_class_200_{i}' for i in range(0, 12)] + \
+    #               [f'ideal_class_200_ideal_class_200_{i}' for i in range(0, 12)] + \
+    #               [f'ot_fig7_200_hd_OT_fig7_200_hd_{i}_fig_6_hd_match_idealised_true_{i}' for i in range(0, 4)] + \
+    #               [
+    #                   f'CATHODE_match_200_hd_full_bins_CATHODE_match_200_hd_full_bins_{i}_bump_search_cathode_match_idealised_true_{i}'
+    #                   for i in range(72)]
+    # names = ['Curtains'] * 8 + ['Supervised'] * 12 + ['Idealised'] * 12 + ['Curtains'] * 4 + ['Cathode'] * 72
+
+    # This is 400 GeV windows
+    directories = [f'ot_fig7_400_OT_fig7_400_{i}_fig_499_OT_true_{i}' for i in range(0, 12)] + \
+                  [f'super_class_400_super_class_400_{i}' for i in range(0, 12)] + \
+                  [f'ideal_class_400_ideal_class_400_{i}' for i in range(0, 12)] + \
+                  [
+                      f'CATHODE_match_200_hd_full_bins_CATHODE_match_200_hd_full_bins_{i}_bump_search_cathode_match_idealised_true_{i}'
+                      for i in range(72)]
+    names = ['Curtains'] * 12 + ['Supervised'] * 12 + ['Idealised'] * 12 + ['Cathode'] * 72
+    # filename = 'fig_6_7_400'
+    filename = 'fig_6_7_400_cathode_versions_less'
     fig_6_doping = '3000'
-    # # TODO: split the last set of jobs in the above into the finer subbands
+
+    # # This is 400 GeV windows additional statistics
+    # cathode_jobs = [24, 26, 28, 30, 32, 34, 36, 38, 40, 42, 44, 46]
+    # directories = [f'ot_fig7_400_OT_fig7_400_{i}_fig_499_OT_more_{i}' for i in range(0, 12)] + \
+    #               [f'super_class_400_more_super_class_400_more_{i}' for i in range(0, 12)] + \
+    #               [f'ideal_class_400_ideal_class_400_{i}' for i in range(0, 12)] + \
+    #               [
+    #                   f'CATHODE_match_200_hd_full_bins_CATHODE_match_200_hd_full_bins_{i}_cathode_idealised_more_{j}'
+    #                   for i, j in zip(cathode_jobs, range(len(cathode_jobs)))]
+    # names = ['Curtains'] * 12 + ['Supervised'] * 12 + ['Idealised'] * 12 + ['Cathode'] * len(cathode_jobs)
+    # # filename = 'fig_6_7_400'
+    # filename = 'fig_6_7_400_cathode_versions'
+    # fig_6_doping = '3000'
+
+    # # This is the Cathode comparisons plot, including full and restricted sidebands
+    # directories = [f'ot_fig7_400_OT_fig7_400_{i}_fig_499_OT_true_{i}' for i in range(0, 12)] + \
+    #               [f'cathode_test_cathode_test_f_{i}_bs_c_check_proper_{i}' for i in range(2)]
+    # names = ['Curtains'] * 12 + ['Cathode_full', 'Cathode']
+    # # filename = 'fig_6_7_400'
+    # filename = 'fig_6_cathode'
+    # fig_6_doping = '3000'
+    # add_dashes = False
+
+    # # This is the Cathode comparisons plot, including full and restricted sidebands, with more stats
+    # directories = [f'ot_fig7_400_OT_fig7_400_{i}_fig_499_OT_more_{i}' for i in range(0, 12)] + \
+    #               [f'cathode_test_cathode_test_f_{i}_bs_c_more_{i}' for i in range(2)]
+    # names = ['Curtains'] * 12 + ['Cathode_full', 'Cathode']
+    # # filename = 'fig_6_7_400'
+    # filename = 'fig_6_cathode_more'
+    # fig_6_doping = '3000'
+    # add_dashes = False
 
     # This is full sidebands, TODO 1 here will give you the same features as CATHODE used
     # directories = ['curtains_match_200_CURTAINS_match_200_0'] + \
@@ -716,6 +1146,10 @@ def figs_six_and_seven():
     plot_individual_lines = False
     quart = 0
     x_axis_rejection = 1
+    # max_ax_six_1 = 12007
+    max_ax_six_1 = 24268.4
+    # max_ax_six_1 = 12134.4
+    min_ax_six_1 = 12134.4
 
     if reload:
         # Gather saved quantities
@@ -729,7 +1163,7 @@ def figs_six_and_seven():
                 with open(f'{sv_dir}/images/{directory}/rates.pkl', 'rb') as f:
                     the_dict = pickle.load(f)[0]
                 # Separate out the fpr and tpr from the dictionary
-                the_dict.pop('random', None)
+                the_dict.pop('Random', None)
                 fpr_l, tpr_l = [], []
                 for f, t in the_dict.values():
                     fpr_l += [f]
@@ -742,11 +1176,21 @@ def figs_six_and_seven():
             if passed:
                 args = get_args(f'{sv_dir}/images/{directory}')
                 # TODO: a better way of handling this, this is here just to catch CATHODE jobs on the full widths
-                if (args['bins'] in ['2300,3200,3400,3600,3800,4000', '3000,3200,3400,3600,3800,4000']) and \
-                        (args['feature_type'] == 3):
+                # if (args['bins'] in ['2300,3200,3400,3600,3800,4000', '3000,3200,3400,3600,3800,4000']) and \
+                #         (args['feature_type'] == 3):
+                what_youre_after = 0
+                if (args['feature_type'] == 3) and (
+                        args['bins'] in ['2900,3100,3300,3700,3900,4100',
+                                         '3000,3200,3300,3700,3800,4000',
+                                         '2700,3100,3300,3700,3900,4300']):
+                    what_youre_after = 1
+                # what_youre_after = args['feature_type'] == 3
+                # if names[i] in ['Curtains', 'Cathode']:
+                #     if not args['bins'] == '2700,2710,3300,3700,4990,5000':
+                #         what_youre_after = 0
+                if what_youre_after:
                     label = f'{args["doping"]}'
-                    if label == '1000':
-                        print(directory)
+                    print(directory)
                     vals[label] += [[names[i], tpr_l, fpr_l]]
 
             with open(f'{sv_dir}/images/{filename}.pkl', 'wb') as f:
@@ -759,9 +1203,9 @@ def figs_six_and_seven():
     fig_six, ax_six = plt.subplots(1, 2, figsize=(14, 5))
     # We make this figure for this doping level
     data = deepcopy(vals[fig_6_doping])
-    data += [['random', [np.linspace(0, 1, 10000)], [np.linspace(0, 1, 10000)]]]
+    data += [['Random', [np.linspace(0, 1, 100000)], [np.linspace(0, 1, 100000)]]]
     max_sic = 20
-    clrs = {'Curtains': 'r', 'Cathode': 'b', 'Idealised': 'g', 'Supervised': 'k', 'CATHODE_full': 'y'}
+    clrs = label_to_color
     for lst in data:
         label = lst[0]
         fpr_list = lst[2]
@@ -771,7 +1215,7 @@ def figs_six_and_seven():
             fpr_mx = fpr != 0.
             fpr_nz = fpr[fpr_mx]
             tpr_nz = tpr[fpr_mx]
-            if label == 'random':
+            if label == 'Random':
                 line = '--'
                 color = 'k'
                 alpha = 0.8
@@ -799,7 +1243,7 @@ def figs_six_and_seven():
             # ax_six[1].set_xscale('log')
             # ax_six[0].plot(tpr_nz, data['rejection'][-1], linewidth=2, label=label, linestyle=line, color=color,
             #                alpha=alpha)
-        if label != 'random':
+        if label != 'Random':
 
             def make_axis(name):
                 mtp = np.concatenate(data[name])
@@ -810,7 +1254,11 @@ def figs_six_and_seven():
 
             if x_axis_rejection:
                 # ax_six_1 = make_axis('rejection')
-                ax_six_1 = np.linspace(1, 12007, 1000)
+                # ax_six_1 = np.linspace(1, max_ax_six_1, 1000)
+                if label in ['Cathode', 'Curtains']:
+                    ax_six_1 = np.linspace(1, min_ax_six_1, 1000)
+                else:
+                    ax_six_1 = np.linspace(1, max_ax_six_1, 1000)
                 ax_six[1].set_xscale('log')
             else:
                 ax_six_1 = ax_six_0
@@ -831,9 +1279,20 @@ def figs_six_and_seven():
                 mean_rej = reggie.mean(0)
 
             print(max(mean_rej))
-            ax_six[1].plot(ax_six_1, mean_sic, linewidth=2, label=label, linestyle=line, color=color)
-            ax_six[0].plot(ax_six_0, mean_rej, linewidth=2, label=label, linestyle=line, color=color)
-            if not plot_individual_lines:
+            if add_dashes:
+                if label == 'Cathode':
+                    if np.max(mean_sic) > 11:
+                        line = '--'
+                if label == 'Curtains':
+                    if mean_sic[300] > 13:
+                        line = '--'
+            is_full = label.split('_')[-1] == 'full'
+            if is_full:
+                line = '--'
+
+            ax_six[1].plot(ax_six_1, mean_sic, linewidth=2, label=label_to_name[label], linestyle=line, color=color)
+            ax_six[0].plot(ax_six_0, mean_rej, linewidth=2, label=label_to_name[label], linestyle=line, color=color)
+            if (not plot_individual_lines) and (not add_dashes):
                 def add_band(data, x_axis, mean, ax):
                     if quart:
                         lb = np.quantile(data, 0.16, axis=0)
@@ -844,15 +1303,22 @@ def figs_six_and_seven():
                         # ub = mean + error
                         lb = np.quantile(data, 0.16, axis=0)
                         ub = np.quantile(data, 0.84, axis=0)
-                    ax.fill_between(x_axis, lb, ub, alpha=alpha, linewidth=2, linestyle=line, color=color)
+                    if is_full:
+                        ax.fill_between(x_axis, lb, ub, alpha=alpha, linewidth=2, linestyle=line, color=color,
+                                        hatch="///////")
+                    else:
+                        ax.fill_between(x_axis, lb, ub, alpha=alpha, linewidth=2, linestyle=line, color=color)
 
                 add_band(host, ax_six_1, mean_sic, ax_six[1])
                 add_band(reggie, ax_six_0, mean_rej, ax_six[0])
         else:
-            ax_six[1].plot(x_axis, sic, linewidth=2, linestyle=line, color=color, alpha=alpha)
-            ax_six[0].plot(tpr_nz, rejection, linewidth=2, linestyle=line, color=color, alpha=alpha)
+            ax_six[1].plot(x_axis, sic, linewidth=2, linestyle=line, color=color, alpha=alpha, label='Random')
+            mnx = rejection < max_ax_six_1
+            ax_six[0].plot(tpr_nz[mnx], rejection[mnx], linewidth=2, linestyle=line, color=color,
+                           alpha=alpha, label='Random')
 
         ax_six[1].set_ylim(0, max_sic)
+        ax_six[1].set_xlim(1, min_ax_six_1)
 
     if x_axis_rejection:
         ax_six[1].set_xlabel('Rejection')
@@ -868,8 +1334,8 @@ def figs_six_and_seven():
     unique = [(h, l) for i, (h, l) in enumerate(zip(handles, labels)) if l not in labels[:i]]
     # fig_six.legend(*zip(*unique), loc='upper left', bbox_to_anchor=(0.9, 0.89), frameon=False)
     ax_six[0].legend(*zip(*unique), loc='upper right', frameon=False)
-    ax_six[1].legend(*zip(*unique), loc='upper right', frameon=False)
-    fig_six.savefig(f'{sv_dir}/images/figure_six.png', bbox_inches='tight')
+    ax_six[1].legend(*zip(*unique), loc='upper left', frameon=False)
+    fig_six.savefig(f'{sv_dir}/images/figure_six.pdf', bbox_inches='tight')
     fig_six.clf()
     print('Fig 6 done.')
 
@@ -887,8 +1353,12 @@ def figs_six_and_seven():
     # doping_dict = {'8000': 4.80, '6000': 3.60, '4000': 2.40, '3000': 1.80, '1000': 0.60, '667': 0.40, '500': 0.30,
     #                '333': 0.20, '250': 0.15, '100': 0.10, '50': 0.05, '0': 0}
     # These counts are for the raw counts
-    doping_dict = {'8000': 1784, '6000': 1338, '4000': 892, '3000': 669, '1000': 223, '667': 149, '500': 112,
-                   '333': 75, '250': 56, '100': 23, '50': 12, '0': 0}
+    n_1000 = 369
+    n_bg = 60000
+    doping_dict = {'8000': int(n_1000 * 8), '6000': int(n_1000 * 6), '4000': int(n_1000 * 4),
+                   '3000': int(n_1000 * 3), '1000': 369, '667': int(n_1000 * 0.66666666), '500': int(n_1000 * 0.5),
+                   '333': int(n_1000 * 0.33333333), '250': int(n_1000 * 0.25),
+                   '100': int(n_1000 * 0.1), '50': int(n_1000 * 0.05), '0': 0}
 
     central_line = defaultdict(lambda: defaultdict(list))
     for j in range(n_runs):
@@ -926,7 +1396,7 @@ def figs_six_and_seven():
             # if (label == '3000') and (nm == 'Curtains'):
             #     ff, aa = plt.subplots()
             #     aa.plot(tpr_fit, mean_sic)
-            #     ff.savefig('test.png')
+            #     ff.savefig('test.pdf')
 
     alpha = 0.1
 
@@ -935,31 +1405,261 @@ def figs_six_and_seven():
         sorted_inds = np.argsort(model['x'])
         for key in model.keys():
             model[key] = np.array(model[key])[sorted_inds]
-        ax.plot(model['x'], model['mean'], linewidth=2, label=model_nm, color=clrs[model_nm])
+        ax.plot(model['x'], model['mean'], linewidth=2, label=label_to_name[model_nm], color=clrs[model_nm])
         ax.fill_between(model['x'], model['lb'], model['ub'], alpha=alpha, linewidth=2,
                         color=clrs[model_nm])
 
-    # ax.set_xlabel('S / B')
-    ax.set_xlabel('Number signal events')
-    ax.set_ylabel('Maximum significance improvement')
-    # dvs = sorted(list(doping_dict.values()))
-    # ax.set_xticks(dvs)
-    # pad = 0.05
-    # ax.set_xlim(dvs[-1] + pad, dvs[0] - pad)
-    ax.set_xticks(list(doping_dict.values()))
-    ax.set_xlim(1800, 90)
-    ax.set_yticks([1, 5, 10, 15, 20])
-    ax.set_ylim(0.95, 25)
+    ax.set_xlabel(r'Number signal events', labelpad=10)
+    ax.set_ylabel(r'Maximum significance improvement')
     ax.set_xscale('log')
-    # ax.set_yscale('log')
+    ldd = list(doping_dict.values())
+    ax.set_xticks(ldd)
+    ax.set_xticklabels(ldd)
+    # ax.set_xlim(1800, 90)
+    ax.set_xlim(int(n_1000 * 8), int(n_1000 * 0.5))
+    ax.xaxis.tick_top()
+    ax.xaxis.set_label_position('top')
 
-    fig.legend(loc='upper left', bbox_to_anchor=(0.9, 0.89), frameon=False)
-    fig.savefig(f'{sv_dir}/images/fig_7.png', bbox_inches='tight')
+    ax.set_yticks([1, 5, 10, 15, 20, 25])
+    ax.set_ylim(0.95, 30)
+
+    def count_to_percent(x):
+        return x / n_bg * 100
+
+    def percent_to_count(x):
+        return x / 100 * n_bg
+
+    secax = ax.secondary_xaxis('bottom', functions=(count_to_percent, percent_to_count))
+    # secax.set_xlabel('S / B %')
+    secax.set_xlabel(r'${}^{S}\!/_{B} \%$', fontsize=12)
+    # secax.set_xlabel('{}^{S}\!/_{B}')
+    ticks = count_to_percent(np.array(list(doping_dict.values())))
+    secax.set_xticks(ticks)
+    ticks = [f'{t:.2f}' for t in ticks]
+    secax.set_xticklabels(ticks)
+    secax.minorticks_off()
+
+    # ax.set_yscale('log')
+    plt.minorticks_off()
+    # fig.legend(frameon=False, borderaxespad=4)
+    ax.legend(frameon=False, loc='upper right')
+    # fig.savefig(f'{sv_dir}/images/fig_7.pdf', bbox_inches='tight')
+    fig.savefig(f'{sv_dir}/images/fig_7.pdf', bbox_inches='tight')
     fig.clf()
 
 
+def figs_oversampling():
+    sv_dir = get_top_dir()
+    fig_6_doping = '1000'
+    add_dashes = False
+
+    # This is the Curtains oversampling
+    directories = []
+    c = 0
+    for idf in [7, 8, 11]:
+        directories += [f'ot_fig7_400_OT_fig7_400_{idf}_fig_400_os_{i}' for i in range(c, c + 9)]
+        c += 9
+    directories += [f'ideal_class_400_ideal_class_400_{i}' for i in range(0, 12)]
+    names = [None] * 27 + ['Idealised'] * 12
+    filename = 'oversampling_tests'
+    fig_6_doping = '3000'
+    os_to_take = [1, 2, 3, 4, 9]
+    os_to_take = [f'{o * 60000}' for o in os_to_take] + ['Idealised']
+
+    reload = 0
+    plot_individual_lines = False
+    quart = 0
+    x_axis_rejection = 1
+    # max_ax_six_1 = 12007
+    max_ax_six_1 = 24268.4
+    # max_ax_six_1 = 12134.4
+    min_ax_six_1 = 12134.4
+
+    if reload:
+        # Gather saved quantities
+        vals = defaultdict(list)
+        for i, directory in enumerate(directories):
+            try:
+                # with open(f'{sv_dir}/images/{directory}/tpr_cathode.pkl', 'rb') as f:
+                #     tpr_l = pickle.load(f)
+                # with open(f'{sv_dir}/images/{directory}/fpr_cathode.npy', 'rb') as f:
+                #     fpr_l = pickle.load(f)
+                with open(f'{sv_dir}/images/{directory}/rates.pkl', 'rb') as f:
+                    the_dict = pickle.load(f)[0]
+                # Separate out the fpr and tpr from the dictionary
+                the_dict.pop('Random', None)
+                fpr_l, tpr_l = [], []
+                for f, t in the_dict.values():
+                    fpr_l += [f]
+                    tpr_l += [t]
+                passed = 1
+            except Exception as e:
+                print(e)
+                passed = 0
+
+            if passed:
+                args = get_args(f'{sv_dir}/images/{directory}')
+                label = f'{args["doping"]}'
+                if names[i] is not None:
+                    oversample = names[i]
+                else:
+                    oversample = f'{args["nx_bg_template"]}'
+                vals[label] += [[oversample, tpr_l, fpr_l]]
+
+            with open(f'{sv_dir}/images/{filename}.pkl', 'wb') as f:
+                pickle.dump(vals, f)
+    else:
+        with open(f'{sv_dir}/images/{filename}.pkl', 'rb') as f:
+            vals = pickle.load(f)
+
+    # Plot fig 6
+    fig_six, ax_six = plt.subplots(1, 2, figsize=(14, 5))
+    # We make this figure for this doping level
+    data = deepcopy(vals[fig_6_doping])
+    data += [['Random', [np.linspace(0, 1, 100000)], [np.linspace(0, 1, 100000)]]]
+    max_sic = 20
+    viridis = cm.get_cmap('viridis', 9)
+    clrs = {f'{i * 60000}': viridis(i / 9) for i in range(1, 10)}
+    clrs['Idealised'] = label_to_color['Idealised']
+    for lst in data:
+        label = lst[0]
+        if label in os_to_take:
+            fpr_list = lst[2]
+            tpr_list = lst[1]
+            data = defaultdict(list)
+            for tpr, fpr in zip(tpr_list, fpr_list):
+                fpr_mx = fpr != 0.
+                fpr_nz = fpr[fpr_mx]
+                tpr_nz = tpr[fpr_mx]
+                if label == 'Random':
+                    line = '--'
+                    color = 'k'
+                    alpha = 0.8
+                else:
+                    line = '-'
+                    color = clrs[label]
+                    alpha = 0.1
+                sic = tpr_nz / fpr_nz ** 0.5
+                data['sic'] += [tpr_nz / fpr_nz ** 0.5]
+                data['tpr'] += [tpr_nz]
+                rejection = 1 / fpr_nz
+                data['rejection'] += [rejection]
+                if x_axis_rejection:
+                    x_axis = rejection
+                else:
+                    x_axis = tpr_nz
+                # Non-unique x-axis values must be masked out to avoid issues with the interpolation
+                _, indx = np.unique(x_axis, return_index=True)
+                data['interp_sic'] += [interp1d(x_axis[indx], sic[indx], fill_value="extrapolate")]
+                data['interp_rejection'] += [interp1d(tpr_nz, rejection, fill_value="extrapolate")]
+                if plot_individual_lines:
+                    ax_six[1].plot(x_axis, sic, linewidth=2, linestyle=line, color=color, alpha=alpha)
+                    ax_six[0].plot(tpr_nz, rejection, linewidth=2, linestyle=line, color=color, alpha=alpha)
+                # ax_six[1].plot(fpr_nz, sic, linewidth=2, label=label, linestyle=line, color=color, alpha=alpha)
+                # ax_six[1].set_xscale('log')
+                # ax_six[0].plot(tpr_nz, data['rejection'][-1], linewidth=2, label=label, linestyle=line, color=color,
+                #                alpha=alpha)
+            if label != 'Random':
+
+                def make_axis(name):
+                    mtp = np.concatenate(data[name])
+                    min_tpr, max_tpr = mtp.min(), mtp.max()
+                    return np.linspace(min_tpr, max_tpr, 1000)
+
+                ax_six_0 = make_axis('tpr')
+
+                if x_axis_rejection:
+                    # ax_six_1 = make_axis('rejection')
+                    # ax_six_1 = np.linspace(1, max_ax_six_1, 1000)
+                    if label in ['Cathode', 'Curtains']:
+                        ax_six_1 = np.linspace(1, min_ax_six_1, 1000)
+                    else:
+                        ax_six_1 = np.linspace(1, max_ax_six_1, 1000)
+                    ax_six[1].set_xscale('log')
+                else:
+                    ax_six_1 = ax_six_0
+
+                host = []
+                reggie = []
+                for sic_func, rej_func in zip(data['interp_sic'], data['interp_rejection']):
+                    host += [sic_func(ax_six_1)]
+                    reggie += [rej_func(ax_six_0)]
+                host = np.vstack(host)
+                reggie = np.vstack(reggie)
+
+                if quart:
+                    mean_sic = np.median(host, 0)
+                    mean_rej = np.median(reggie, 0)
+                else:
+                    mean_sic = host.mean(0)
+                    mean_rej = reggie.mean(0)
+
+                print(max(mean_rej))
+                if add_dashes:
+                    if label == 'Cathode':
+                        if np.max(mean_sic) > 11:
+                            line = '--'
+                    if label == 'Curtains':
+                        if mean_sic[300] > 13:
+                            line = '--'
+                is_full = label.split('_')[-1] == 'full'
+                if is_full:
+                    line = '--'
+
+                ax_six[1].plot(ax_six_1, mean_sic, linewidth=2, label=label, linestyle=line, color=color)
+                ax_six[0].plot(ax_six_0, mean_rej, linewidth=2, label=label, linestyle=line, color=color)
+                if (not plot_individual_lines) and (not add_dashes):
+                    def add_band(data, x_axis, mean, ax):
+                        if quart:
+                            lb = np.quantile(data, 0.16, axis=0)
+                            ub = np.quantile(data, 0.84, axis=0)
+                        else:
+                            # error = data.std(0)
+                            # lb = mean - error
+                            # ub = mean + error
+                            lb = np.quantile(data, 0.16, axis=0)
+                            ub = np.quantile(data, 0.84, axis=0)
+                        if is_full:
+                            ax.fill_between(x_axis, lb, ub, alpha=alpha, linewidth=2, linestyle=line, color=color,
+                                            hatch="///////")
+                        else:
+                            ax.fill_between(x_axis, lb, ub, alpha=alpha, linewidth=2, linestyle=line, color=color)
+
+                    add_band(host, ax_six_1, mean_sic, ax_six[1])
+                    add_band(reggie, ax_six_0, mean_rej, ax_six[0])
+            else:
+                ax_six[1].plot(x_axis, sic, linewidth=2, linestyle=line, color=color, alpha=alpha, label='Random')
+                mnx = rejection < max_ax_six_1
+                ax_six[0].plot(tpr_nz[mnx], rejection[mnx], linewidth=2, linestyle=line, color=color,
+                               alpha=alpha, label='Random')
+
+            ax_six[1].set_ylim(0, max_sic)
+            ax_six[1].set_xlim(1, min_ax_six_1)
+
+    if x_axis_rejection:
+        ax_six[1].set_xlabel('Rejection')
+    else:
+        ax_six[1].set_xlabel('Signal efficiency')
+    ax_six[1].set_ylabel('Significance improvement')
+    ax_six[0].set_xlabel('Signal efficiency')
+    ax_six[0].set_ylabel('Rejection (1 / false positive rate)')
+    ax_six[0].set_yscale('log')
+    # ax_six[1].set_xscale('log')
+
+    handles, labels = ax_six[0].get_legend_handles_labels()
+    unique = [(h, l) for i, (h, l) in enumerate(zip(handles, labels)) if l not in labels[:i]]
+    # fig_six.legend(*zip(*unique), loc='upper left', bbox_to_anchor=(0.9, 0.89), frameon=False)
+    ax_six[0].legend(*zip(*unique), loc='upper right', frameon=False)
+    ax_six[1].legend(*zip(*unique), loc='upper left', frameon=False)
+    fig_six.savefig(f'{sv_dir}/images/oversampling.pdf', bbox_inches='tight')
+    fig_six.clf()
+    print('Fig 6 done.')
+
+
 if __name__ == '__main__':
-    get_counts()
+    # get_counts()
     # figs_six_and_seven()
+    # figs_oversampling()
     # get_sics()
     # get_max_sic()
+    plot_counts_()
