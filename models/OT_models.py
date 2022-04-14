@@ -3,7 +3,8 @@ from .base_model import base_model
 
 
 class curtains_transformer(base_model):
-    def __init__(self, INN, device, exp_name, dist_measure, nfeatures, dir='INN_test', det_beta=0, direction=0, **kwargs):
+    def __init__(self, INN, device, exp_name, dist_measure, nfeatures, dir='INN_test', det_beta=0, direction=0,
+                 **kwargs):
         # nfeatures that we want to learn, plus the context feature
         self.take = nfeatures + 1
         self.det_beta = det_beta
@@ -70,24 +71,6 @@ class delta_mass_curtains_transformer(curtains_transformer):
 
     def inverse_transform_to_mass(self, features, lm, hm):
         return self.transformer.inverse(features, context=torch.cat((lm, hm), 1))
-
-    # TODO: this ie) negative delta trainings
-    # def compute_loss(self, data, batch_size):
-    #     # The data is passed with concatenated pairs of low mass and high mass features
-    #     # The first #self.take are the low mass samples (dl = data low)
-    #     dl = data[:, :self.take]
-    #     # The next #self.take are the high mass samples (dl = data low)
-    #     dh = data[:, self.take:]
-    #     # This returns the transformation we are after
-    #     transformed = self.transform_to_data(dl, dh)
-    #     # TODO: train with this
-    #     transformed = self.transform_to_data(dh, dl)
-    #     # Drop the mass feature from the high mass sample
-    #     high_mass_features = dh[:, :-1]
-    #     # Calculate the distance between the transformation and the high mass
-    #     dists = self.dist_measure(transformed, high_mass_features)
-    #     self.set_loss_dict([dists])
-    #     return self.loss_dict[self.loss_names[0]]
 
 
 class tucan(curtains_transformer):

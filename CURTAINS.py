@@ -178,14 +178,14 @@ if args.coupling:
 else:
     INN = spline_flow(inp_dim, args.nodes, num_blocks=args.nblocks, nstack=args.nstack, tail_bound=tail_bound,
                       tails=tails, activation=hyperparams.activations[args.activ], num_bins=args.nbins,
-                      context_features=args.ncond, curtains_transformer=True)
+                      context_features=args.ncond)
 
 # Build model
 if args.two_way == 1:
     if args.ncond == 2:
-        transformer = delta_mass_tucan  # tucan
+        transformer = delta_mass_tucan
     else:
-        transformer = delta_tucan  # tucan
+        transformer = delta_tucan
 else:
     if args.ncond == 2:
         transformer = delta_mass_curtains_transformer
@@ -242,7 +242,7 @@ else:
 classifier_args = {'false_signal': 0, 'batch_size': 128, 'nepochs': args.classifier_epochs,
                    'lr': 0.001, 'pure_noise': 0, 'beta_add_noise': args.beta_add_noise, 'drp': 0.0,
                    'normalize': True, 'data_unscaler': datasets.signalset.unnormalize, 'width': 32,
-                   'n_run': args.c_nruns, 'use_scheduler': True}
+                   'use_scheduler': True}
 
 # Generate test data and preprocess etc
 post_process_curtains(curtain_runner, datasets, sup_title='NSF', signal_anomalies=signal_anomalies,

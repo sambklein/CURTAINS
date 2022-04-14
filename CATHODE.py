@@ -205,7 +205,7 @@ else:
 classifier_args = {'false_signal': 0, 'batch_size': 128, 'nepochs': args.classifier_epochs,
                    'lr': 0.001, 'pure_noise': 0, 'beta_add_noise': args.beta_add_noise, 'drp': 0.0,
                    'normalize': True, 'data_unscaler': datasets.signalset.unnormalize, 'width': 32,
-                   'n_run': args.c_nruns, 'use_scheduler': True}
+                   'use_scheduler': True}
 
 # Generate test data and preprocess etc
 post_process_curtains(cathode, datasets, sup_title='NSF', signal_anomalies=signal_anomalies,

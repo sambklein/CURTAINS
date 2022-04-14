@@ -318,11 +318,9 @@ def get_datasets(train_index, valid_index, eval_index, false_signal, X, y, beta_
 
 def run_classifiers(bg_template, sr_samples, directory, name, anomaly_data=None, bg_truth_labels=None, mass_incl=True,
                     sup_title='', load=False, return_rates=False, false_signal=1, normalize=True, batch_size=1000,
-                    nepochs=100,
-                    lr=0.0001, wd=0.001, drp=0.0, width=32, depth=3, batch_norm=False, layer_norm=False,
-                    use_scheduler=True,
-                    use_weights=True, thresholds=None, beta_add_noise=0.1, pure_noise=False, nfolds=5,
-                    data_unscaler=None, cf_activ='relu'):
+                    nepochs=100, lr=0.0001, wd=0.001, drp=0.0, width=32, depth=3, batch_norm=False,
+                    layer_norm=False, use_scheduler=True, use_weights=True, thresholds=None, beta_add_noise=0.1,
+                    pure_noise=False, nfolds=5, data_unscaler=None, cf_activ='relu'):
     """
     bg_truth_labels 0 = known anomaly, 1 = known background, -1 = unknown/sampled/transformed sample
     """
