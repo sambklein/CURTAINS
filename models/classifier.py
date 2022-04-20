@@ -75,7 +75,7 @@ class Classifier(nn.Module):
             x = round(x, nsf - (int(np.floor(np.log10(abs(x)))) - 1))
         return x
 
-    def get_loss_state(self, nsf=10): 
+    def get_loss_state(self, nsf=10):
         return {self.loss_name: self.round_sf(self.loss.item(), nsf)}
 
     # Useful when making predictions that would ordinarily go out of memory
