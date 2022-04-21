@@ -1,15 +1,15 @@
 # CURTAINS
 
-This repository contains the code used to run the experiments in the paper [Curtains for your sliding window](https://arxiv.org/abs/2203.09470).
+This repository contains the code used to run the experiments in the paper:
+
+> CURTAINs for your Sliding Window: Constructing Unobserved Regions by Transforming Adjacent Intervals by John Andrew Raine, Samuel Klein, Debajyoti Sengupta, Tobias Golling [\[arxiv\]](https://arxiv.org/abs/2203.09470).
 
 ## Dependencies
-The recipe for building the container that was used to run these experiments can be found in ```docker```.
-
-[//]: # (TODO add container)
+The recipe for building the container that was used to run these experiments can be found in the ```docker``` directory.
 
 ## Usage
 
-The main driving script for training Curtains models is ```CURTAINS.py```, multiple runs over different classifiers is handled by ```run_classifiers.py```. Cathode models are trained with ```CATHODE.py```.
+The main driving script for training a Curtains model is ```CURTAINS.py```, multiple runs over different classifiers is handled by ```run_classifiers.py```. Cathode models are trained with ```CATHODE.py```.
 
 ## Data
 To download the data run the following commands.
