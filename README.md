@@ -2,7 +2,8 @@
 
 This repository contains the code used to run the experiments in the paper:
 
-> CURTAINs for your Sliding Window: Constructing Unobserved Regions by Transforming Adjacent Intervals by John Andrew Raine, Samuel Klein, Debajyoti Sengupta, Tobias Golling [\[arxiv\]](https://arxiv.org/abs/2203.09470).
+> CURTAINs for your Sliding Window: Constructing Unobserved Regions by Transforming Adjacent Intervals 
+> by John Andrew Raine, Samuel Klein, Debajyoti Sengupta, Tobias Golling [\[arxiv\]](https://arxiv.org/abs/2203.09470).
 
 ## Dependencies
 The recipe for building the container that was used to run these experiments can be found in the ```docker``` directory.
