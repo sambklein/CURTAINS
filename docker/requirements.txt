@@ -1,0 +1,13 @@
+scikit-learn
+pandas
+h5py
+numpy
+seaborn
+scipy
+nflows
+geomloss
+tensorboardX
+jupyter
+tables
+zfit
+wandb
